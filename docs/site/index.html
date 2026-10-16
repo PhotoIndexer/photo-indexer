@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title data-i18n="meta.title">PhotoIDX — todas as suas fotos num só catálogo, organizadas pela IA</title>
+  <meta name="description" data-i18n-content="meta.description" content="Catálogo de fotos livre para Windows, macOS e Linux: indexa pastas locais, USB e de rede (inclusive RAW), guarda o EXIF completo, categoriza com IA local, reconhece pessoas, acha lugares pelo GPS e busca por texto, por IA ou pelo rosto. Offline, sem alterar os originais.">
+  <link rel="icon" type="image/png" href="assets/favicon.png?ts=%BUILD_TS%">
+  <link rel="shortcut icon" href="assets/favicon.ico?ts=%BUILD_TS%">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="PhotoIDX — todas as suas fotos num só catálogo">
+  <meta property="og:description" content="Indexe discos locais, USB e de rede; a IA local organiza por categorias, pessoas e lugares. Livre, offline, para Windows, macOS e Linux.">
+  <meta property="og:image" content="assets/screens/library.jpg?ts=%BUILD_TS%">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?ts=%BUILD_TS%">
+</head>
+<body>
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="container">
+      <div class="topbar__meta">
+        <span><i class="topbar__dot" aria-hidden="true"></i><span class="hide-sm" data-i18n="top.license">Livre e de código aberto · licença BSD 2-Clause</span></span>
+      </div>
+      <div class="topbar__meta">
+        <select data-lang-select aria-label="Idioma" data-i18n-aria="top.language">
+          <option value="pt-br">Português (Brasil)</option>
+          <option value="en">English</option>
+        </select>
+        <a href="https://github.com/helviojunior/photo-indexer" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="site-header">
+    <div class="container">
+      <nav class="nav" aria-label="Principal">
+        <a class="brand" href="#">
+          <img src="assets/logo/photoidx-dark.png?ts=%BUILD_TS%" alt="PhotoIDX">
+        </a>
+        <ul class="nav__menu">
+          <li><a href="#recursos" data-i18n="nav.features">Recursos</a></li>
+          <li><a href="#biblioteca" data-i18n="nav.library">Biblioteca</a></li>
+          <li><a href="#pessoas" data-i18n="nav.people">Pessoas</a></li>
+          <li><a href="#busca" data-i18n="nav.search">Busca</a></li>
+          <li><a href="#tarefas" data-i18n="nav.tasks">Tarefas</a></li>
+          <li><a href="#download" data-i18n="nav.download">Download</a></li>
+        </ul>
+        <div class="nav__cta">
+          <a href="#download" class="btn btn--primary btn--sm" data-i18n="nav.cta">Baixar grátis</a>
+          <button class="nav__toggle" aria-label="Abrir menu" data-i18n-aria="nav.menu" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+          </button>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero__inner">
+        <div>
+          <span class="eyebrow" data-i18n="hero.eyebrow">Windows · macOS · Linux</span>
+          <h1 data-i18n-html="hero.title">Todas as suas fotos, <span class="grad">num só catálogo.</span></h1>
+          <p class="hero__lead" data-i18n-html="hero.lead">O <strong>PhotoIDX</strong> indexa as pastas que você escolher — no disco do computador, num HD externo ou num compartilhamento de rede — e organiza tudo sozinho: datas, lugares, categorias e pessoas, com IA que roda no seu computador. Suas fotos nunca são alteradas.</p>
+          <div class="hero__actions">
+            <a href="#download" class="btn btn--primary">
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+              <span data-i18n="hero.download">Baixar o PhotoIDX</span>
+            </a>
+            <a href="#recursos" class="btn btn--ghost" data-i18n="hero.features">Conhecer os recursos</a>
+          </div>
+          <div class="hero__badges">
+            <div><b>100%</b><span data-i18n="hero.badge.offline">offline, IA no seu computador</span></div>
+            <div><b>RAW</b><span data-i18n="hero.badge.raw">de Canon, Nikon, Sony, Fuji…</span></div>
+            <div><b>0</b><span data-i18n="hero.badge.originals">originais alterados</span></div>
+          </div>
+        </div>
+
+        <div class="window">
+          <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+          <img src="assets/screens/categories.jpg?ts=%BUILD_TS%" width="1440" height="900"
+               alt="Biblioteca com o painel de categorias criadas pela IA e a grade de miniaturas"
+               data-i18n-alt="shots.categories" data-zoom>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Fluxo -->
+  <section class="section section--alt">
+    <div class="container">
+      <div class="section__head section__head--center">
+        <span class="eyebrow" data-i18n="flow.eyebrow">Como funciona</span>
+        <h2 data-i18n="flow.title">Do disco esquecido ao catálogo organizado, em quatro passos</h2>
+        <p data-i18n="flow.subtitle">Um catálogo só, para todas as fotos da sua vida. Nada de importar, copiar ou subir para a nuvem.</p>
+      </div>
+      <div class="flow">
+        <div class="flow__step reveal">
+          <h3 data-i18n="flow.s1.title">Adicione as pastas</h3>
+          <p data-i18n="flow.s1.body">Uma pasta, várias ou a raiz do disco. Local, USB ou de rede (SMB, NFS, AFP…): cada disco é reconhecido pela identidade dele, em qualquer sistema.</p>
+        </div>
+        <div class="flow__step reveal">
+          <h3 data-i18n="flow.s2.title">A indexação trabalha sozinha</h3>
+          <p data-i18n="flow.s2.body">Quatro etapas em paralelo: o Searcher acha as imagens, o Indexer lê o EXIF e gera as miniaturas, o Categorizer classifica e o Faces reconhece as pessoas.</p>
+        </div>
+        <div class="flow__step reveal">
+          <h3 data-i18n="flow.s3.title">Navegue do seu jeito</h3>
+          <p data-i18n="flow.s3.body">Por pasta (agrupada por disco), por data, por categoria, por álbum, por país, estado e cidade, ou por pessoa.</p>
+        </div>
+        <div class="flow__step reveal">
+          <h3 data-i18n="flow.s4.title">Encontre qualquer foto</h3>
+          <p data-i18n="flow.s4.body">Busque por texto, descreva a foto para a IA, monte filtros por qualquer campo ou envie a foto de alguém para achar todas as fotos dessa pessoa.</p>
+          <div class="keys"><kbd>Ctrl</kbd><kbd>F</kbd></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Recursos -->
+  <section class="section" id="recursos">
+    <div class="container">
+      <div class="section__head">
+        <span class="eyebrow" data-i18n="features.eyebrow">Recursos</span>
+        <h2 data-i18n="features.title">Um catálogo que entende as suas fotos</h2>
+        <p data-i18n="features.subtitle">Feito para dezenas de milhares de fotos espalhadas por vários discos — e para achar qualquer uma em segundos.</p>
+      </div>
+      <div class="grid grid--3">
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span>
+          <h3 data-i18n="features.raw.title">RAW de qualquer câmera</h3>
+          <p data-i18n="features.raw.body">JPEG, PNG, TIFF, WebP e os RAW de Canon, Nikon, Sony, Fuji, Olympus, Panasonic, Pentax, DNG e outros — com a prévia da própria câmera.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg></span>
+          <h3 data-i18n="features.exif.title">EXIF completo</h3>
+          <p data-i18n="features.exif.body">Todas as tags de cada foto ficam no catálogo: câmera, lente, ISO, abertura, velocidade, GPS e o resto. A data do EXIF é a data da foto.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg></span>
+          <h3 data-i18n="features.ai.title">Categorias por IA local</h3>
+          <p data-i18n="features.ai.body">16 categorias e mais de 130 subcategorias — praia, casamento, futebol, cachorro, comida… A IA roda no seu computador; crie as suas e ensine-a com frases.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          <h3 data-i18n="features.people.title">Pessoas</h3>
+          <p data-i18n="features.people.body">Os rostos são agrupados em pessoas automaticamente. Dê nomes, junte, tire ou ponha faces — o app aprende com as suas correções.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/></svg></span>
+          <h3 data-i18n="features.face.title">Busca pelo rosto</h3>
+          <p data-i18n="features.face.body">Escolha a foto de uma pessoa e veja todas as fotos em que ela aparece, ordenadas pela semelhança.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20M2 12h20"/></svg></span>
+          <h3 data-i18n="features.places.title">Lugares pelo GPS</h3>
+          <p data-i18n="features.places.body">Fotos com GPS ganham país, estado e cidade — sem internet: a base de 170 mil cidades vai dentro do app.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11zM6 16h.01M10 16h.01"/></svg></span>
+          <h3 data-i18n="features.disks.title">Discos e rede</h3>
+          <p data-i18n="features.disks.body">Cada pasta sabe de que disco veio (UUID do volume, servidor e compartilhamento). HD desconectado? As miniaturas continuam visíveis; mudou de letra? O catálogo se ajusta.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span>
+          <h3 data-i18n="features.dupes.title">Duplicatas e parecidas</h3>
+          <p data-i18n="features.dupes.body">O hash dos pixels acha a mesma foto com outro EXIF; a árvore de hashes acha as cópias redimensionadas e as fotos parecidas.</p>
+        </div>
+        <div class="card reveal">
+          <span class="card__icon"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-4"/></svg></span>
+          <h3 data-i18n="features.safe.title">Nunca altera os originais</h3>
+          <p data-i18n="features.safe.body">O app só lê as suas pastas. Miniaturas, categorias e pessoas ficam num catálogo à parte, no seu usuário.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Biblioteca -->
+  <section class="section section--alt" id="biblioteca">
+    <div class="container">
+      <div class="showcase">
+        <div class="showcase__media reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/library.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Biblioteca com a árvore de pastas agrupada por disco e a grade de miniaturas"
+                 data-i18n-alt="shots.library" data-zoom>
+          </div>
+        </div>
+        <div class="showcase__text reveal">
+          <span class="eyebrow" data-i18n="library.eyebrow">Biblioteca</span>
+          <h3 data-i18n="library.title">Seis jeitos de olhar para o mesmo acervo</h3>
+          <p data-i18n="library.body">O painel lateral tem uma árvore em cada aba; a grade mostra as fotos do que você escolher.</p>
+          <ul class="checks">
+            <li data-i18n="library.c1">Pastas, separadas pelo disco de origem (local, USB ou rede)</li>
+            <li data-i18n="library.c2">Datas: ano, mês e dia, pela data da foto</li>
+            <li data-i18n="library.c3">Categorias e subcategorias, da IA e as suas</li>
+            <li data-i18n="library.c4">Álbuns e sub-álbuns criados por você</li>
+            <li data-i18n="library.c5">Lugares: país, estado e cidade</li>
+            <li data-i18n="library.c6">Pessoas, com o nome que você der</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="showcase showcase--rev">
+        <div class="showcase__media reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/viewer.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Foto aberta com o rosto identificado e o painel com dados da câmera, arquivo, disco, lugar, categorias e EXIF"
+                 data-i18n-alt="shots.viewer" data-zoom>
+          </div>
+        </div>
+        <div class="showcase__text reveal">
+          <span class="eyebrow" data-i18n="viewer.eyebrow">A foto</span>
+          <h3 data-i18n="viewer.title">Tudo o que se sabe de cada foto</h3>
+          <p data-i18n="viewer.body">Abra uma foto e veja as pessoas marcadas, a câmera e a exposição, o arquivo e o disco, o lugar, as categorias, os álbuns, as fotos iguais ou parecidas e cada tag do EXIF.</p>
+          <ul class="checks">
+            <li data-i18n="viewer.c1">Corrija quem está na foto com um clique</li>
+            <li data-i18n="viewer.c2">Ponha e tire categorias e álbuns</li>
+            <li data-i18n="viewer.c3">Disco offline? A miniatura continua aí</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pessoas -->
+  <section class="section section--dark" id="pessoas">
+    <div class="container">
+      <div class="section__head">
+        <span class="eyebrow" data-i18n="people.eyebrow">Pessoas</span>
+        <h2 data-i18n="people.title">Cada rosto, no lugar certo</h2>
+        <p data-i18n="people.subtitle">O reconhecimento facial roda no seu computador. Cada pessoa tem um identificador próprio; as parecidas o bastante, e com faces suficientes, se juntam sozinhas.</p>
+      </div>
+      <div class="gallery">
+        <figure class="reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/people.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Catálogo de pessoas, com e sem nome" data-i18n-alt="shots.people" data-zoom>
+          </div>
+          <h4 data-i18n="people.g1.title">Catálogo de pessoas</h4>
+          <p data-i18n="people.g1.body">Dê nome, junte duas pessoas, tire uma face que não é dela ou ponha uma que faltou.</p>
+        </figure>
+        <figure class="reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/face-search.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Busca pelo rosto a partir de uma foto escolhida no disco" data-i18n-alt="shots.faceSearch" data-zoom>
+          </div>
+          <h4 data-i18n="people.g2.title">Busca pelo rosto</h4>
+          <p data-i18n="people.g2.body">Envie a foto de alguém: o app mostra quem pode ser e todas as fotos em que a pessoa aparece.</p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Busca -->
+  <section class="section" id="busca">
+    <div class="container">
+      <div class="showcase">
+        <div class="showcase__media reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/filters.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Filtro com três condições encadeadas: megapixels, país e câmera"
+                 data-i18n-alt="shots.filters" data-zoom>
+          </div>
+        </div>
+        <div class="showcase__text reveal">
+          <span class="eyebrow" data-i18n="search.eyebrow">Busca e filtros</span>
+          <h3 data-i18n="search.title">Ache pela palavra, pela descrição ou por qualquer campo</h3>
+          <ul class="checks">
+            <li data-i18n="search.c1">Texto: nome, pasta, câmera, lente, lugar, categoria, pessoa, álbum</li>
+            <li data-i18n="search.c2">IA: descreva a foto (“pôr do sol na praia”) e veja as mais parecidas</li>
+            <li data-i18n="search.c3">Filtros por qualquer campo — tamanho, largura, altura, megapixels, data, ISO, lente, país, cidade, tag EXIF… — encadeados com E ou OU</li>
+            <li data-i18n="search.c4">Salve os filtros que você usa sempre</li>
+          </ul>
+        </div>
+      </div>
+      <div class="gallery" style="margin-top:72px">
+        <figure class="reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/places.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Aba Lugares, no tema claro" data-i18n-alt="shots.places" data-zoom>
+          </div>
+          <h4 data-i18n="search.g1.title">Lugares</h4>
+          <p data-i18n="search.g1.body">País, estado e cidade a partir do GPS, sem internet. Tema claro ou escuro.</p>
+        </figure>
+        <figure class="reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/dates-en.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Aba Datas, em inglês" data-i18n-alt="shots.dates" data-zoom>
+          </div>
+          <h4 data-i18n="search.g2.title">Datas</h4>
+          <p data-i18n="search.g2.body">Ano, mês e dia pela data do EXIF — ou do arquivo, quando a foto não tem EXIF. Em português ou inglês.</p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tarefas -->
+  <section class="section section--alt" id="tarefas">
+    <div class="container">
+      <div class="section__head">
+        <span class="eyebrow" data-i18n="tasks.eyebrow">Tarefas</span>
+        <h2 data-i18n="tasks.title">A indexação à vista, e sob controle</h2>
+        <p data-i18n="tasks.subtitle">Acompanhe cada etapa — pendentes, em andamento, concluídas, falhas e itens por minuto — e pause, retome, cancele ou mude o número de threads. Fechar o app no meio não perde nada.</p>
+      </div>
+      <div class="gallery">
+        <figure class="reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/tasks.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Tela de tarefas com as quatro etapas da indexação" data-i18n-alt="shots.tasks" data-zoom>
+          </div>
+          <h4 data-i18n="tasks.g1.title">As quatro etapas</h4>
+          <p data-i18n="tasks.g1.body">Searcher, Indexer, Categorizer e Faces, cada uma com o seu pool de threads.</p>
+        </figure>
+        <figure class="reveal">
+          <div class="window">
+            <div class="window__bar"><i></i><i></i><i></i><span>PhotoIDX</span></div>
+            <img src="assets/screens/folders.jpg?ts=%BUILD_TS%" width="1440" height="900" loading="lazy"
+                 alt="Pastas indexadas agrupadas pelo disco de origem" data-i18n-alt="shots.folders" data-zoom>
+          </div>
+          <h4 data-i18n="tasks.g2.title">Pastas e discos</h4>
+          <p data-i18n="tasks.g2.body">O ID de cada disco, o protocolo de rede, o servidor e o compartilhamento — reconhecidos em qualquer sistema.</p>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Seus dados -->
+  <section class="section">
+    <div class="container">
+      <div class="split">
+        <div class="reveal">
+          <span class="eyebrow" data-i18n="data.eyebrow">Seus dados</span>
+          <h2 data-i18n="data.title">Tudo no seu computador</h2>
+          <p class="lead" data-i18n="data.body">As fotos ficam onde estão. O que o PhotoIDX gera fica numa pasta do seu usuário — e é por isso que as fotos de um disco desconectado continuam navegáveis.</p>
+          <p data-i18n="data.body2">A IA (categorias, busca e rostos) roda no próprio computador: nenhuma foto sai da máquina.</p>
+        </div>
+        <pre class="tree reveal"><span class="dir">~/.photo_indexer/</span>
+├── data.sqlite3            <span class="cm" data-i18n="data.tree.db"># o catálogo</span>
+├── <span class="dir">thumbnail/</span>2024/05/&lt;uuid&gt;.jpg  <span class="cm" data-i18n="data.tree.thumb"># miniaturas</span>
+├── <span class="dir">faces/</span>2024/05/&lt;uuid&gt;.jpg      <span class="cm" data-i18n="data.tree.faces"># rostos</span>
+└── <span class="dir">logs/</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download -->
+  <section class="section section--alt" id="download">
+    <div class="container">
+      <div class="section__head section__head--center">
+        <span class="eyebrow" data-i18n="dl.eyebrow">Download</span>
+        <h2 data-i18n="dl.title">Instale e comece a indexar</h2>
+        <p data-i18n="dl.subtitle">Gratuito, sem conta e sem internet. Escolha o instalador do seu sistema.</p>
+      </div>
+
+      <div class="dl-hero reveal" data-dl-hero>
+        <div>
+          <span class="dl-hero__status" data-dl-status data-i18n="dl.loading">Consultando a versão mais recente…</span>
+          <h3 data-dl-hero-title>PhotoIDX</h3>
+          <p data-dl-hero-meta></p>
+        </div>
+        <div class="dl-hero__actions">
+          <a class="btn btn--primary" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener" data-dl-hero-btn>
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            <span data-dl-hero-label data-i18n="dl.openReleases">Abrir as Releases</span>
+          </a>
+        </div>
+      </div>
+
+      <div class="downloads">
+        <div class="dl reveal" data-dl-os="macos">
+          <span class="dl__ic"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></svg></span>
+          <h3>macOS</h3>
+          <p data-i18n-html="dl.mac">Abra o <code>.dmg</code> e arraste o PhotoIDX para Aplicativos.</p>
+          <p data-i18n="dl.macReq">Requer macOS 14 ou mais novo.</p>
+          <div class="dl__assets">
+            <a class="dl__asset" data-asset="macos-arm64" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener">
+              <span><b data-i18n="dl.macArm">Apple Silicon (M1 ou mais novo)</b><small data-asset-meta>.dmg</small></span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </a>
+            <a class="dl__asset" data-asset="macos-x64" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener">
+              <span><b>Intel</b><small data-asset-meta>.dmg</small></span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </a>
+          </div>
+        </div>
+        <div class="dl reveal" data-dl-os="windows">
+          <span class="dl__ic"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5.5 10.5 4.5v7H3zM13 4.2 21 3v8.5h-8zM3 13h7.5v6.8L3 18.8zM13 13h8v8l-8-1.2z"/></svg></span>
+          <h3>Windows</h3>
+          <p data-i18n-html="dl.win">Abra o <code>.msi</code>: o atalho aparece no Menu Iniciar e na Área de Trabalho.</p>
+          <p data-i18n="dl.winReq">Requer Windows 10 ou 11, 64 bits; no Windows 11 em ARM, use o instalador ARM64.</p>
+          <div class="dl__assets">
+            <a class="dl__asset" data-asset="windows-x64" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener">
+              <span><b>Windows 10/11 (x64)</b><small data-asset-meta>.msi</small></span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </a>
+            <a class="dl__asset" data-asset="windows-arm64" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener">
+              <span><b>Windows 11 (ARM64)</b><small data-asset-meta>.msi</small></span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </a>
+          </div>
+        </div>
+        <div class="dl reveal" data-dl-os="linux">
+          <span class="dl__ic"><svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m6 9 4 3-4 3M12 15h5"/></svg></span>
+          <h3>Linux</h3>
+          <p data-i18n-html="dl.linux">Descompacte o <code>.tar.gz</code> e rode <code>bin/PhotoIDX</code>.</p>
+          <p data-i18n="dl.linuxReq">Requer glibc 2.39 (Ubuntu 24.04 ou mais novo).</p>
+          <div class="dl__assets">
+            <a class="dl__asset" data-asset="linux-x64" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener">
+              <span><b>Linux x64</b><small data-asset-meta>.tar.gz</small></span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </a>
+            <a class="dl__asset" data-asset="linux-arm64" href="https://github.com/helviojunior/photo-indexer/releases/latest" target="_blank" rel="noopener">
+              <span><b>Linux arm64</b><small data-asset-meta>.tar.gz</small></span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>
+            </a>
+          </div>
+        </div>
+      </div>
+      <p class="dl-foot reveal">
+        <span data-i18n="dl.checksum">Cada instalador tem um arquivo .sha256 ao lado para conferir a integridade.</span>
+        <a href="https://github.com/helviojunior/photo-indexer/releases" target="_blank" rel="noopener" data-i18n="dl.allReleases">Ver todas as versões →</a>
+      </p>
+      <div class="note reveal">
+        <p data-i18n-html="dl.note1"><b>Primeira abertura:</b> os instaladores ainda não são assinados. No <b>macOS</b>, se aparecer “não foi possível verificar o desenvolvedor”, vá em Ajustes do Sistema → Privacidade e Segurança → <b>Abrir Mesmo Assim</b>. No <b>Windows</b>, na tela do SmartScreen, clique em <b>Mais informações</b> → <b>Executar assim mesmo</b>.</p>
+        <p data-i18n-html="dl.note2"><b>Reconhecimento facial:</b> usa os modelos <i>buffalo_sc</i> do insightface, licenciados só para pesquisa não comercial.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section--tight" style="padding-bottom:80px">
+    <div class="container">
+      <div class="cta-band reveal">
+        <span class="eyebrow" style="color:#fff;background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3)" data-i18n="cta.eyebrow">Da família PhotoE</span>
+        <h2 data-i18n="cta.title">Livre, aberto e feito para durar</h2>
+        <p data-i18n="cta.body">O PhotoIDX é software livre (BSD 2-Clause), do mesmo autor do PhotoEditor. Use, estude e contribua.</p>
+        <div class="actions">
+          <a href="#download" class="btn btn--light" data-i18n="cta.download">Baixar o PhotoIDX</a>
+          <a href="https://github.com/helviojunior/photo-indexer" target="_blank" rel="noopener" class="btn btn--ghost" data-i18n="cta.source">Código-fonte no GitHub</a>
+        </div>
+      </div>
+    </div>
+  </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div class="footer-brand">
+          <a href="#"><img src="assets/logo/photoidx-dark.png?ts=%BUILD_TS%" alt="PhotoIDX"></a>
+          <p data-i18n="footer.about">PhotoIDX é um catálogo de fotos livre (BSD 2-Clause), com categorias por IA, reconhecimento facial e lugares, criado por Helvio Junior.</p>
+        </div>
+        <div class="footer-col">
+          <h5 data-i18n="footer.pages">Nesta página</h5>
+          <ul>
+            <li><a href="#recursos" data-i18n="nav.features">Recursos</a></li>
+            <li><a href="#biblioteca" data-i18n="nav.library">Biblioteca</a></li>
+            <li><a href="#pessoas" data-i18n="nav.people">Pessoas</a></li>
+            <li><a href="#busca" data-i18n="nav.search">Busca</a></li>
+            <li><a href="#tarefas" data-i18n="nav.tasks">Tarefas</a></li>
+            <li><a href="#download" data-i18n="nav.download">Download</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h5 data-i18n="footer.links">Links</h5>
+          <ul>
+            <li><a href="https://github.com/helviojunior/photo-indexer/releases" target="_blank" rel="noopener">Releases</a></li>
+            <li><a href="https://github.com/helviojunior/photo-indexer" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a href="https://github.com/helviojunior/photo-editor" target="_blank" rel="noopener">PhotoEditor</a></li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <span>© <span data-year>2026</span> PhotoIDX</span>
+        <span data-i18n="footer.license">Distribuído sob a licença BSD 2-Clause</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lightbox das screenshots (modal próprio, nunca janela nativa) -->
+  <div class="lightbox" data-lightbox role="dialog" aria-modal="true" aria-label="Screenshot">
+    <button class="lightbox__close" type="button" aria-label="Fechar" data-i18n-aria="common.close" data-lightbox-close>
+      <svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+    <figure>
+      <img alt="" data-lightbox-img>
+      <figcaption data-lightbox-cap></figcaption>
+    </figure>
+  </div>
+
+  <script src="js/i18n.js?ts=%BUILD_TS%"></script>
+  <script src="js/main.js?ts=%BUILD_TS%"></script>
+</body>
+</html>

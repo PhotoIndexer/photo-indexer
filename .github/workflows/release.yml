@@ -1,0 +1,71 @@
+# Instaladores oficiais, anexados à Release do GitHub.
+#
+# O GitHub manda na versão (regra 17 do CLAUDE.md): publicar uma Release com
+# a tag vX.Y.Z (ou X.Y.Z) gera os instaladores DESSA versão — nome dos
+# arquivos, versão exibida no app, Info.plist e ProductVersion do MSI. Nada é
+# commitado de volta.
+#
+# Formato aceito: X.Y.Z com X <= 255 e Y, Z <= 999 (o limite do MSI, ver
+# msi_version em packaging/build.py). Tag fora disso para no 1º job.
+#
+# À mão (Actions -> Release installers -> Run workflow): refaz os instaladores
+# de uma Release já publicada, informando a tag. Opcionais: "targets" refaz só
+# alguns alvos (ex.: windows-arm64) e "ref" compila outro commit/branch que não
+# a tag (ex.: main com uma correção de empacotamento) — a versão continua a da tag.
+
+name: Release installers
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag da Release que recebe os instaladores (ex.: v1.2.3)"
+        required: true
+      targets:
+        description: "Alvos: all, ou lista com linux, macos, windows-x64, windows-arm64"
+        required: false
+        default: "all"
+      ref:
+        description: "Commit/branch a compilar (vazio = a própria tag)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write     # anexar arquivos à Release
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Version from the tag
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - id: version
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          version="${TAG#v}"
+          if ! echo "$version" | grep -Eq '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' \
+             || [ "${version%%.*}" -gt 255 ]; then
+            echo "::error::A tag '$TAG' não é uma versão X.Y.Z (X <= 255; Y, Z <= 999), ex.: v1.2.3."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Version $version (tag $TAG)"
+
+  package:
+    needs: version
+    uses: ./.github/workflows/package.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
+      ref: ${{ inputs.ref || needs.version.outputs.tag }}
+      release-tag: ${{ needs.version.outputs.tag }}
+      targets: ${{ inputs.targets || 'all' }}

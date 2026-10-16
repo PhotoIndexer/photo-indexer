@@ -1,0 +1,177 @@
+// SPDX-License-Identifier: BSD-2-Clause
+//
+// PhotoIDX — catálogo de fotos com categorias por IA, faces e lugares (C++/Qt Quick).
+//
+//   PhotoIDX [PASTA...] [--debug] [--screenshot ARQUIVO [--page PAGINA] [--wait MS]]
+//
+// PASTA: pastas para indexar (como o "Adicionar pasta"; as já cadastradas
+// são ignoradas).
+//
+// --screenshot abre o app, espera a primeira tela carregar, salva a imagem da
+// janela e sai: teste de fumaça sem ninguém olhando.
+
+#include "AppController.h"
+#include "ImageProviders.h"
+#include "Language.h"
+#include "Logging.h"
+
+#include "core/Paths.h"
+
+#include <QCommandLineParser>
+#include <QDir>
+#include <QFontDatabase>
+#include <QGuiApplication>
+#include <QIcon>
+#include <QLoggingCategory>
+#include <QQmlApplicationEngine>
+#include <QQuickStyle>
+#include <QQuickWindow>
+#include <QThreadPool>
+#include <QTimer>
+
+Q_LOGGING_CATEGORY(lcMain, "photoidx.main")
+
+int main(int argc, char *argv[])
+{
+    QGuiApplication app(argc, argv);
+    // Nome e organização decidem onde o QSettings guarda as preferências.
+    QGuiApplication::setApplicationName(QStringLiteral("PhotoIDX"));
+    QGuiApplication::setOrganizationName(QStringLiteral("PhotoE"));
+    QGuiApplication::setOrganizationDomain(QStringLiteral("photoe.com.br"));
+    QGuiApplication::setApplicationVersion(QStringLiteral(PHOTOIDX_VERSION));
+    QGuiApplication::setApplicationDisplayName(QStringLiteral(PHOTOIDX_BRAND_NAME));
+    QGuiApplication::setDesktopFileName(QStringLiteral("br.com.photoidx.desktop"));
+    QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/PhotoIDX/assets/favicon.png")));
+
+    QCommandLineParser parser;
+    parser.setApplicationDescription(QStringLiteral("Photo catalog with AI categories, faces and places"));
+    parser.addHelpOption();
+    parser.addVersionOption();
+    const QCommandLineOption debugOption(QStringLiteral("debug"), QStringLiteral("Verbose logging."));
+    const QCommandLineOption screenshotOption(QStringLiteral("screenshot"),
+                                              QStringLiteral("Save a screenshot of the first screen and quit."),
+                                              QStringLiteral("file"));
+    const QCommandLineOption pageOption(QStringLiteral("page"),
+                                        QStringLiteral("Screen to open (library, people, folders, tasks)."),
+                                        QStringLiteral("page"));
+    const QCommandLineOption waitOption(QStringLiteral("wait"),
+                                        QStringLiteral("Milliseconds to wait before the screenshot (default 2500)."),
+                                        QStringLiteral("ms"));
+    const QCommandLineOption sizeOption(QStringLiteral("size"), QStringLiteral("Window size for the screenshot (WxH)."),
+                                        QStringLiteral("WxH"));
+    const QCommandLineOption openOption(QStringLiteral("open"), QStringLiteral("Open the Nth photo of the library (screenshot)."),
+                                        QStringLiteral("n"));
+    const QCommandLineOption faceOption(QStringLiteral("face-search"),
+                                        QStringLiteral("Open the face search with this photo (screenshot)."), QStringLiteral("file"));
+    const QCommandLineOption ruleOption(QStringLiteral("rule"),
+                                        QStringLiteral("Add a filter condition field:op:value (screenshot; repeatable)."),
+                                        QStringLiteral("rule"));
+    const QCommandLineOption personOption(QStringLiteral("person"), QStringLiteral("Open the Nth person (screenshot)."),
+                                          QStringLiteral("n"));
+    parser.addOptions({sizeOption, openOption, faceOption, ruleOption, personOption});
+    parser.addPositionalArgument(QStringLiteral("folders"), QStringLiteral("Folders to index."), QStringLiteral("[folder...]"));
+    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption});
+    // O Finder às vezes passa -psn_0_12345: ignorado.
+    QStringList args = QCoreApplication::arguments();
+    args.erase(std::remove_if(args.begin(), args.end(), [](const QString &a) { return a.startsWith(QLatin1String("-psn_")); }),
+               args.end());
+    parser.process(args);
+
+    pix::app::setupLogging(parser.isSet(debugOption));
+    qCInfo(lcMain) << "PhotoIDX" << PHOTOIDX_VERSION << "starting; data in" << pix::AppPaths::dataDir();
+
+    pix::app::installLanguage(pix::app::savedLanguage());
+
+    // Inter vai no próprio binário: nada da interface depende de rede.
+    for (const char *weight : {"Light", "Regular", "Medium", "SemiBold", "Bold"})
+        QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/PhotoIDX/fonts/Inter-%1.ttf").arg(QLatin1String(weight)));
+    QFont font(QStringLiteral("Inter"));
+    font.setPixelSize(14);
+    QGuiApplication::setFont(font);
+    QQuickStyle::setStyle(QStringLiteral("Basic"));
+
+    AppController controller(nullptr);
+    if (parser.isSet(pageOption))
+        controller.setPage(parser.value(pageOption));
+    for (const QString &folder : parser.positionalArguments()) {
+        const QString path = QDir(folder).absolutePath();
+        bool known = false;
+        for (const QVariant &f : controller.folders())
+            known = known || QDir::fromNativeSeparators(f.toMap().value(QStringLiteral("path")).toString()) == path;
+        if (!known)
+            controller.addFolder(QUrl::fromLocalFile(path));
+    }
+
+    QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("photo"), new PhotoImageProvider);
+    engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
+    QObject::connect(&controller, &AppController::languageChanged, &engine, &QQmlEngine::retranslate);
+    QObject::connect(
+        &engine, &QQmlApplicationEngine::objectCreationFailed, &app, []() { QCoreApplication::exit(1); },
+        Qt::QueuedConnection);
+    engine.loadFromModule("PhotoIDX", "Main");
+    if (engine.rootObjects().isEmpty())
+        return 1;
+
+    if (parser.isSet(screenshotOption)) {
+        const QString file = parser.value(screenshotOption);
+        auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().first());
+        const int wait = parser.isSet(waitOption) ? parser.value(waitOption).toInt() : 2500;
+        if (parser.isSet(sizeOption)) {
+            const QStringList wh = parser.value(sizeOption).split(u'x');
+            if (wh.size() == 2)
+                window->resize(wh[0].toInt(), wh[1].toInt());
+        }
+        const QStringList rules = parser.values(ruleOption);
+        if (!rules.isEmpty()) {
+            QTimer::singleShot(std::max(0, wait - 4000), &controller, [&controller, rules]() {
+                for (const QString &rule : rules) {
+                    const QStringList p = rule.split(u':');
+                    if (p.size() < 2)
+                        continue;
+                    controller.library()->addRule(p[0]);
+                    const int index = int(controller.library()->rules().size()) - 1;
+                    controller.library()->updateRule(index, {{QStringLiteral("op"), p[1]},
+                                                             {QStringLiteral("value"), p.value(2)},
+                                                             {QStringLiteral("value2"), p.value(3)}});
+                }
+            });
+        }
+        if (parser.isSet(personOption)) {
+            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, n = parser.value(personOption).toInt()]() {
+                const QVariantList people = controller.people()->people();
+                if (n >= 0 && n < people.size()) {
+                    controller.people()->openPerson(people[n].toMap().value(QStringLiteral("id")).toString());
+                    controller.setPage(QStringLiteral("people"));
+                }
+            });
+        }
+        if (parser.isSet(faceOption)) {
+            QTimer::singleShot(std::max(0, wait - 6000), &controller, [&controller, file = parser.value(faceOption)]() {
+                controller.people()->searchByPhoto(QUrl::fromLocalFile(QDir(file).absolutePath()));
+                controller.setPage(QStringLiteral("faceSearch"));
+            });
+        }
+        if (parser.isSet(openOption)) {
+            // Abre a foto um pouco antes da captura (a grade já carregou).
+            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, n = parser.value(openOption).toInt()]() {
+                const QString id = controller.library()->grid()->idAt(n);
+                if (!id.isEmpty())
+                    controller.openPhoto(id);
+            });
+        }
+        // Tempo para as imagens assíncronas chegarem; o timeout fecha mesmo se travar.
+        QTimer::singleShot(wait, window, [window, file]() {
+            const QImage shot = window->grabWindow();
+            const bool ok = shot.save(file);
+            qCInfo(lcMain) << "Screenshot" << (ok ? "saved to" : "FAILED:") << file;
+            QCoreApplication::exit(ok ? 0 : 2);
+        });
+        QTimer::singleShot(180000, &app, []() { QCoreApplication::exit(3); });
+    }
+
+    const int code = QGuiApplication::exec();
+    QThreadPool::globalInstance()->waitForDone();
+    qCInfo(lcMain) << "PhotoIDX exiting with" << code;
+    return code;
+}

@@ -1,0 +1,48 @@
+# Hotsite (docs/site) no GitHub Pages.
+#
+# Todo push na main que mexe no site (docs/: HTML, CSS, JS, capturas de tela)
+# ou no que ele copia do app (logo e ícones) monta o site com `make site` e o
+# publica. À mão: Actions -> Hotsite -> Run workflow.
+
+name: Hotsite
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "src/app/assets/**"
+      - "packaging/site.py"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the site
+        run: make site SITE_OUT=_site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

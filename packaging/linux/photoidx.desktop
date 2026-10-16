@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=PhotoIDX
+GenericName=Photo Catalog
+GenericName[pt_BR]=Catálogo de fotos
+Comment=Photo catalog with AI categories, faces and places
+Comment[pt_BR]=Catálogo de fotos com categorias por IA, faces e lugares
+Exec=PhotoIDX %F
+Icon=photoidx
+Terminal=false
+Categories=Graphics;Photography;Viewer;Qt;
+StartupWMClass=PhotoIDX

@@ -1,0 +1,333 @@
+# Workflow REUTILIZÁVEL: gera os instaladores dos seis alvos e os anexa à
+# Release (com o .sha256 de cada um). Chamado pelo release.yml, que passa a
+# versão (a tag) — o GitHub manda nela (regra 17 do CLAUDE.md).
+#
+# Mesmo modelo do clivcut: cada instalador sai do builder em Docker da sua
+# plataforma (packaging/<plataforma>/Dockerfile), o mesmo do `make` local;
+# a imagem fica no cache do Actions e o job só chama o make com SKIP_BUILDER=1.
+#
+#   linux-x64 / linux-arm64   .tar.gz  builder Linux (o arm64 num runner arm64, nativo)
+#   macos-x64 / macos-arm64   .dmg     builder macOS (cross-compile); o SDK vem
+#                                      de um runner macOS, só para o cache
+#   windows-x64               .msi     builder Windows (cross-compile llvm-mingw)
+#   windows-arm64             .msi     ÚNICO fora de Docker: o Qt arm64 do
+#                                      Windows só existe para MSVC. Compila num
+#                                      runner Windows ARM (make windows-native) e
+#                                      o .msi sai do builder Windows (make msi-stage)
+
+name: Package
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Versão X.Y.Z do build"
+        required: true
+        type: string
+      ref:
+        description: "Commit/tag a compilar"
+        required: true
+        type: string
+      release-tag:
+        description: "Tag da Release que recebe os instaladores"
+        required: true
+        type: string
+      targets:
+        description: "all, ou lista com linux, macos, windows-x64, windows-arm64"
+        required: false
+        type: string
+        default: "all"
+
+env:
+  PHOTOIDX_VERSION: ${{ inputs.version }}
+  PHOTOIDX_CHANNEL: release
+
+jobs:
+  linux:
+    name: linux-${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
+    if: inputs.targets == 'all' || contains(inputs.targets, 'linux')
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+            image: photoidx-linux-builder
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            image: photoidx-linux-builder-arm64
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Commit of the build
+        run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      # Modelos de IA (CLIP e buffalo_sc): downloads fixos (packaging/build.py).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/models
+            .cache/pbs
+            .cache/pip
+          key: downloads-linux-${{ matrix.arch }}-${{ hashFiles('packaging/build.py') }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Builder image (cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging
+          file: packaging/linux/Dockerfile
+          tags: ${{ matrix.image }}
+          load: true
+          cache-from: type=gha,scope=linux-builder-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=linux-builder-${{ matrix.arch }}
+
+      - name: Build, test and package
+        run: make linux SKIP_BUILDER=1 ARCHS=${{ matrix.arch }}
+
+      - name: Checksums
+        run: make checksums
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release-tag }}" dist/PhotoIDX-* --clobber --repo "$GITHUB_REPOSITORY"
+
+  # O SDK da Apple só existe num Mac: este job o exporta (make macos-sdk) para
+  # o cache do Actions, de onde os jobs do .dmg (Linux) o tiram. Não é publicado.
+  macos-sdk:
+    name: macOS SDK
+    if: inputs.targets == 'all' || contains(inputs.targets, 'macos')
+    runs-on: macos-15
+    outputs:
+      key: ${{ steps.sdk.outputs.key }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - id: sdk
+        run: echo "key=macos-sdk-$(xcrun --sdk macosx --show-sdk-version)" >> "$GITHUB_OUTPUT"
+
+      - id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/macos-sdk
+          key: ${{ steps.sdk.outputs.key }}
+          lookup-only: true
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        run: make macos-sdk
+
+      - if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/macos-sdk
+          key: ${{ steps.sdk.outputs.key }}
+
+  macos:
+    name: macos-${{ matrix.arch == 'arm64' && 'arm64' || 'x64' }}
+    needs: macos-sdk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, arm64]
+    steps:
+      # A imagem do builder (Qt de macOS e de Linux, osxcross, OpenCV das duas
+      # arquiteturas) é grande.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h /
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Commit of the build
+        run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/macos-sdk
+          key: ${{ needs.macos-sdk.outputs.key }}
+          fail-on-cache-miss: true
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/models
+            .cache/pbs
+            .cache/pip
+          key: downloads-macos-${{ matrix.arch }}-${{ hashFiles('packaging/build.py') }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Builder image (cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging/macos
+          file: packaging/macos/Dockerfile
+          build-contexts: |
+            sdk=.cache/macos-sdk
+            deps=packaging/deps
+          tags: photoidx-macos-builder
+          load: true
+          cache-from: type=gha,scope=macos-builder
+          cache-to: type=gha,mode=max,scope=macos-builder
+
+      - name: Build the .dmg
+        run: make dmg SKIP_BUILDER=1 ARCHS=${{ matrix.arch }}
+
+      - name: Checksums
+        run: make checksums
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release-tag }}" dist/PhotoIDX-* --clobber --repo "$GITHUB_REPOSITORY"
+
+  windows-x64:
+    name: windows-x64
+    if: inputs.targets == 'all' || contains(inputs.targets, 'windows-x64')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Commit of the build
+        run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/models
+            .cache/pbs
+            .cache/pip
+          key: downloads-windows-x64-${{ hashFiles('packaging/build.py') }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Builder image (cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging/windows
+          file: packaging/windows/Dockerfile
+          build-contexts: deps=packaging/deps
+          tags: photoidx-windows-builder
+          load: true
+          cache-from: type=gha,scope=windows-builder
+          cache-to: type=gha,mode=max,scope=windows-builder
+
+      - name: Build the .msi
+        run: make windows SKIP_BUILDER=1
+
+      - name: Checksums
+        run: make checksums
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release-tag }}" dist/PhotoIDX-* --clobber --repo "$GITHUB_REPOSITORY"
+
+  # Windows ARM64, parte 1: compila no Windows ARM (MSVC + Qt msvc2022_arm64)
+  # e devolve a pasta do app como artefato.
+  windows-arm64-build:
+    name: windows-arm64 (build)
+    if: inputs.targets == 'all' || contains(inputs.targets, 'windows-arm64')
+    runs-on: windows-11-arm
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Commit of the build
+        run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+
+      # Qt, OpenCV e downloads: tudo em .cache/ (packaging/windows/native.sh).
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/qt
+            .cache/deps/windows-arm64/opencv
+            .cache/models
+            .cache/pbs
+            .cache/pip
+          key: windows-arm64-${{ hashFiles('packaging/windows/native.sh', 'packaging/deps/opencv.sh', 'packaging/build.py') }}
+
+      - name: GNU make
+        run: command -v make || choco install make -y --no-progress
+
+      - name: Build the app folder
+        run: make windows-native TARGET=windows-arm64 PYTHON=python
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage-windows-arm64
+          path: .cache/stage/windows-arm64
+          retention-days: 1
+
+  # Windows ARM64, parte 2: o .msi sai do builder Windows em Docker, com o
+  # mesmo wixl e os mesmos GUIDs do x64.
+  windows-arm64:
+    name: windows-arm64
+    needs: windows-arm64-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Commit of the build
+        run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: stage-windows-arm64
+          path: .cache/stage/windows-arm64
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Builder image (cache)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging/windows
+          file: packaging/windows/Dockerfile
+          build-contexts: deps=packaging/deps
+          tags: photoidx-windows-builder
+          load: true
+          cache-from: type=gha,scope=windows-builder
+
+      - name: Build the .msi
+        run: make msi-stage TARGET=windows-arm64 SKIP_BUILDER=1
+
+      - name: Checksums
+        run: make checksums
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ inputs.release-tag }}" dist/PhotoIDX-* --clobber --repo "$GITHUB_REPOSITORY"

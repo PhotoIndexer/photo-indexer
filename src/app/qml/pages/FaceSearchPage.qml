@@ -1,0 +1,240 @@
+pragma ComponentBehavior: Bound
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Templates as T
+import PhotoIDX
+
+// Busca por rosto: a partir de uma foto escolhida no disco (ou de um rosto
+// já catalogado), as fotos em que a pessoa aparece — o mesmo cosseno do
+// ../photoe (ArcFace, limiar 0,45), contra todas as faces do catálogo.
+Item {
+    id: page
+
+    signal chooseFileRequested()
+
+    // Esquerda: a foto, os rostos dela, o limiar e as pessoas que casam.
+    Rectangle {
+        id: side
+        anchors.left: parent.left
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        width: 320
+        color: Theme.card
+
+        ScrollPage {
+            anchors.fill: parent
+            padding: 16
+            spacing: 16
+
+            RowLayout {
+                Layout.fillWidth: true
+                IconButton {
+                    iconName: "arrow-left"
+                    tooltip: qsTr("People")
+                    onClicked: App.page = "people"
+                }
+                Text {
+                    Layout.fillWidth: true
+                    text: qsTr("Search by face")
+                    font.pixelSize: Theme.fontLg
+                    font.weight: Font.DemiBold
+                    color: Theme.foreground
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.preferredHeight: 200
+                radius: Theme.radiusLg
+                color: Theme.imagePane
+                clip: true
+                Image {
+                    anchors.fill: parent
+                    source: App.people.queryUrl
+                    fillMode: Image.PreserveAspectFit
+                    asynchronous: true
+                    sourceSize: Qt.size(640, 640)
+                    autoTransform: true
+                }
+                Spinner {
+                    anchors.centerIn: parent
+                    size: 26
+                    color: Theme.white
+                    visible: App.people.detecting
+                }
+            }
+
+            Button {
+                Layout.fillWidth: true
+                variant: "outline"
+                iconName: "upload"
+                text: qsTr("Choose another photo…")
+                onClicked: page.chooseFileRequested()
+            }
+
+            FormError {
+                Layout.fillWidth: true
+                text: App.people.searchError !== "" ? Messages.error(App.people.searchError, {}) : ""
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: App.people.queryFaces.length > 1
+                spacing: 8
+                SectionTitle { text: qsTr("Faces in this photo — pick one") }
+                Flow {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Repeater {
+                        model: App.people.queryFaces
+                        Rectangle {
+                            id: qf
+                            required property var modelData
+                            width: 64
+                            height: 64
+                            radius: 32
+                            clip: true
+                            color: Theme.muted
+                            border.width: App.people.queryFace === modelData.index ? 3 : 0
+                            border.color: Theme.brand400
+                            Image {
+                                anchors.fill: parent
+                                anchors.margins: 3
+                                source: qf.modelData.cropUrl
+                                fillMode: Image.PreserveAspectCrop
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: App.people.queryFace = qf.modelData.index
+                            }
+                        }
+                    }
+                }
+            }
+
+            ValueSlider {
+                Layout.fillWidth: true
+                label: qsTr("Minimum similarity")
+                from: 0.2
+                to: 0.9
+                stepSize: 0.01
+                decimals: 2
+                showSign: false
+                defaultValue: 0.45
+                value: App.people.threshold
+                onMoved: (v) => App.people.threshold = v
+            }
+            Text {
+                Layout.fillWidth: true
+                text: qsTr("Lower finds more photos (and more mistakes); higher, fewer and surer.")
+                font.pixelSize: Theme.fontXs
+                color: Theme.mutedForeground
+                wrapMode: Text.Wrap
+            }
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                visible: App.people.matchedPeople.length > 0
+                spacing: 6
+                SectionTitle { text: qsTr("Who it may be") }
+                Repeater {
+                    model: App.people.matchedPeople
+                    T.ItemDelegate {
+                        id: who
+                        required property var modelData
+                        Layout.fillWidth: true
+                        implicitHeight: 48
+                        hoverEnabled: true
+                        onClicked: {
+                            App.people.openPerson(modelData.id);
+                            App.page = "people";
+                        }
+                        background: Rectangle {
+                            radius: Theme.radiusMd
+                            color: who.hovered ? Theme.muted : "transparent"
+                        }
+                        contentItem: RowLayout {
+                            spacing: 10
+                            Rectangle {
+                                Layout.preferredWidth: 36
+                                Layout.preferredHeight: 36
+                                radius: 18
+                                clip: true
+                                color: Theme.muted
+                                Image {
+                                    anchors.fill: parent
+                                    source: who.modelData.coverUrl
+                                    fillMode: Image.PreserveAspectCrop
+                                    asynchronous: true
+                                }
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: who.modelData.label
+                                    font.pixelSize: Theme.fontBase
+                                    color: Theme.foreground
+                                    elide: Text.ElideRight
+                                }
+                                Text {
+                                    text: qsTr("%1% similar · %n face(s)", "", who.modelData.faces)
+                                        .arg(Math.round(who.modelData.similarity * 100))
+                                    font.pixelSize: Theme.fontXs
+                                    color: Theme.mutedForeground
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            anchors.right: parent.right
+            width: 1
+            height: parent.height
+            color: Theme.border
+        }
+    }
+
+    // Direita: as fotos encontradas.
+    ColumnLayout {
+        anchors.left: side.right
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        spacing: 0
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 48
+            color: Theme.background
+            Text {
+                anchors.left: parent.left
+                anchors.leftMargin: 16
+                anchors.verticalCenter: parent.verticalCenter
+                text: App.people.detecting ? qsTr("Looking for faces…") : qsTr("%n photo(s) found", "", App.people.results.count)
+                font.pixelSize: Theme.fontMd
+                font.weight: Font.DemiBold
+                color: Theme.foreground
+            }
+            Rectangle {
+                anchors.bottom: parent.bottom
+                width: parent.width
+                height: 1
+                color: Theme.border
+            }
+        }
+
+        PhotoGrid {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            photos: App.people.results
+            showScore: true
+            onOpened: (photoId) => App.openPhoto(photoId)
+        }
+    }
+}

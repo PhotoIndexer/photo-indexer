@@ -1,0 +1,23 @@
+# Versao GERADA pelo packaging/build.py a partir das Releases do GitHub (regra 15)
+VERSION
+
+# Builds (CMake), pacotes gerados e caches: dependencias compiladas, SDK do
+# macOS exportado, modelos de IA baixados (make model), downloads
+build/
+build-*/
+dist/
+.cache/
+
+# Ferramentas
+compile_commands.json
+*.user
+__pycache__/
+*.pyc
+
+# Rascunhos locais
+temp/
+
+# SO / editores
+.DS_Store
+.idea/
+.vscode/
