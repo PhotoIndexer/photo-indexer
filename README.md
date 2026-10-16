@@ -13,7 +13,7 @@ as lê.
 
 ![Biblioteca com as categorias da IA](./docs/images/categories.jpg)
 
-Site: <https://helviojunior.github.io/photo-indexer/>
+Site: <http://www.helviojunior.com.br/photo-indexer/>
 
 ## Instalação
 
