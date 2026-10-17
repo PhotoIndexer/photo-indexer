@@ -32,7 +32,13 @@ PeopleController::PeopleController(Catalog *catalog, Pipeline *pipeline, Catalog
     // Indexando, as pessoas mudam a cada foto com rosto: a lista é refeita no
     // leitor, no máximo a cada 5 s (parado, quase na hora).
     m_reloadTimer.setSingleShot(true);
-    connect(&m_reloadTimer, &QTimer::timeout, this, &PeopleController::reload);
+    connect(&m_reloadTimer, &QTimer::timeout, this, [this]() {
+        reload();
+        // Busca por rosto aberta: os nomes e as junções aparecem na lista
+        // de "quem pode ser" (a pessoa junta some, a nomeada muda de nome).
+        if (!m_queryEmbeddings.empty())
+            runSearch(true);
+    });
     connect(catalog, &Catalog::peopleChanged, this, [this]() {
         if (!m_reloadTimer.isActive())
             m_reloadTimer.start(m_pipeline->busy() ? 5000 : 200);
@@ -267,7 +273,7 @@ void PeopleController::setThreshold(double value)
     runSearch();
 }
 
-void PeopleController::runSearch()
+void PeopleController::runSearch(bool refresh)
 {
     m_matched.clear();
     if (m_queryFace < 0 || m_queryFace >= int(m_queryEmbeddings.size())) {
@@ -287,7 +293,7 @@ void PeopleController::runSearch()
             ++p.second;
         }
     }
-    m_results.setRows(m_catalog->photosByIds(ranked));
+    m_results.setRows(m_catalog->photosByIds(ranked), refresh);
     for (auto it = people.constBegin(); it != people.constEnd(); ++it) {
         const QVariantMap p = m_catalog->person(it.key());
         m_matched << QVariantMap{{QStringLiteral("id"), it.key()},

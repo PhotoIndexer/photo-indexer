@@ -5,6 +5,8 @@
 
 #include "ImageProviders.h"
 
+#include <QDir>
+
 PhotoGridModel::PhotoGridModel(QObject *parent)
     : QAbstractListModel(parent)
 {
@@ -31,6 +33,8 @@ QVariant PhotoGridModel::data(const QModelIndex &index, int role) const
     case SelectedRole: return m_selected.contains(r.id);
     case ScoreRole: return r.score;
     case StateRole: return r.state;
+    case FolderRole: return r.dir.isEmpty() ? QString() : QDir::toNativeSeparators(r.dir + u'/');
+    case SizeTextRole: return r.width > 0 ? QStringLiteral("%1×%2").arg(r.width).arg(r.height) : QString();
     }
     return {};
 }
@@ -40,7 +44,7 @@ QHash<int, QByteArray> PhotoGridModel::roleNames() const
     return {{PhotoIdRole, "photoId"},   {NameRole, "name"},         {ThumbUrlRole, "thumbUrl"},
             {AspectRole, "aspect"},     {IsRawRole, "isRaw"},       {TakenAtRole, "takenAt"},
             {SelectedRole, "selected"}, {ScoreRole, "score"},       {StateRole, "state"},
-            {IsPrivateRole, "isPrivate"}};
+            {IsPrivateRole, "isPrivate"}, {FolderRole, "folder"},   {SizeTextRole, "sizeText"}};
 }
 
 namespace {

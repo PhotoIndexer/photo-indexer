@@ -55,6 +55,10 @@ class LibraryController : public QObject
     Q_PROPERTY(QVariantList personChoices READ personChoices NOTIFY personChoicesChanged)
     /// O nó escolhido é o álbum privado (ou um de dentro dele).
     Q_PROPERTY(bool privateNode READ privateNode NOTIFY nodeChanged)
+    /// Busca de cópias (findCopies): a foto procurada e a tolerância (0–2).
+    Q_PROPERTY(QString copiesOf READ copiesOf NOTIFY copiesChanged)
+    Q_PROPERTY(QString copiesName READ copiesName NOTIFY copiesChanged)
+    Q_PROPERTY(int copiesTolerance READ copiesTolerance WRITE setCopiesTolerance NOTIFY copiesChanged)
 
 public:
     LibraryController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
@@ -66,6 +70,10 @@ public:
     QString search() const { return m_search; }
     void setSearch(const QString &search);
     bool aiSearch() const { return m_aiSearch; }
+    QString copiesOf() const { return m_copiesOf; }
+    QString copiesName() const { return m_copiesName; }
+    int copiesTolerance() const { return m_copiesTolerance; }
+    void setCopiesTolerance(int tolerance);
     void setAiSearch(bool on);
     bool aiAvailable() const;
     QString sort() const { return m_sort; }
@@ -87,6 +95,15 @@ public:
 
     Q_INVOKABLE void selectNode(const QString &key);
     Q_INVOKABLE void refresh();
+    /// A grade passa a mostrar as cópias da foto em qualquer pasta/disco
+    /// (Catalog::findCopies); escolher um nó ou buscar sai desse modo.
+    Q_INVOKABLE void findCopies(const QString &photoId);
+    Q_INVOKABLE void clearCopies();
+    /// As pessoas de uma foto, para o menu da grade (lido ao abrir o menu):
+    /// {facesState, faces, people: [{id, name}]}.
+    Q_INVOKABLE QVariantMap photoPeople(const QString &photoId) const;
+    /// Fotos (vazio = a seleção) furam a fila da etapa de faces.
+    Q_INVOKABLE void findFacesNow(const QStringList &photoIds);
     Q_INVOKABLE void refreshTree();
 
     // Filtro personalizado
@@ -131,6 +148,7 @@ signals:
     void rulesChanged();
     void savedFiltersChanged();
     void searchingChanged();
+    void copiesChanged();
     void categoryChoicesChanged();
     void albumChoicesChanged();
     void personChoicesChanged();
@@ -156,6 +174,9 @@ private:
     QString m_nodeLabel;
     QString m_search;
     bool m_aiSearch = false;
+    QString m_copiesOf;
+    QString m_copiesName;
+    int m_copiesTolerance = 1;
     QString m_sort = QStringLiteral("date-desc");
     int m_thumbSize = 180;
     QVariantList m_rules;

@@ -68,6 +68,13 @@
             <numerusform>Make %n photos private?</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>%n copy(ies) in other places — the first photo is the one you picked</source>
+        <translation>
+            <numerusform>%n copy in other places — the first photo is the one you picked</numerusform>
+            <numerusform>%n copies in other places — the first photo is the one you picked</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>Messages</name>
@@ -109,6 +116,16 @@
             <numerusform>%n people</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>%n photo(s)</source>
+        <translation>
+            <numerusform>%n photo</numerusform>
+            <numerusform>%n photos</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>PersonDetail</name>
     <message numerus="yes">
         <source>%n photo(s)</source>
         <translation>

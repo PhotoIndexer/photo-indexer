@@ -20,6 +20,9 @@ GridView {
     property int thumbSize: App.library.thumbSize
     /// Mostra a similaridade (busca por IA/rosto) no canto.
     property bool showScore: false
+    /// Busca de cópias: o rótulo mostra também a pasta e a resolução (onde
+    /// está cada cópia e qual é a maior).
+    property bool showFolder: false
     /// Arrastar as fotos selecionadas para o painel lateral (só a biblioteca).
     property bool dragEnabled: false
 
@@ -133,6 +136,8 @@ GridView {
         required property bool selected
         required property double score
         required property string state
+        required property string folder
+        required property string sizeText
 
         width: grid.cellWidth
         height: grid.cellHeight
@@ -213,7 +218,9 @@ GridView {
                     id: nameText
                     anchors.fill: parent
                     anchors.margins: 4
-                    text: cell.name
+                    text: grid.showFolder && cell.folder !== ""
+                        ? cell.sizeText + "  ·  " + cell.folder + cell.name
+                        : cell.name
                     font.pixelSize: Theme.fontXs
                     color: Theme.white
                     elide: Text.ElideMiddle

@@ -600,6 +600,27 @@ QList<FaceJob> Catalog::nextFaceJobs(int limit, const QSet<QString> &busy) const
     return out;
 }
 
+QList<FaceJob> Catalog::faceJobsFor(const QStringList &photoIds) const
+{
+    QList<FaceJob> out;
+    for (const QString &id : photoIds) {
+        QSqlQuery q = m_db.exec(QStringLiteral(
+                                    "SELECT p.id, p.path, p.year, p.month, p.day FROM photo p "
+                                    "WHERE p.id = ? AND p.state = 'indexed' AND p.faces_state = 'pending' AND p.private = 0 "
+                                    "AND p.thumb_path != '' AND +p.folder_id IN %1").arg(QLatin1String(kOnlineFolders)),
+                                {id});
+        if (!q.next())
+            continue;
+        FaceJob job;
+        job.photoId = id;
+        job.path = q.value(1).toString();
+        if (!q.value(2).isNull())
+            job.date = QDate(q.value(2).toInt(), std::max(1, q.value(3).toInt()), std::max(1, q.value(4).toInt()));
+        out.append(job);
+    }
+    return out;
+}
+
 int Catalog::pendingCount(const QString &stage) const
 {
     PIX_PERF("Catalog::pendingCount");

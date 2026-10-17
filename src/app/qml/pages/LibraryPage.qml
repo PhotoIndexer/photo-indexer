@@ -42,6 +42,8 @@ Item {
     readonly property bool hasFolders: App.folders.length > 0
     /// No álbum privado (ou num de dentro): as ações viram "tornar pública".
     readonly property bool inPrivate: App.library.privateNode
+    /// A grade mostra as cópias de uma foto (LibraryController::findCopies).
+    readonly property bool copies: App.library.copiesOf !== ""
     readonly property bool privateLocked: page.inPrivate && !App.privacy.unlocked
 
     /// Tornar privada a seleção: explica o que acontece com o arquivo e pede
@@ -421,12 +423,21 @@ Item {
                 anchors.rightMargin: 12
                 spacing: 8
 
+                // Busca de cópias: volta para onde estava.
+                IconButton {
+                    visible: page.copies
+                    diameter: 30
+                    iconSize: 16
+                    iconName: "arrow-left"
+                    tooltip: qsTr("Back")
+                    onClicked: App.library.clearCopies()
+                }
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 0
                     Text {
                         Layout.fillWidth: true
-                        text: App.library.nodeLabel
+                        text: page.copies ? qsTr("Copies of “%1”").arg(App.library.copiesName) : App.library.nodeLabel
                         font.pixelSize: Theme.fontMd
                         font.weight: Font.DemiBold
                         color: Theme.foreground
@@ -435,6 +446,8 @@ Item {
                     Text {
                         text: App.library.grid.selectedCount > 0
                             ? qsTr("%1 of %n photo(s) selected", "", App.library.grid.count).arg(App.library.grid.selectedCount)
+                            : page.copies
+                            ? qsTr("%n copy(ies) in other places — the first photo is the one you picked", "", Math.max(0, App.library.grid.count - 1))
                             : qsTr("%n photo(s)", "", App.library.grid.count)
                         font.pixelSize: Theme.fontXs
                         color: Theme.mutedForeground
@@ -490,7 +503,7 @@ Item {
                     onClicked: page.inPrivate ? page.makeSelectionPublic() : page.makeSelectionPrivate()
                 }
                 Button {
-                    visible: App.library.grid.selectedCount > 0 && (page.nodeType === "album" || page.nodeType === "cat")
+                    visible: App.library.grid.selectedCount > 0 && !page.copies && (page.nodeType === "album" || page.nodeType === "cat")
                                 && !(page.inPrivate && page.nodeId === App.privacy.albumNode.substring(6))
                     size: "sm"
                     implicitHeight: 30
@@ -506,7 +519,24 @@ Item {
                     Layout.preferredHeight: 22
                 }
 
+                // Tolerância da busca de cópias (Catalog::findCopies).
                 Select {
+                    visible: page.copies
+                    implicitHeight: 30
+                    font.pixelSize: Theme.fontSm
+                    model: [
+                        { value: 0, text: qsTr("Identical") },
+                        { value: 1, text: qsTr("Close: resized, recompressed, watermark") },
+                        { value: 2, text: qsTr("Loose: also crops and color edits") }
+                    ]
+                    textRole: "text"
+                    valueRole: "value"
+                    currentIndex: App.library.copiesTolerance
+                    onActivated: App.library.copiesTolerance = currentValue
+                    Accessible.name: qsTr("Tolerance")
+                }
+                Select {
+                    visible: !page.copies
                     implicitHeight: 30
                     font.pixelSize: Theme.fontSm
                     model: ["date-desc", "date-asc", "name", "added", "size", "resolution", "folder"]
@@ -594,7 +624,8 @@ Item {
                 anchors.fill: parent
                 photos: App.library.grid
                 dragEnabled: true
-                showScore: App.library.aiSearch && App.library.search !== ""
+                showScore: page.copies || (App.library.aiSearch && App.library.search !== "")
+                showFolder: page.copies
                 visible: App.library.grid.count > 0
                 onOpened: (photoId) => App.openPhoto(photoId)
                 onContextRequested: (index, cell) => photoMenu.popup(cell, cell.width / 2, cell.height / 2)
@@ -678,6 +709,9 @@ Item {
         id: photoMenu
 
         readonly property string firstId: App.library.grid.selectedIds(grid.currentIndex)[0] || ""
+        /// As pessoas da foto clicada, lidas ao abrir o menu.
+        property var people: ({})
+        onAboutToShow: people = App.library.photoPeople(firstId)
 
         AppMenuItem {
             text: qsTr("Open")
@@ -693,6 +727,32 @@ Item {
             height: visible ? implicitHeight : 0
             text: qsTr("Open with the default app")
             onTriggered: App.openExternally(App.photoPath(photoMenu.firstId))
+        }
+        // As pessoas da foto: escolher abre a pessoa.
+        ChoiceMenu {
+            title: qsTr("People")
+            choices: (photoMenu.people.people || []).map((p) => ({ id: p.id, name: p.name || App.people.labelOf(p.id) }))
+            emptyText: photoMenu.people.facesState === "pending" ? qsTr("Waiting in the faces queue")
+                     : photoMenu.people.faces > 0 ? qsTr("Faces without a person")
+                     : qsTr("No people in this photo")
+            onPicked: (id) => {
+                App.people.openPerson(id);
+                App.page = "people";
+            }
+        }
+        AppMenuItem {
+            visible: !page.inPrivate && photoMenu.people.facesState === "pending" && App.people.facesAvailable
+            height: visible ? implicitHeight : 0
+            text: qsTr("Find faces now")
+            onTriggered: App.library.findFacesNow([])
+        }
+        AppMenuItem {
+            // A mesma imagem em outras pastas e discos, com tolerância
+            // (tamanho, compressão, marca d'água).
+            visible: !page.inPrivate
+            height: visible ? implicitHeight : 0
+            text: qsTr("Find copies in other places")
+            onTriggered: App.library.findCopies(photoMenu.firstId)
         }
         AppMenuItem {
             text: page.inPrivate ? qsTr("Make public") : qsTr("Make private…")
@@ -716,13 +776,13 @@ Item {
             onPicked: (id) => App.library.moveToCategory([], id)
         }
         AppMenuItem {
-            visible: page.nodeType === "album" && page.nodeId !== App.privacy.albumNode.substring(6)
+            visible: !page.copies && page.nodeType === "album" && page.nodeId !== App.privacy.albumNode.substring(6)
             height: visible ? implicitHeight : 0
             text: qsTr("Remove from this album")
             onTriggered: App.library.removeFromAlbum([], page.nodeId)
         }
         AppMenuItem {
-            visible: page.nodeType === "cat"
+            visible: !page.copies && page.nodeType === "cat"
             height: visible ? implicitHeight : 0
             text: qsTr("Remove from this category")
             onTriggered: App.library.removeFromCategory([], page.nodeId)

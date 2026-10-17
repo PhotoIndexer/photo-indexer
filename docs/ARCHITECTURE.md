@@ -139,6 +139,13 @@ exata em memória).
   Hamming): fotos parecidas (redimensionadas, recomprimidas) sem comparar com
   todas. Duplicata = mesmo `picture_hash`, ou hash perceptual igual com a
   mesma proporção.
+- **Procurar cópias em outros lugares** (menu da grade,
+  `Catalog::findCopies`): a mesma imagem em qualquer pasta/disco, com
+  tolerância — idêntica (mesmos pixels ou hash), parecida (até 6 bits:
+  tamanho, compressão, marca d'água) e ampla (até 12 bits, e só pelo CLIP
+  ≥ 0,96: cortes, cor). O CLIP de cada candidato (quando há) separa o que só
+  tem o hash parecido (gráficos chapados). Medido em 3.728 pares reais com e
+  sem marca d'água: todos a até 5 bits (99% até 3), CLIP ≥ 0,89.
 - Orientação: a tag `Orientation`; quando ela diz "normal", a do fabricante
   (`imaging::makerNoteOrientation`: Canon, ShotInfo/AutoRotate — câmeras com
   "Girar auto" desligado). A miniatura, o visualizador e as faces usam a

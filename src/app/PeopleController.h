@@ -102,7 +102,9 @@ signals:
 
 private:
     void loadPerson();
-    void runSearch();
+    /// ``refresh``: as pessoas mudaram (juntar, nomear) com a busca aberta —
+    /// refaz "quem pode ser" sem levar a grade de volta ao topo.
+    void runSearch(bool refresh = false);
 
     pix::Catalog *m_catalog;
     pix::Pipeline *m_pipeline;

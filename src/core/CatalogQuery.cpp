@@ -569,11 +569,12 @@ QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) 
         const qsizetype n = std::min<qsizetype>(500, ranked.size() - start);
         for (qsizetype i = 0; i < n; ++i)
             params << ranked[start + i].first;
-        QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1 FROM photo p WHERE p.state != 'missing' AND p.private = 0 AND p.id IN (%2)")
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1, p.dir FROM photo p WHERE p.state != 'missing' AND p.private = 0 AND p.id IN (%2)")
                                     .arg(QLatin1String(kGridColumns), QStringList(n, QStringLiteral("?")).join(u',')),
                                 params);
         while (q.next()) {
             GridRow r = gridRow(q);
+            r.dir = q.value(9).toString();
             rows.insert(r.id, r);
         }
     }

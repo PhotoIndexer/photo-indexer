@@ -297,6 +297,7 @@ QQC.ApplicationWindow {
             active: App.page === "faceSearch"
             visible: active
             sourceComponent: FaceSearchPage {
+                names: nameDialog
                 onChooseFileRequested: faceFileDialog.open()
             }
         }

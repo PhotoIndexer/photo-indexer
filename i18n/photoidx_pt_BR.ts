@@ -879,6 +879,10 @@
             <numerusform>%n fotos encontradas</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Back to the photos found</source>
+        <translation>Voltar às fotos encontradas</translation>
+    </message>
 </context>
 <context>
     <name>FilterBar</name>
@@ -1532,6 +1536,61 @@
     <message>
         <source>Move to category</source>
         <translation>Mover para a categoria</translation>
+    </message>
+    <message>
+        <source>Back</source>
+        <translation>Voltar</translation>
+    </message>
+    <message>
+        <source>Copies of “%1”</source>
+        <translation>Cópias de “%1”</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n copy(ies) in other places — the first photo is the one you picked</source>
+        <translation>
+            <numerusform>%n cópia em outros lugares — a primeira foto é a que você escolheu</numerusform>
+            <numerusform>%n cópias em outros lugares — a primeira foto é a que você escolheu</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Identical</source>
+        <translation>Idêntica</translation>
+    </message>
+    <message>
+        <source>Close: resized, recompressed, watermark</source>
+        <translation>Parecida: redimensionada, recomprimida, marca d'água</translation>
+    </message>
+    <message>
+        <source>Loose: also crops and color edits</source>
+        <translation>Ampla: também cortes e ajustes de cor</translation>
+    </message>
+    <message>
+        <source>Tolerance</source>
+        <translation>Tolerância</translation>
+    </message>
+    <message>
+        <source>People</source>
+        <translation>Pessoas</translation>
+    </message>
+    <message>
+        <source>Waiting in the faces queue</source>
+        <translation>Aguardando na fila de rostos</translation>
+    </message>
+    <message>
+        <source>Faces without a person</source>
+        <translation>Faces sem pessoa</translation>
+    </message>
+    <message>
+        <source>No people in this photo</source>
+        <translation>Ninguém nesta foto</translation>
+    </message>
+    <message>
+        <source>Find faces now</source>
+        <translation>Procurar rostos agora</translation>
+    </message>
+    <message>
+        <source>Find copies in other places</source>
+        <translation>Procurar cópias em outros lugares</translation>
     </message>
 </context>
 <context>
@@ -2467,38 +2526,6 @@
 <context>
     <name>PeoplePage</name>
     <message>
-        <source>Name this person</source>
-        <translation>Dar nome a esta pessoa</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <translation>Nome</translation>
-    </message>
-    <message>
-        <source>Save</source>
-        <translation>Salvar</translation>
-    </message>
-    <message>
-        <source>“%1” already exists</source>
-        <translation>“%1” já existe</translation>
-    </message>
-    <message>
-        <source>Another person is already called &lt;b&gt;%1&lt;/b&gt;. Are they the same person?</source>
-        <translation>Outra pessoa já se chama &lt;b&gt;%1&lt;/b&gt;. É a mesma pessoa?</translation>
-    </message>
-    <message>
-        <source>Yes, merge them</source>
-        <translation>Sim, juntar</translation>
-    </message>
-    <message>
-        <source>No, just rename</source>
-        <translation>Não, só renomear</translation>
-    </message>
-    <message>
-        <source>Cancel</source>
-        <translation>Cancelar</translation>
-    </message>
-    <message>
         <source>People</source>
         <translation>Pessoas</translation>
     </message>
@@ -2541,12 +2568,58 @@
         <translation>Conforme a etapa Faces percorre suas fotos, cada rosto é agrupado com o mais parecido. As pessoas aparecem aqui, prontas para receber um nome.</translation>
     </message>
     <message>
+        <source>with a name, or with %1+ photos. The others appear in “Search by photo”.</source>
+        <translation>com nome, ou com %1+ fotos. As outras aparecem na “Busca por foto”.</translation>
+    </message>
+</context>
+<context>
+    <name>PersonDetail</name>
+    <message>
         <source>All people</source>
         <translation>Todas as pessoas</translation>
     </message>
     <message>
+        <source>Name this person</source>
+        <translation>Dar nome a esta pessoa</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Nome</translation>
+    </message>
+    <message>
+        <source>Save</source>
+        <translation>Salvar</translation>
+    </message>
+    <message>
+        <source>“%1” already exists</source>
+        <translation>“%1” já existe</translation>
+    </message>
+    <message>
+        <source>Another person is already called &lt;b&gt;%1&lt;/b&gt;. Are they the same person?</source>
+        <translation>Outra pessoa já se chama &lt;b&gt;%1&lt;/b&gt;. É a mesma pessoa?</translation>
+    </message>
+    <message>
+        <source>Yes, merge them</source>
+        <translation>Sim, juntar</translation>
+    </message>
+    <message>
+        <source>No, just rename</source>
+        <translation>Não, só renomear</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
         <source>Faces you removed from someone. Put them on the right person.</source>
         <translation>Faces que você tirou de alguém. Coloque-as na pessoa certa.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s)</source>
+        <translation>
+            <numerusform>%n foto</numerusform>
+            <numerusform>%n fotos</numerusform>
+        </translation>
     </message>
     <message numerus="yes">
         <source>%n face(s)</source>
@@ -2645,10 +2718,6 @@
     <message>
         <source>Merge</source>
         <translation>Juntar</translation>
-    </message>
-    <message>
-        <source>with a name, or with %1+ photos. The others appear in “Search by photo”.</source>
-        <translation>com nome, ou com %1+ fotos. As outras aparecem na “Busca por foto”.</translation>
     </message>
 </context>
 <context>
@@ -3395,6 +3464,26 @@
     <message>
         <source>SHA-256 (encrypted)</source>
         <translation>SHA-256 (criptografado)</translation>
+    </message>
+    <message>
+        <source>Looking for faces…</source>
+        <translation>Procurando rostos…</translation>
+    </message>
+    <message>
+        <source>Waiting in the faces queue.</source>
+        <translation>Aguardando na fila de rostos.</translation>
+    </message>
+    <message>
+        <source>Faces could not be read in this photo.</source>
+        <translation>Não foi possível ler os rostos desta foto.</translation>
+    </message>
+    <message>
+        <source>No faces found in this photo.</source>
+        <translation>Nenhum rosto encontrado nesta foto.</translation>
+    </message>
+    <message>
+        <source>Find faces now</source>
+        <translation>Procurar rostos agora</translation>
     </message>
 </context>
 </TS>

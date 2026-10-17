@@ -328,7 +328,12 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
     connect(&m_statusTimer, &QTimer::timeout, this, &Pipeline::statusChanged);
     // Disco que voltou: a fila do Indexer pode ter trabalho (as fotos novas
     // do Searcher e os "refazer" das Tarefas avisam por wake()).
-    connect(catalog, &Catalog::disksChanged, this, &Pipeline::wake);
+    connect(catalog, &Catalog::disksChanged, this, [this]() {
+        // Disco saiu: a fila já o filtra; voltou: as fotos estacionadas andam.
+        for (auto &[key, s] : m_stages)
+            s.parked.clear();
+        wake();
+    });
     // Abriu o cofre (ou pediram privada/pública): a etapa "privacy" anda.
     connect(catalog, &Catalog::privacyChanged, this, [this]() {
         m_pendingTimer.invalidate();
@@ -555,6 +560,24 @@ int Pipeline::threads(const QString &key) const
     return m_stages.count(key) ? stage(key).threads : 0;
 }
 
+void Pipeline::findFacesNow(const QStringList &photoIds)
+{
+    for (const QString &id : photoIds)
+        if (!m_facesFirst.contains(id))
+            m_facesFirst.append(id);
+    QTimer::singleShot(0, this, &Pipeline::pump);
+}
+
+void Pipeline::park(Stage &s, const QString &id)
+{
+    --s.inFlight;
+    s.busy.remove(id);
+    s.parked.insert(id);
+    if (s.parked.size() == 1 || s.parked.size() % 100 == 0)
+        qCInfo(lcPipeline) << "Files vanished while" << s.key << "ran:" << s.parked.size() << "photo(s) wait for the disk";
+    emit filesVanished();
+}
+
 void Pipeline::finished(Stage &s, const QString &id, bool ok, const QString &name)
 {
     --s.inFlight;
@@ -709,7 +732,7 @@ void Pipeline::dispatchWork()
     // voltou) ou a cada 5 s. A consulta, com dezenas de milhares de
     // pendentes num disco fora, varria a fila inteira para achar nada.
     if (room(index) > 0 && (!m_indexIdle.isValid() || m_indexIdle.hasExpired(5000))) {
-        indexJobs = m_catalog->nextIndexJobs(room(index), index.busy);
+        indexJobs = m_catalog->nextIndexJobs(room(index), index.busy + index.parked);
         if (indexJobs.isEmpty())
             m_indexIdle.start();
         else
@@ -730,8 +753,21 @@ void Pipeline::dispatchWork()
 
     Stage &faces = stage(QStringLiteral("faces"));
     QList<FaceJob> faceJobs;
+    // Pedidas pela pessoa (visualizador, menu da grade): primeiro, mesmo com
+    // a etapa pausada — no próximo lugar livre do pool (nunca na fila dele),
+    // dentro do teto global.
+    while (!m_facesFirst.isEmpty() && m_faces->available() && free > 0 && faces.inFlight < faces.threads) {
+        const QString id = m_facesFirst.takeFirst();
+        if (faces.busy.contains(id))
+            continue;
+        const QList<FaceJob> jobs = m_catalog->faceJobsFor({id});
+        if (jobs.isEmpty())
+            continue;  // já feita, privada ou disco fora
+        dispatchFaces(jobs.first());
+        --free;
+    }
     if (faces.running && m_faces->available() && room(faces) > 0) {
-        faceJobs = m_catalog->nextFaceJobs(room(faces), faces.busy);
+        faceJobs = m_catalog->nextFaceJobs(room(faces), faces.busy + faces.parked);
         if (faceJobs.isEmpty() && faces.inFlight == 0 && m_facesSinceMerge > 0) {
             // Fila vazia: junta as pessoas parecidas do que entrou.
             m_facesSinceMerge = 0;
@@ -791,6 +827,7 @@ void Pipeline::dispatchIndex(const IndexJob &job)
             return;
         }
         IndexResult r = guarded<IndexResult>(job.photoId, [&job] { return runIndex(job); });
+        r.unreachable = !r.ok && !QFileInfo::exists(job.path);
         QMetaObject::invokeMethod(
             self.data(),
             [self, r = std::move(r), path = job.path]() {
@@ -816,11 +853,16 @@ void Pipeline::flushIndexResults()
         QList<IndexResult> results;
         results.reserve(batch.size());
         for (const auto &[r, path] : batch)
-            results.append(r);
+            if (!r.unreachable)
+                results.append(r);
         return results;
     }());
     Stage &s = stage(QStringLiteral("index"));
     for (const auto &[r, path] : batch) {
+        if (r.unreachable) {
+            park(s, r.photoId);
+            continue;
+        }
         if (!r.ok)
             qCWarning(lcPipeline) << "Index failed:" << path << "-" << r.error;
         finished(s, r.photoId, r.ok, QFileInfo(path).fileName());
@@ -1013,11 +1055,17 @@ void Pipeline::dispatchFaces(const FaceJob &job)
         const bool skip = gen->load() != myGen;
         if (!skip)
             r = guarded<FaceResult>(job.photoId, [&] { return runFaces(job, *engine); });
+        r.unreachable = !skip && !r.ok && !QFileInfo::exists(job.path);
         QMetaObject::invokeMethod(
             self.data(),
             [self, r = std::move(r), skip, id = job.photoId, path = job.path]() {
                 if (!self)
                     return;
+                if (!skip && r.unreachable) {
+                    self->park(self->stage(QStringLiteral("faces")), id);
+                    self->schedulePump();
+                    return;
+                }
                 if (!skip) {
                     self->m_catalog->applyFaces(r);
                     if (!r.faces.isEmpty() && ++self->m_facesSinceMerge >= kMergeEvery) {

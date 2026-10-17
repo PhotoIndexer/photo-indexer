@@ -7,10 +7,23 @@ import PhotoIDX
 // Busca por rosto: a partir de uma foto escolhida no disco (ou de um rosto
 // já catalogado), as fotos em que a pessoa aparece — o mesmo cosseno do
 // ../photoe (ArcFace, limiar 0,45), contra todas as faces do catálogo.
+// Clicar em quem pode ser abre a pessoa À DIREITA (PersonDetail), com a
+// busca intacta à esquerda: dá para ir juntando, nomeando e tirando faces
+// candidato por candidato.
 Item {
     id: page
 
+    required property var names
+
     signal chooseFileRequested()
+
+    /// Uma pessoa da lista aberta à direita (no lugar das fotos encontradas).
+    property bool showPerson: false
+    readonly property bool personOpen: showPerson && Object.keys(App.people.person).length > 0
+
+    // Outra foto: volta para as fotos encontradas.
+    readonly property string query: App.people.queryUrl
+    onQueryChanged: showPerson = false
 
     // Esquerda: a foto, os rostos dela, o limiar e as pessoas que casam.
     Rectangle {
@@ -31,7 +44,12 @@ Item {
                 IconButton {
                     iconName: "arrow-left"
                     tooltip: qsTr("People")
-                    onClicked: App.page = "people"
+                    onClicked: {
+                        if (page.personOpen)
+                            App.people.closePerson();
+                        page.showPerson = false;
+                        App.page = "people";
+                    }
                 }
                 Text {
                     Layout.fillWidth: true
@@ -146,13 +164,16 @@ Item {
                         Layout.fillWidth: true
                         implicitHeight: 48
                         hoverEnabled: true
+                        readonly property bool current: page.personOpen && App.people.personId === modelData.id
                         onClicked: {
                             App.people.openPerson(modelData.id);
-                            App.page = "people";
+                            page.showPerson = true;
                         }
                         background: Rectangle {
                             radius: Theme.radiusMd
-                            color: who.hovered ? Theme.muted : "transparent"
+                            color: who.current ? Theme.accent : who.hovered ? Theme.muted : "transparent"
+                            border.width: who.current ? 1 : 0
+                            border.color: Theme.brand400
                         }
                         contentItem: RowLayout {
                             spacing: 10
@@ -200,8 +221,24 @@ Item {
         }
     }
 
-    // Direita: as fotos encontradas.
+    // Direita: a pessoa escolhida na lista…
+    PersonDetail {
+        anchors.left: side.right
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        visible: page.personOpen
+        names: page.names
+        backTooltip: qsTr("Back to the photos found")
+        onBack: {
+            App.people.closePerson();
+            page.showPerson = false;
+        }
+    }
+
+    // …ou as fotos encontradas.
     ColumnLayout {
+        visible: !page.personOpen
         anchors.left: side.right
         anchors.right: parent.right
         anchors.top: parent.top

@@ -465,12 +465,49 @@ Item {
                 }
             }
 
-            // Pessoas
+            // Pessoas: sempre à vista — com as faces, ou dizendo por que não
+            // há (na fila da etapa de faces, nenhum rosto, erro).
             ColumnLayout {
+                id: peopleSection
                 Layout.fillWidth: true
-                visible: (page.d.faces || []).length > 0
+                visible: !page.d.isPrivate
                 spacing: 8
+                /// "Procurar rostos agora" pedido para esta foto.
+                property string requestedFor: ""
+                readonly property bool queued: page.d.facesState === "pending" && (page.d.faces || []).length === 0
+                readonly property bool searching: queued && requestedFor === page.d.id
                 SectionTitle { text: qsTr("People in this photo") }
+                RowLayout {
+                    Layout.fillWidth: true
+                    visible: (page.d.faces || []).length === 0
+                    spacing: 8
+                    Spinner {
+                        visible: peopleSection.searching
+                        size: 14
+                        color: Theme.mutedForeground
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: peopleSection.searching ? qsTr("Looking for faces…")
+                            : peopleSection.queued ? qsTr("Waiting in the faces queue.")
+                            : page.d.facesState === "error" ? qsTr("Faces could not be read in this photo.")
+                            : qsTr("No faces found in this photo.")
+                        font.pixelSize: Theme.fontSm
+                        color: Theme.mutedForeground
+                        wrapMode: Text.Wrap
+                    }
+                    Button {
+                        visible: peopleSection.queued && !peopleSection.searching && App.people.facesAvailable
+                        size: "sm"
+                        variant: "outline"
+                        iconName: "scan-face"
+                        text: qsTr("Find faces now")
+                        onClicked: {
+                            peopleSection.requestedFor = page.d.id;
+                            App.library.findFacesNow([page.d.id]);
+                        }
+                    }
+                }
                 Repeater {
                     model: page.d.faces || []
                     T.ItemDelegate {

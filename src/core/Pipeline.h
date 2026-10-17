@@ -74,6 +74,9 @@ public:
     void setThreads(const QString &stage, int threads);
     /// Há trabalho novo na fila (requeue, fotos novas): olha já.
     void wake();
+    /// "Procurar rostos agora": estas fotos furam a fila da etapa de faces
+    /// (mesmo pausada), dentro do teto de tarefas.
+    void findFacesNow(const QStringList &photoIds);
     /// Refaz as pessoas automáticas (core/FaceClusterer.h) fora da thread
     /// principal; ``done`` recebe quantas pessoas ficaram.
     void regroupPeople(std::function<void(int people)> done = {});
@@ -105,6 +108,8 @@ signals:
     void statusChanged();
     /// Fim da varredura de uma pasta.
     void scanFinished(const QString &folderId, int found, int queued, int missing);
+    /// Um arquivo da fila não existe mais: vale conferir os discos já.
+    void filesVanished();
 
 private:
     struct Stage
@@ -118,6 +123,10 @@ private:
         int failed = 0;
         QString current;
         QSet<QString> busy;             ///< ids em andamento
+        /// Fotos cujo arquivo sumiu no meio do trabalho (disco desconectado
+        /// antes de o app perceber): ficam fora da fila até os discos mudarem,
+        /// sem virar erro e sem tentar de novo em laço.
+        QSet<QString> parked;
         std::deque<qint64> finishedAt;  ///< ms dos últimos concluídos (taxa)
         std::shared_ptr<std::atomic<int>> generation = std::make_shared<std::atomic<int>>(0);
     };
@@ -136,6 +145,8 @@ private:
     void dispatchPrivacy(const PrivacyJob &job);
     int totalInFlight() const;
     void finished(Stage &s, const QString &id, bool ok, const QString &name);
+    /// O arquivo sumiu: tira da fila até os discos mudarem (ver Stage::parked).
+    void park(Stage &s, const QString &id);
     void preparePrompts();
     void emitStatus();
 
@@ -143,6 +154,7 @@ private:
     std::unique_ptr<imaging::ClipModel> m_clip;
     std::unique_ptr<imaging::FaceEngine> m_faces;
     std::map<QString, Stage> m_stages;
+    QStringList m_facesFirst;     ///< findFacesNow: na frente da fila de faces
     QThreadPool m_interactive;
     QTimer m_timer;
     QTimer m_statusTimer;

@@ -17,7 +17,7 @@ namespace {
 
 // Passos do esquema (src/core/schema). Acrescente o próximo; nunca edite um
 // já publicado.
-constexpr int kSchemaSteps = 5;
+constexpr int kSchemaSteps = 6;
 
 /// Comandos de um passo: linhas acumuladas até uma que termina em ';'
 /// (comentários "--" e linhas vazias fora).
@@ -74,6 +74,10 @@ void Database::open(const QString &path)
     if (!path.isEmpty()) {
         exec(QStringLiteral("PRAGMA journal_mode = WAL"));
         exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
+        // O WAL não encolhe sozinho: depois de um lote grande (reagrupar,
+        // refazer categorias) ficava com centenas de MB, e abrir o app depois
+        // de um fechamento sujo relia tudo. Volta a 64 MB a cada checkpoint.
+        exec(QStringLiteral("PRAGMA journal_size_limit = 67108864"));
         tuneCache();
     }
     migrate();

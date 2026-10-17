@@ -38,6 +38,7 @@ LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, Catal
     m_tab = settings.value(QStringLiteral("library/tab"), QStringLiteral("folders")).toString();
     m_sort = settings.value(QStringLiteral("library/sort"), QStringLiteral("date-desc")).toString();
     m_nodeLabel = tr("All photos");
+    m_copiesTolerance = std::clamp(settings.value(QStringLiteral("library/copiesTolerance"), 1).toInt(), 0, 2);
 
     // Uma thread só para ler a grade, que vive o app inteiro (a conexão de
     // leitura é dela).
@@ -137,6 +138,10 @@ void LibraryController::refreshTree()
 
 void LibraryController::selectNode(const QString &key)
 {
+    if (!m_copiesOf.isEmpty()) {
+        m_copiesOf.clear();
+        emit copiesChanged();
+    }
     const QString k = key.isEmpty() ? QStringLiteral("all") : key;
     if (k == QLatin1String("all")) {
         m_nodeLabel = tr("All photos");
@@ -156,12 +161,62 @@ void LibraryController::selectNode(const QString &key)
     refresh();
 }
 
+void LibraryController::findCopies(const QString &photoId)
+{
+    if (photoId.isEmpty())
+        return;
+    m_copiesOf = photoId;
+    m_copiesName = m_catalog->db().scalar(QStringLiteral("SELECT name FROM photo WHERE id = ?"), {photoId}).toString();
+    m_grid.clearSelection();
+    emit copiesChanged();
+    m_backgroundRefresh = false;
+    refresh();
+}
+
+QVariantMap LibraryController::photoPeople(const QString &photoId) const
+{
+    return photoId.isEmpty() ? QVariantMap() : m_catalog->photoPeople(photoId);
+}
+
+void LibraryController::findFacesNow(const QStringList &photoIds)
+{
+    m_pipeline->findFacesNow(orSelection(photoIds));
+}
+
+void LibraryController::clearCopies()
+{
+    if (m_copiesOf.isEmpty())
+        return;
+    m_copiesOf.clear();
+    emit copiesChanged();
+    m_backgroundRefresh = false;
+    refresh();
+}
+
+void LibraryController::setCopiesTolerance(int tolerance)
+{
+    const int t = std::clamp(tolerance, 0, 2);
+    if (t == m_copiesTolerance)
+        return;
+    m_copiesTolerance = t;
+    QSettings().setValue(QStringLiteral("library/copiesTolerance"), t);
+    emit copiesChanged();
+    if (!m_copiesOf.isEmpty()) {
+        m_backgroundRefresh = false;
+        refresh();
+    }
+}
+
 void LibraryController::setSearch(const QString &search)
 {
     if (search == m_search)
         return;
     m_search = search;
     emit searchChanged();
+    if (!m_copiesOf.isEmpty()) {
+        m_copiesOf.clear();
+        emit copiesChanged();
+    }
     m_backgroundRefresh = false;
     m_refreshTimer.start(m_aiSearch ? 450 : 200);
 }
@@ -212,6 +267,12 @@ void LibraryController::refresh()
     m_refreshTimer.stop();
     const bool background = std::exchange(m_backgroundRefresh, false);
     const int serial = ++m_searchSerial;
+    if (!m_copiesOf.isEmpty()) {
+        // Poucas fotos (as cópias de uma): a árvore de hashes e o CLIP já
+        // estão na memória, a consulta é de milissegundos.
+        m_grid.setRows(m_catalog->photosByIds(m_catalog->findCopies(m_copiesOf, m_copiesTolerance)), background);
+        return;
+    }
     if (!m_aiSearch || m_search.trimmed().isEmpty() || !aiAvailable()) {
         const QString path = m_catalog->db().path();
         if (path.isEmpty()) {

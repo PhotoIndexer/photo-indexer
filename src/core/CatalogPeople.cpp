@@ -178,6 +178,7 @@ void Catalog::applyFaces(const FaceResult &r)
     if (!r.ok) {
         m_db.exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = ? WHERE id = ?"),
                   {QStringLiteral("Faces: ") + r.error.left(400), r.photoId});
+        emit facesDone(r.photoId);
         return;
     }
     QSet<QString> touched;
@@ -222,6 +223,7 @@ void Catalog::applyFaces(const FaceResult &r)
     tx.commit();
     if (!r.faces.isEmpty() || !touched.isEmpty())
         emit peopleChanged();
+    emit facesDone(r.photoId);
 }
 
 int Catalog::autoMergePeople()
@@ -465,6 +467,29 @@ int Catalog::applyRecluster(const ReclusterPlan &plan, const std::vector<int> &l
 // --------------------------------------------------------------------------- //
 // Pessoas: leitura
 // --------------------------------------------------------------------------- //
+
+QVariantMap Catalog::photoPeople(const QString &photoId) const
+{
+    QVariantMap out;
+    out.insert(QStringLiteral("facesState"), m_db.scalar(QStringLiteral("SELECT faces_state FROM photo WHERE id = ?"), {photoId}));
+    QVariantList people;
+    QSet<QString> seen;
+    int faces = 0;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.person_id, coalesce(pe.name, '') FROM face f "
+                                           "LEFT JOIN person pe ON pe.id = f.person_id WHERE f.photo_id = ? ORDER BY f.x"),
+                            {photoId});
+    while (q.next()) {
+        ++faces;
+        const QString id = q.value(0).toString();
+        if (id.isEmpty() || seen.contains(id))
+            continue;
+        seen.insert(id);
+        people << QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("name"), q.value(1)}};
+    }
+    out.insert(QStringLiteral("faces"), faces);
+    out.insert(QStringLiteral("people"), people);
+    return out;
+}
 
 int Catalog::minPersonPhotos() const
 {

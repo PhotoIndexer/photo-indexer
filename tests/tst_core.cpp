@@ -422,6 +422,120 @@ private slots:
         QCOMPARE(scanned.first().at(1).toInt(), 1);
     }
 
+    void findCopies()
+    {
+        // A mesma imagem em outros lugares: hash perceptual a poucos bits
+        // (marca d'água, recompressão), o CLIP separando os falsos.
+        const QString file = m_home.filePath(QStringLiteral("copies.sqlite3"));
+        QStringList p;
+        {
+            Catalog seed;
+            seed.open(file);
+            p = seedPhotos(seed, 6, m_photos.path() + QStringLiteral("/copies"));
+            const quint64 base = 0x6297d1ed76c6c260ULL;
+            auto flip = [base](int bits) {
+                quint64 h = base;
+                for (int i = 0; i < bits; ++i)
+                    h ^= quint64(1) << (i * 7 % 64);
+                return QStringLiteral("%1").arg(h, 16, 16, QLatin1Char('0'));
+            };
+            const int bits[] = {0, 2, 5, 10, 20, 2};
+            for (int i = 0; i < 6; ++i)
+                seed.db().exec(QStringLiteral("UPDATE photo SET phash = ?, picture_hash = ? WHERE id = ?"),
+                               {flip(bits[i]), QStringLiteral("px%1").arg(i), p[i]});
+            // CLIP: 0–4 a mesma cena; 5 tem o hash perto, mas é outra imagem.
+            const imaging::Embedding scene = vec({1, 0.05f}), other = vec({0, 1});
+            for (int i = 0; i < 6; ++i)
+                seed.db().exec(QStringLiteral("INSERT INTO photo_embedding(photo_id, model, vector) VALUES(?, 'test', ?)"),
+                               {p[i], imaging::toBlob(i == 5 ? other : i == 4 ? vec({1, 0.07f}) : scene)});
+            seed.db().exec(QStringLiteral("UPDATE photo SET picture_hash = 'px0' WHERE id = ?"), {p[1]});
+        }
+        Catalog catalog;
+        catalog.open(file);
+        auto ids = [&](int tolerance) {
+            QStringList out;
+            for (const auto &[id, score] : catalog.findCopies(p[0], tolerance))
+                out << id;
+            return out;
+        };
+        // Idêntica: mesmos pixels (p1). A própria vem primeiro.
+        QCOMPARE(ids(0), (QStringList{p[0], p[1]}));
+        // Parecida: até 6 bits com o CLIP de acordo; p5 (CLIP diferente) fica fora.
+        QCOMPARE(ids(1), (QStringList{p[0], p[1], p[2]}));
+        // Ampla: até 12 bits (p3) e só pelo CLIP (p4, o "corte").
+        const QStringList loose = ids(2);
+        QVERIFY(loose.contains(p[3]) && loose.contains(p[4]));
+        QVERIFY(!loose.contains(p[5]));
+        // Privada: nada.
+        catalog.db().exec(QStringLiteral("UPDATE photo SET private = 1 WHERE id = ?"), {p[0]});
+        QVERIFY(catalog.findCopies(p[0], 1).isEmpty());
+    }
+
+    void photoPeopleAndFacesFirst()
+    {
+        // O menu da grade e o visualizador: as pessoas da foto e o estado da
+        // etapa; "procurar rostos agora" só pega quem ainda está na fila.
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
+        const QStringList photos = seedPhotos(catalog, 2, m_photos.path() + QStringLiteral("/photopeople"));
+        catalog.db().exec(QStringLiteral("UPDATE photo SET state = 'indexed', thumb_path = 'x.jpg'"));
+        QCOMPARE(catalog.photoPeople(photos[0]).value(QStringLiteral("facesState")).toString(), QStringLiteral("pending"));
+        QCOMPARE(catalog.faceJobsFor(photos).size(), 2);
+        QSignalSpy done(&catalog, &Catalog::facesDone);
+        catalog.applyFaces(faces(photos[0], {vec({1, 0.01f}), vec({0, 1})}));
+        QCOMPARE(done.size(), 1);
+        const QVariantMap p = catalog.photoPeople(photos[0]);
+        QCOMPARE(p.value(QStringLiteral("facesState")).toString(), QStringLiteral("done"));
+        QCOMPARE(p.value(QStringLiteral("faces")).toInt(), 2);
+        QCOMPARE(p.value(QStringLiteral("people")).toList().size(), 2);
+        QCOMPARE(catalog.faceJobsFor(photos).size(), 1);  // a feita não volta
+    }
+
+    void vanishedFileWaitsForDisk()
+    {
+        // O original some entre a fila e a leitura (disco desconectado antes
+        // de o app perceber): a foto volta para a fila, não vira erro.
+        const QString root = m_photos.path() + QStringLiteral("/vanish");
+        QDir().mkpath(root);
+        QVERIFY(QFile::copy(data(QStringLiteral("sample.jpg")), root + QStringLiteral("/a.jpg")));
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("scan/minBytes"), 0);
+        const QString folderId = catalog.addFolder(root);
+        Pipeline pipeline(&catalog);
+        pipeline.pauseAll();
+        QSignalSpy scanned(&pipeline, &Pipeline::scanFinished);
+        QSignalSpy vanished(&pipeline, &Pipeline::filesVanished);
+        pipeline.scan({folderId});
+        QTRY_COMPARE_WITH_TIMEOUT(scanned.size(), 1, 30000);
+        QVERIFY(QFile::remove(root + QStringLiteral("/a.jpg")));
+        pipeline.start(QStringLiteral("index"));
+        QTRY_VERIFY_WITH_TIMEOUT(vanished.size() >= 1, 30000);
+        QTRY_VERIFY_WITH_TIMEOUT(!pipeline.busy(), 30000);
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT state FROM photo")).toString(), QStringLiteral("pending"));
+        QCOMPARE(vanished.size(), 1);  // estacionada: não tenta de novo em laço
+    }
+
+    void facesUnreadableRequeued()
+    {
+        // schema/0006.sql: o "image unreadable" das faces (disco fora) volta
+        // para a fila; os outros erros ficam.
+        const QString file = m_home.filePath(QStringLiteral("requeue.sqlite3"));
+        {
+            Catalog old;
+            old.open(file);
+            const QStringList photos = seedPhotos(old, 2, m_photos.path() + QStringLiteral("/requeue"));
+            old.db().exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = 'Faces: image unreadable' WHERE id = ?"), {photos[0]});
+            old.db().exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = 'Faces: internal error: x' WHERE id = ?"), {photos[1]});
+            old.db().exec(QStringLiteral("PRAGMA user_version = 5"));
+        }
+        Catalog reopened;
+        reopened.open(file);
+        QCOMPARE(reopened.db().scalar(QStringLiteral("SELECT count(*) FROM photo WHERE faces_state = 'pending' AND error = ''")).toInt(), 1);
+        QCOMPARE(reopened.db().scalar(QStringLiteral("SELECT count(*) FROM photo WHERE faces_state = 'error'")).toInt(), 1);
+    }
+
     void scanSkipsNoise()
     {
         // Ícones, recursos de programa e dependências não são fotos.

@@ -195,6 +195,9 @@ DiskArbitration), GUID do volume (Windows) ou `protocolo://servidor/
 compartilhamento` (SMB, NFS, AFP, WebDAV, SSHFS). O caminho relativo ao ponto
 de montagem fica guardado: se o disco volta em outro lugar, `refreshDisks()`
 refaz os caminhos. Código de SO novo vai em `Disks.cpp`, atrás de `#if`.
+Arquivo que some no meio de uma etapa (disco saiu antes de o app perceber)
+**não é erro**: o resultado vem com `unreachable`, a foto volta para a fila
+(`Pipeline` `Stage::parked`, até os discos mudarem) e o app sonda os discos.
 
 ### 11. Hash e faces: os do `../photoe`
 - `picture_hash` = SHA-256 de `"<modo>:<L>x<A>:"` + pixels decodificados e

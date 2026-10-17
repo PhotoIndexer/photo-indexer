@@ -39,6 +39,12 @@ ViewerController::ViewerController(Catalog *catalog, PhotoGridModel *grid, QObje
         if (!m_photoId.isEmpty())
             reload();
     });
+    // A etapa de faces passou por esta foto (mesmo sem achar rosto): a
+    // seção Pessoas sai de "na fila".
+    connect(catalog, &Catalog::facesDone, this, [this](const QString &photoId) {
+        if (photoId == m_photoId)
+            reload();
+    });
 }
 
 int ViewerController::position() const

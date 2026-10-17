@@ -56,6 +56,7 @@ struct IndexResult
     QString photoId;
     bool ok = false;
     QString error;
+    bool unreachable = false;   ///< o arquivo sumiu no meio (disco saiu): volta para a fila, não é erro
     bool isRaw = false;
     QString format;
     int width = 0;
@@ -121,6 +122,7 @@ struct FaceResult
     QString photoId;
     bool ok = false;
     QString error;
+    bool unreachable = false;   ///< o arquivo sumiu no meio (disco saiu): volta para a fila, não é erro
     QList<FoundFace> faces;
 };
 

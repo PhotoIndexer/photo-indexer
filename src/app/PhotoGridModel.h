@@ -32,6 +32,8 @@ public:
         ScoreRole,
         StateRole,
         IsPrivateRole,
+        FolderRole,             ///< só nas listas ranqueadas (cópias, busca por IA)
+        SizeTextRole,           ///< "6000×4000"
     };
 
     explicit PhotoGridModel(QObject *parent = nullptr);

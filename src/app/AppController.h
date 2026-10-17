@@ -177,4 +177,5 @@ private:
     QVariantList m_disks;
     QStringList m_volumes;          ///< pontos de montagem da última olhada
     bool m_probing = false;
+    bool m_vanishProbe = false;  ///< sonda dos discos pedida por arquivo sumido (uma por segundo)
 };

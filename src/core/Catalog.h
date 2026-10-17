@@ -66,6 +66,7 @@ struct GridRow
     QString takenAt;
     QString state;
     double score = 0.0;         ///< busca por IA / por rosto: a similaridade
+    QString dir;                ///< pasta (só nas listas ranqueadas: photosByIds)
 };
 
 /// Uma regra do filtro personalizado: ``field`` e ``op`` são chaves da lista
@@ -165,6 +166,12 @@ public:
     QList<IndexJob> nextIndexJobs(int limit, const QSet<QString> &busy) const;
     QList<CategorizeJob> nextCategorizeJobs(int limit, const QSet<QString> &busy) const;
     QList<FaceJob> nextFaceJobs(int limit, const QSet<QString> &busy) const;
+    /// Os pedidos de faces destas fotos, se ainda estão na fila e o disco
+    /// está conectado ("procurar rostos agora", furando a fila).
+    QList<FaceJob> faceJobsFor(const QStringList &photoIds) const;
+    /// As pessoas de uma foto e o estado da etapa de faces dela:
+    /// {facesState, faces, people: [{id, label}]} (sem nome = "Person N" no QML).
+    QVariantMap photoPeople(const QString &photoId) const;
     /// Pendentes de uma etapa ("index" | "categorize" | "faces").
     int pendingCount(const QString &stage) const;
     /// O universo de cada etapa ("index", "categorize", "faces", "privacy"),
@@ -193,6 +200,12 @@ public:
     /// Fotos ordenadas pela similaridade com um embedding de texto do CLIP.
     QList<QPair<QString, float>> rankByEmbedding(const imaging::Embedding &text, float minScore, int limit);
     void invalidateEmbeddings() { m_embeddingsLoaded = false; }
+    /// Busca de cópias: a mesma imagem em outros lugares — redimensionada,
+    /// recomprimida, com ou sem marca d'água, exportada com outro nome.
+    /// ``tolerance``: 0 idêntica, 1 parecida (padrão), 2 ampla (cortes,
+    /// ajuste de cor). A própria foto vem primeiro; o score vai de 0 a 1.
+    /// Foto privada: nada (as cópias de uma privada não são procuradas).
+    QList<QPair<QString, float>> findCopies(const QString &photoId, int tolerance);
 
     // ------------------------------------------------------------------ //
     // Faces e pessoas (CatalogPeople.cpp)
@@ -374,6 +387,8 @@ signals:
     /// Mudou a estrutura de uma aba ("categories", "albums", "people", "folders"...).
     void treeChanged(const QString &tab);
     void peopleChanged();
+    /// A etapa de faces terminou esta foto (com ou sem rostos, ou com erro).
+    void facesDone(const QString &photoId);
     /// Um disco entrou ou saiu (online/offline, outro ponto de montagem).
     void disksChanged();
     /// O cofre abriu/fechou ou a fila de privadas mudou.

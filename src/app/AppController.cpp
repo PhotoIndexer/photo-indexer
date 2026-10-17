@@ -136,6 +136,18 @@ AppController::AppController(QObject *parent)
     // A primeira olhada (m_volumes vazio) sonda todos os discos, fora da
     // thread principal; até ela voltar, valem os estados da última sessão.
     checkVolumes();
+    // Uma etapa achou um arquivo sumido: o disco pode ter saído sem a lista
+    // de volumes mudar ainda (ou antes da primeira sonda) — sonda já.
+    connect(m_pipeline.get(), &Pipeline::filesVanished, this, [this]() {
+        if (m_vanishProbe)
+            return;
+        m_vanishProbe = true;
+        QTimer::singleShot(1000, this, [this]() {
+            m_vanishProbe = false;
+            m_volumes.clear();
+            checkVolumes();
+        });
+    });
     m_volumeWatch.setInterval(3000);
     connect(&m_volumeWatch, &QTimer::timeout, this, &AppController::checkVolumes);
     m_volumeWatch.start();
