@@ -192,7 +192,8 @@ public:
     /// está conectado ("procurar rostos agora", furando a fila).
     QList<FaceJob> faceJobsFor(const QStringList &photoIds) const;
     /// As pessoas de uma foto e o estado da etapa de faces dela:
-    /// {facesState, faces, people: [{id, label}]} (sem nome = "Person N" no QML).
+    /// {facesState, faces, people: [{id, name, faceId}]} — uma por pessoa e, no
+    /// fim, os rostos sem pessoa (id vazio); faceId = o rosto dela nesta foto.
     QVariantMap photoPeople(const QString &photoId) const;
 
     // Grupos de pessoas (schema/0007.sql): os da pessoa; quem não tem grupo

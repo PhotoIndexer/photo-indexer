@@ -12,6 +12,7 @@
      data-i18n-alt="k"      -> atributo alt
      data-i18n-aria="k"     -> atributo aria-label
      data-i18n-content="k"  -> atributo content (meta)
+     data-i18n-placeholder="k" -> atributo placeholder
    ========================================================================== */
 (function () {
   "use strict";
@@ -33,6 +34,18 @@
     "nav.tasks": "Tasks",
     "nav.download": "Download",
     "nav.cta": "Free download",
+    "nav.tutorials": "Tutorials",
+    "tut.metaTitle": "Tutorials — PhotoIDX",
+    "tut.metaDescription": "Step-by-step PhotoIDX tutorials: adding folders, browsing, searching, categories, people, face search, copies, files and private photos.",
+    "tut.listLabel": "Tutorials",
+    "tut.title": "Tutorials",
+    "tut.chapters": "{n} chapters",
+    "tut.filter": "Filter…",
+    "tut.eyebrow": "Tutorial",
+    "tut.tip": "Tip",
+    "tut.prev": "← Previous",
+    "tut.next": "Next →",
+    "tut.footerNote": "Screenshots with fictitious photos and names.",
     "nav.menu": "Open menu",
     "hero.eyebrow": "Windows · macOS · Linux",
     "hero.title": "All your photos, <span class=\"grad\">in one catalog.</span>",
@@ -182,7 +195,8 @@
     ["data-i18n-html", function (el) { return el.innerHTML; }, function (el, v) { el.innerHTML = v; }],
     ["data-i18n-alt", function (el) { return el.getAttribute("alt"); }, function (el, v) { el.setAttribute("alt", v); }],
     ["data-i18n-aria", function (el) { return el.getAttribute("aria-label"); }, function (el, v) { el.setAttribute("aria-label", v); }],
-    ["data-i18n-content", function (el) { return el.getAttribute("content"); }, function (el, v) { el.setAttribute("content", v); }]
+    ["data-i18n-content", function (el) { return el.getAttribute("content"); }, function (el, v) { el.setAttribute("content", v); }],
+    ["data-i18n-placeholder", function (el) { return el.getAttribute("placeholder"); }, function (el, v) { el.setAttribute("placeholder", v); }]
   ];
 
   function normalize(value) {

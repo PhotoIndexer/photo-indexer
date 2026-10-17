@@ -12,6 +12,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QFutureWatcher>
 #include <QLoggingCategory>
 #include <QSettings>
@@ -130,6 +131,11 @@ void LibraryController::refreshTree()
                 return;
             PIX_PERF("LibraryController::setTree");
             m_tree.setNodes(nodes);
+            // Mostrar na pasta: a árvore desta aba chegou, abre até o nó.
+            if (!m_revealPending.isEmpty()) {
+                m_tree.reveal(m_revealPending);
+                m_revealPending.clear();
+            }
             // O nome do nó escolhido pode ter mudado (renomeado, contagem).
             const QVariantMap n = m_tree.node(m_node);
             if (!n.isEmpty() && n.value(QStringLiteral("label")).toString() != m_nodeLabel) {
@@ -156,6 +162,8 @@ void LibraryController::selectNode(const QString &key)
         const QVariantMap n = m_tree.node(k);
         if (!n.isEmpty())
             m_nodeLabel = n.value(QStringLiteral("label")).toString();
+        else if (k.startsWith(QLatin1String("dir:")))
+            m_nodeLabel = k.section(u'/', -1);  // a árvore da aba ainda vai chegar
         m_tree.reveal(k);
     }
     m_node = k;
@@ -218,6 +226,32 @@ QVariantList LibraryController::personGroups() const
 QString LibraryController::personGroupOf(const QString &personId) const
 {
     return m_catalog->personGroupOf(personId);
+}
+
+void LibraryController::showInFolder(const QString &photoId)
+{
+    const QString path = m_catalog->photoPath(photoId);
+    if (path.isEmpty())
+        return;
+    const QString key = QStringLiteral("dir:") + QDir::fromNativeSeparators(QFileInfo(path).absolutePath());
+    m_focusPhoto = photoId;
+    if (m_tab != QLatin1String("folders")) {
+        m_revealPending = key;  // a árvore da aba Pastas ainda vai chegar
+        setTab(QStringLiteral("folders"));
+    }
+    selectNode(key);
+}
+
+void LibraryController::focusPending()
+{
+    if (m_focusPhoto.isEmpty())
+        return;
+    const int index = m_grid.indexOf(m_focusPhoto);
+    m_focusPhoto.clear();
+    if (index < 0)
+        return;
+    m_grid.click(index, 0);
+    emit focusRequested(index);
 }
 
 void LibraryController::clearCopies()
@@ -334,6 +368,7 @@ void LibraryController::refresh()
         if (path.isEmpty()) {
             // Banco em memória (testes): não há segunda conexão; lê aqui.
             m_grid.setRows(m_catalog->photos(query()), background);
+            focusPending();
             return;
         }
         // O SQL sai daqui (lista fechada); a leitura roda na thread do leitor
@@ -353,6 +388,7 @@ void LibraryController::refresh()
             if (serial != m_searchSerial)
                 return;  // outro pedido veio depois deste
             m_grid.setRows(rows, background);
+            focusPending();
             if (m_searching) {
                 m_searching = false;
                 emit searchingChanged();

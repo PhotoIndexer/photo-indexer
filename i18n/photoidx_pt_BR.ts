@@ -948,6 +948,22 @@
         <source>Merge all</source>
         <translation>Juntar todas</translation>
     </message>
+    <message>
+        <source>Unnamed people only</source>
+        <translation>Só pessoas sem nome</translation>
+    </message>
+    <message>
+        <source>Show removed (%1)</source>
+        <translation>Mostrar as tiradas (%1)</translation>
+    </message>
+    <message>
+        <source>Open</source>
+        <translation>Abrir</translation>
+    </message>
+    <message>
+        <source>Remove from list</source>
+        <translation>Tirar da lista</translation>
+    </message>
 </context>
 <context>
     <name>FilterBar</name>
@@ -1642,10 +1658,6 @@
         <translation>Aguardando na fila de rostos</translation>
     </message>
     <message>
-        <source>Faces without a person</source>
-        <translation>Faces sem pessoa</translation>
-    </message>
-    <message>
         <source>No people in this photo</source>
         <translation>Ninguém nesta foto</translation>
     </message>
@@ -1814,6 +1826,22 @@
     <message>
         <source>this is on a network drive. Network drives usually have no Recycle Bin, so Windows may delete the files permanently.</source>
         <translation>isto está num disco de rede. Discos de rede costumam não ter Lixeira, então o Windows pode apagar os arquivos de vez.</translation>
+    </message>
+    <message>
+        <source>Move to group…</source>
+        <translation>Mover para o grupo…</translation>
+    </message>
+    <message>
+        <source>Show in folder</source>
+        <translation>Mostrar na pasta</translation>
+    </message>
+    <message>
+        <source>Unknown person</source>
+        <translation>Pessoa desconhecida</translation>
+    </message>
+    <message>
+        <source>Find this person in other photos</source>
+        <translation>Achar esta pessoa em outras fotos</translation>
     </message>
 </context>
 <context>

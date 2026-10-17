@@ -89,6 +89,8 @@ public:
     ViewerController *viewer() { return m_viewer.get(); }
     PrivacyController *privacy() { return m_privacy.get(); }
     FilesController *files() { return m_files.get(); }
+    /// Capturas de tela (--open/--copies com um caminho): o id da foto.
+    QString photoIdByPath(const QString &path) const;
     /// O chaveiro da sessão (o provider image://private decifra com ele).
     std::shared_ptr<const pix::crypto::KeyRing> keyRing() const;
     PeopleController *people() { return m_people.get(); }

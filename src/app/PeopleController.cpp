@@ -9,6 +9,7 @@
 #include "imaging/Faces.h"
 
 #include <QImage>
+#include <QSettings>
 #include <QSqlQuery>
 
 #include <cmath>
@@ -31,6 +32,7 @@ PeopleController::PeopleController(Catalog *catalog, Pipeline *pipeline, Catalog
     , m_reader(reader)
     , m_threshold(catalog->setting(QStringLiteral("faces/matchSimilarity"), imaging::kFaceMatchSimilarity).toDouble())
 {
+    m_unnamedOnly = QSettings().value(QStringLiteral("faceSearch/unnamedOnly"), false).toBool();
     // Indexando, as pessoas mudam a cada foto com rosto: a lista é refeita no
     // leitor, no máximo a cada 5 s (parado, quase na hora).
     m_reloadTimer.setSingleShot(true);
@@ -185,6 +187,31 @@ int PeopleController::mergeAllMatched()
     return int(ids.size());
 }
 
+void PeopleController::setUnnamedOnly(bool on)
+{
+    if (on == m_unnamedOnly)
+        return;
+    m_unnamedOnly = on;
+    QSettings().setValue(QStringLiteral("faceSearch/unnamedOnly"), on);
+    runSearch(true);
+}
+
+void PeopleController::hideMatch(const QString &personId)
+{
+    if (personId.isEmpty())
+        return;
+    m_hidden.insert(personId);
+    runSearch(true);
+}
+
+void PeopleController::showHidden()
+{
+    if (m_hidden.isEmpty())
+        return;
+    m_hidden.clear();
+    runSearch(true);
+}
+
 void PeopleController::remove(const QString &personId)
 {
     m_catalog->deletePerson(personId);
@@ -231,6 +258,7 @@ void PeopleController::searchByPhoto(const QUrl &file)
     const int serial = ++m_searchSerial;
     m_detecting = true;
     m_queryPerson.clear();
+    m_hidden.clear();
     m_searchError.clear();
     m_queryFaces.clear();
     m_queryEmbeddings.clear();
@@ -266,6 +294,7 @@ void PeopleController::searchByFace(const QString &faceId)
     ++m_searchSerial;
     m_detecting = false;
     m_queryPerson.clear();
+    m_hidden.clear();
     m_searchError.clear();
     m_queryFaces.clear();
     m_queryEmbeddings.clear();
@@ -288,6 +317,7 @@ void PeopleController::searchByPerson(const QString &personId)
     m_queryFaces.clear();
     m_queryEmbeddings.clear();
     m_queryPerson = personId;
+    m_hidden.clear();
     const QVariantMap p = m_catalog->person(personId);
     m_queryUrl = fileUrl(p.value(QStringLiteral("coverPath")).toString());
     imaging::Embedding centroid =
@@ -335,9 +365,17 @@ void PeopleController::runSearch(bool refresh)
     // Fotos na ordem da melhor face; pessoas pela melhor similaridade.
     QList<QPair<QString, float>> ranked;
     QHash<QString, QPair<float, int>> people;
+    // Com nome (para "só sem nome"): as da lista de pessoas, que já está na memória.
+    QSet<QString> named;
+    if (m_unnamedOnly)
+        for (const QVariant &v : m_people)
+            if (!v.toMap().value(QStringLiteral("name")).toString().isEmpty())
+                named.insert(v.toMap().value(QStringLiteral("id")).toString());
     for (const FaceIndex::Match &m : matches) {
         if (!m_queryPerson.isEmpty() && m.entry.personId == m_queryPerson)
             continue;  // as dela mesma: o que interessa são as outras
+        if (m_hidden.contains(m.entry.personId) || named.contains(m.entry.personId))
+            continue;
         ranked.append({m.entry.photoId, m.similarity});
         if (!m.entry.personId.isEmpty()) {
             auto &p = people[m.entry.personId];

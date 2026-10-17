@@ -152,6 +152,22 @@ Item {
                 color: Theme.mutedForeground
                 wrapMode: Text.Wrap
             }
+            // Só quem ainda não tem nome: o que falta atribuir (e o que o
+            // "Juntar todas" junta).
+            Toggle {
+                Layout.fillWidth: true
+                label: qsTr("Unnamed people only")
+                checked: App.people.unnamedOnly
+                onToggled: (value) => App.people.unnamedOnly = value
+            }
+            Button {
+                visible: App.people.hiddenCount > 0
+                size: "sm"
+                variant: "ghost"
+                iconName: "eye"
+                text: qsTr("Show removed (%1)").arg(App.people.hiddenCount)
+                onClicked: App.people.showHidden()
+            }
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -195,6 +211,14 @@ Item {
                         onClicked: {
                             App.people.openPerson(modelData.id);
                             page.showPerson = true;
+                        }
+                        // Botão direito: tirar da lista (e do "Juntar todas").
+                        TapHandler {
+                            acceptedButtons: Qt.RightButton
+                            onTapped: {
+                                matchMenu.personId = who.modelData.id;
+                                matchMenu.popup(who, who.width / 2, who.height / 2);
+                            }
                         }
                         background: Rectangle {
                             radius: Theme.radiusMd
@@ -319,6 +343,27 @@ Item {
             photos: App.people.results
             showScore: true
             onOpened: (photoId) => App.openPhoto(photoId)
+        }
+    }
+
+    // Menu de um candidato de "quem pode ser".
+    AppMenu {
+        id: matchMenu
+        property string personId: ""
+        AppMenuItem {
+            text: qsTr("Open")
+            onTriggered: {
+                App.people.openPerson(matchMenu.personId);
+                page.showPerson = true;
+            }
+        }
+        AppMenuItem {
+            text: qsTr("Remove from list")
+            onTriggered: {
+                if (page.personOpen && App.people.personId === matchMenu.personId)
+                    page.showPerson = false;
+                App.people.hideMatch(matchMenu.personId);
+            }
         }
     }
 }

@@ -3,8 +3,9 @@
 
     python3 packaging/site.py --out <pasta>     # make site
 
-Junta numa pasta só: o HTML/CSS/JS de docs/site, as capturas de tela de
-docs/images (assets/screens/) e o logo e os ícones do app (assets/), de onde
+Junta numa pasta só: o HTML/CSS/JS de docs/site (com os tutoriais em
+tutorials/), as capturas de tela de docs/images (assets/screens/, com as dos
+tutoriais em assets/screens/tutorials/<idioma>/) e o logo e os ícones do app (assets/), de onde
 eles já moram — nada é versionado duas vezes. Troca o %BUILD_TS% (cache dos
 navegadores) pelo instante do build e grava assets/releases.json com as
 releases publicadas e os instaladores delas (o que a página usa se a API
@@ -54,8 +55,11 @@ def build(out: Path):
         shutil.rmtree(out)
     shutil.copytree(SITE, out)
     (out / 'assets' / 'screens').mkdir(parents=True, exist_ok=True)
-    for jpg in SCREENS.glob('*.jpg'):
-        shutil.copy2(jpg, out / 'assets' / 'screens' / jpg.name)
+    # As capturas, com as subpastas (tutorials/<idioma>/...).
+    for jpg in SCREENS.rglob('*.jpg'):
+        target = out / 'assets' / 'screens' / jpg.relative_to(SCREENS)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(jpg, target)
     (out / 'assets' / 'logo').mkdir(parents=True, exist_ok=True)
     shutil.copy2(ASSETS / 'logo' / 'photoidx-dark.png', out / 'assets' / 'logo' / 'photoidx-dark.png')
     for icon in ('favicon.png', 'favicon.ico'):

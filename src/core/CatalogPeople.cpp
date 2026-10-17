@@ -533,17 +533,25 @@ QVariantMap Catalog::photoPeople(const QString &photoId) const
     QVariantList people;
     QSet<QString> seen;
     int faces = 0;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.person_id, coalesce(pe.name, '') FROM face f "
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.person_id, coalesce(pe.name, ''), f.id FROM face f "
                                            "LEFT JOIN person pe ON pe.id = f.person_id WHERE f.photo_id = ? ORDER BY f.x"),
                             {photoId});
+    QVariantList unknown;
     while (q.next()) {
         ++faces;
         const QString id = q.value(0).toString();
-        if (id.isEmpty() || seen.contains(id))
+        // Sem pessoa (detecção fraca, tirada de alguém): ainda dá para buscar o rosto.
+        if (id.isEmpty()) {
+            unknown << QVariantMap{{QStringLiteral("id"), QString()}, {QStringLiteral("name"), QString()},
+                                   {QStringLiteral("faceId"), q.value(2)}};
+            continue;
+        }
+        if (seen.contains(id))
             continue;
         seen.insert(id);
-        people << QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("name"), q.value(1)}};
+        people << QVariantMap{{QStringLiteral("id"), id}, {QStringLiteral("name"), q.value(1)}, {QStringLiteral("faceId"), q.value(2)}};
     }
+    people << unknown;
     out.insert(QStringLiteral("faces"), faces);
     out.insert(QStringLiteral("people"), people);
     return out;

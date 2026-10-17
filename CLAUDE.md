@@ -301,6 +301,10 @@ na raiz do domínio), com a deploy key do secret `SITE_DEPLOY_KEY`. As
 capturas de tela moram em `docs/images/` (o README também as usa), geradas
 pelo próprio app (`--screenshot`).
 
+- **Tutoriais** em `docs/site/tutorials/` (o texto, EN e PT-BR, em
+  `docs/site/js/tutorials-content.js`; um capítulo por função). As telas são
+  do próprio app com fotos e nomes **fictícios** (`packaging/tutorials/`):
+  mudou a interface de uma função, refaça as capturas e o texto dela.
 - **Toda release termina republicando o site:** o `release.yml`, depois do
   job dos instaladores, chama o `pages.yml` (`workflow_call`). O build grava
   `assets/releases.json` com as releases e os instaladores publicados (com o

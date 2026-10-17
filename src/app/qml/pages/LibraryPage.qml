@@ -365,7 +365,7 @@ Item {
         onMoved: (v) => page.panelWidth = v
     }
 
-    // Pessoa no painel: mover para um grupo (entra no nodeMenu só para pessoas).
+    // Pessoa no painel: mover para um grupo ("Mover para grupo…" do nodeMenu).
     ChoiceMenu {
         id: groupMenu
         title: qsTr("Move to group")
@@ -387,28 +387,10 @@ Item {
         /// Pessoa: o grupo dela e os grupos que existem (lidos ao abrir).
         property string personGroup: ""
         property var groups: []
-        property bool groupMenuIn: false
         onAboutToShow: {
-            // O submenu "Mover para grupo" só existe no menu de uma pessoa
-            // (submenu não some com ``visible``): entra e sai daqui.
-            let at = -1;
-            for (let i = 0; i < count; ++i)
-                if (itemAt(i) === newGroupItem)
-                    at = i;
             if (type === "person") {
                 personGroup = App.library.personGroupOf(id);
                 groups = App.library.personGroups();
-                if (!groupMenuIn && at >= 0) {
-                    insertMenu(at, groupMenu);
-                    groupMenuIn = true;
-                }
-            } else if (groupMenuIn) {
-                for (let i = 0; i < count; ++i)
-                    if (itemAt(i) && itemAt(i).subMenu === groupMenu) {
-                        takeMenu(i);
-                        break;
-                    }
-                groupMenuIn = false;
             }
         }
 
@@ -549,6 +531,14 @@ Item {
                 variant: "danger",
                 confirmLabel: qsTr("Delete")
             }, () => App.library.deletePersonGroup(nodeMenu.id))
+        }
+        // Os grupos abrem como um menu à parte (não submenu): um submenu
+        // posto e tirado em tempo de execução derrubava o app ao fechar.
+        AppMenuItem {
+            visible: nodeMenu.type === "person"
+            height: visible ? implicitHeight : 0
+            text: qsTr("Move to group…")
+            onTriggered: groupMenu.popup()
         }
         AppMenuItem {
             id: newGroupItem
@@ -816,6 +806,13 @@ Item {
                 visible: App.library.grid.count > 0 && !page.copies
                 onOpened: (photoId) => App.openPhoto(photoId)
                 onContextRequested: (index, cell) => photoMenu.popup(cell, cell.width / 2, cell.height / 2)
+                Connections {
+                    target: App.library
+                    function onFocusRequested(index) {
+                        grid.currentIndex = index;
+                        grid.positionViewAtIndex(index, GridView.Center);
+                    }
+                }
             }
 
             // Cópias: por pasta, o caminho e as fotos dela embaixo.
@@ -916,6 +913,13 @@ Item {
             onTriggered: App.openPhoto(photoMenu.firstId)
         }
         AppMenuItem {
+            // A pasta da foto no painel (aba Pastas), com a foto escolhida.
+            visible: !page.inPrivate
+            height: visible ? implicitHeight : 0
+            text: qsTr("Show in folder")
+            onTriggered: App.library.showInFolder(photoMenu.firstId)
+        }
+        AppMenuItem {
             text: qsTr("Show in file manager")
             onTriggered: App.revealInFolder(App.photoPath(photoMenu.firstId))
         }
@@ -926,16 +930,41 @@ Item {
             text: qsTr("Open with the default app")
             onTriggered: App.openExternally(App.photoPath(photoMenu.firstId))
         }
-        // As pessoas da foto: escolher abre a pessoa.
-        ChoiceMenu {
+        // As pessoas da foto: escolher abre a pessoa; o submenu busca o rosto
+        // dela (nesta foto) nas outras. Só submenus declarados aqui — nada de
+        // submenu criado em tempo de execução (derrubava o app ao fechar).
+        AppMenu {
+            id: peopleMenu
             title: qsTr("People")
-            choices: (photoMenu.people.people || []).map((p) => ({ id: p.id, name: p.name || App.people.labelOf(p.id) }))
-            emptyText: photoMenu.people.facesState === "pending" ? qsTr("Waiting in the faces queue")
-                     : photoMenu.people.faces > 0 ? qsTr("Faces without a person")
-                     : qsTr("No people in this photo")
-            onPicked: (id) => {
-                App.people.openPerson(id);
-                App.page = "people";
+            readonly property var entries: (photoMenu.people.people || []).map((p) => ({
+                id: p.id, faceId: p.faceId,
+                name: p.name || (p.id ? App.people.labelOf(p.id) : qsTr("Unknown person"))
+            }))
+            Instantiator {
+                model: peopleMenu.entries.length > 0 ? peopleMenu.entries : [null]
+                delegate: AppMenuItem {
+                    required property var modelData
+                    text: modelData ? modelData.name
+                                    : (photoMenu.people.facesState === "pending" ? qsTr("Waiting in the faces queue")
+                                                                                : qsTr("No people in this photo"))
+                    enabled: !!modelData && !!modelData.id
+                    onTriggered: {
+                        App.people.openPerson(modelData.id);
+                        App.page = "people";
+                    }
+                }
+                onObjectAdded: (index, object) => peopleMenu.insertItem(index, object)
+                onObjectRemoved: (index, object) => peopleMenu.removeItem(object)
+            }
+            AppMenuSeparator {}
+            ChoiceMenu {
+                title: qsTr("Find this person in other photos")
+                choices: peopleMenu.entries.map((e) => ({ id: e.faceId, name: e.name }))
+                emptyText: qsTr("No people in this photo")
+                onPicked: (faceId) => {
+                    App.people.searchByFace(faceId);
+                    App.page = "faceSearch";
+                }
             }
         }
         AppMenuItem {

@@ -412,3 +412,60 @@ kbd {
   .reveal { opacity: 1; transform: none; }
   .hero .window { transform: none; }
 }
+
+/* ------------------------------ Tutoriais -------------------------------- */
+/* Página tutorials/: escura como o app, lista de capítulos à esquerda e o
+   capítulo aberto à direita (no celular, a lista vai para cima). */
+.tut-body { background: var(--studio-950); color: rgba(255,255,255,.74); }
+.tut-body .site-footer { background: var(--studio-950); border-top: 1px solid rgba(255,255,255,.07); }
+.nav__menu a.is-active { color: #fff; }
+.tut { padding: 40px 0 80px; }
+.tut__layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 48px; align-items: start; }
+.tut__side { position: sticky; top: calc(var(--header-h) + 24px); padding-right: 24px; border-right: 1px solid rgba(255,255,255,.08); }
+.tut__head { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.tut__head b { display: block; color: #fff; font-size: .98rem; }
+.tut__head small { color: rgba(255,255,255,.5); font-size: .8rem; }
+.tut__badge { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--studio-700); }
+.tut__badge svg { width: 19px; height: 19px; stroke: var(--red); fill: none; stroke-width: 2; }
+.tut__filter { display: flex; align-items: center; gap: 8px; background: var(--studio-700); border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 0 12px; margin-bottom: 16px; }
+.tut__filter svg { width: 16px; height: 16px; stroke: rgba(255,255,255,.5); fill: none; stroke-width: 2; flex: none; }
+.tut__filter input { width: 100%; background: transparent; border: 0; color: #fff; font: 500 .9rem var(--sans); padding: 10px 0; outline: none; }
+.tut__filter input::placeholder { color: rgba(255,255,255,.4); }
+.tut__list { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
+.tut__list a { display: flex; gap: 10px; align-items: baseline; padding: 9px 12px; border-radius: 10px; color: rgba(255,255,255,.62); font-size: .92rem; line-height: 1.35; }
+.tut__list a:hover { color: #fff; background: rgba(255,255,255,.04); }
+.tut__list a.is-active { color: #fff; background: var(--studio-700); }
+.tut__num { font: 700 .74rem/1 var(--mono); color: rgba(255,255,255,.4); min-width: 1.4em; }
+.tut__list a.is-active .tut__num { color: var(--red); }
+.tut__content { max-width: 880px; }
+.tut__eyebrow { display: inline-block; font: 700 .78rem/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; color: #ff8a8d; margin-bottom: 14px; }
+.tut__content h1 { color: #fff; font-size: clamp(1.9rem, 4vw, 2.8rem); margin-bottom: .35em; }
+.tut__content h2 { color: #fff; font-size: 1.35rem; margin: 2.2em 0 .7em; }
+.tut__lead { font-size: 1.12rem; color: rgba(255,255,255,.7); }
+.tut__rule { border: 0; border-top: 1px solid rgba(255,255,255,.08); margin: 28px 0 32px; }
+.tut__content p { color: rgba(255,255,255,.74); }
+.tut__content b { color: #fff; }
+.tut__content code { background: var(--studio-700); color: #fff; padding: 2px 6px; border-radius: 6px; font-size: .86em; }
+.tut__steps { counter-reset: step; list-style: none; padding: 0; margin: 0 0 1.6rem; display: grid; gap: 12px; }
+.tut__steps li { counter-increment: step; position: relative; padding: 2px 0 0 44px; color: rgba(255,255,255,.76); }
+.tut__steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: rgba(224,53,58,.14); border: 1px solid rgba(224,53,58,.4); color: #ff8a8d; font: 700 .8rem/1 var(--mono); }
+.tut__shot { margin: 28px 0 32px; }
+.tut__shot .window { box-shadow: var(--shadow-lg); }
+.tut__shot figcaption { margin-top: 12px; font-size: .88rem; color: rgba(255,255,255,.5); text-align: center; }
+.tut__tip { margin: 26px 0; padding: 16px 18px; border-radius: 12px; background: rgba(47,107,255,.09); border: 1px solid rgba(47,107,255,.28); color: rgba(255,255,255,.8); }
+.tut__tip b:first-child { color: #8fb0ff; margin-right: 6px; }
+.tut__pager { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 56px; padding-top: 28px; border-top: 1px solid rgba(255,255,255,.08); }
+.tut__pagerlink { display: block; padding: 16px 18px; border-radius: 12px; border: 1px solid rgba(255,255,255,.1); color: #fff; }
+.tut__pagerlink:hover { color: #fff; border-color: var(--red); background: rgba(255,255,255,.03); }
+.tut__pagerlink small { display: block; color: rgba(255,255,255,.5); font-size: .8rem; margin-bottom: 4px; }
+.tut__pagerlink--next { text-align: right; grid-column: 2; }
+@media (max-width: 900px) {
+  .tut__layout { grid-template-columns: 1fr; gap: 28px; }
+  .tut__side { position: static; padding-right: 0; border-right: 0; border-bottom: 1px solid rgba(255,255,255,.08); padding-bottom: 16px; }
+  .tut__list { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+@media (max-width: 560px) {
+  .tut { padding-top: 24px; }
+  .tut__pager { grid-template-columns: 1fr; }
+  .tut__pagerlink--next { grid-column: 1; }
+}

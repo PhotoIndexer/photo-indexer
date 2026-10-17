@@ -170,6 +170,11 @@ std::shared_ptr<const pix::crypto::KeyRing> AppController::keyRing() const
     return m_catalog->keyRing();
 }
 
+QString AppController::photoIdByPath(const QString &path) const
+{
+    return m_catalog->photoIdByPath(QDir::fromNativeSeparators(QFileInfo(path).absoluteFilePath()));
+}
+
 AppController *AppController::instance()
 {
     return g_instance;

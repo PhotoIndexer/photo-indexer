@@ -53,6 +53,10 @@ class PeopleController : public QObject
     /// "juntar com" rápido de cada candidato. Vazio nas outras buscas.
     Q_PROPERTY(QString queryPersonId READ queryPersonId NOTIFY searchChanged)
     Q_PROPERTY(QString queryPersonLabel READ queryPersonLabel NOTIFY searchChanged)
+    /// Só pessoas sem nome na lista de "quem pode ser" e nas fotos achadas.
+    Q_PROPERTY(bool unnamedOnly READ unnamedOnly WRITE setUnnamedOnly NOTIFY searchChanged)
+    /// Quantas pessoas a pessoa tirou da lista nesta busca (hideMatch).
+    Q_PROPERTY(int hiddenCount READ hiddenCount NOTIFY searchChanged)
 
 public:
     PeopleController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
@@ -103,6 +107,12 @@ public:
     /// Busca por pessoa: junta nela todas as SEM nome de "quem pode ser"
     /// (as com nome ficam). Devolve quantas.
     Q_INVOKABLE int mergeAllMatched();
+    bool unnamedOnly() const { return m_unnamedOnly; }
+    void setUnnamedOnly(bool on);
+    int hiddenCount() const { return int(m_hidden.size()); }
+    /// Tira a pessoa da lista desta busca (e do "Juntar todas").
+    Q_INVOKABLE void hideMatch(const QString &personId);
+    Q_INVOKABLE void showHidden();
     QString queryPersonId() const { return m_queryPerson; }
     QString queryPersonLabel() const { return m_queryPerson.isEmpty() ? QString() : labelOf(m_queryPerson); }
 
@@ -135,6 +145,8 @@ private:
     bool m_detecting = false;
     QString m_queryUrl;
     QString m_queryPerson;      ///< searchByPerson
+    bool m_unnamedOnly = false;
+    QSet<QString> m_hidden;     ///< tiradas da lista nesta busca
     QVariantList m_queryFaces;
     std::vector<std::vector<float>> m_queryEmbeddings;
     int m_queryFace = 0;

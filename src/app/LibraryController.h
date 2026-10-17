@@ -108,6 +108,9 @@ public:
     Q_INVOKABLE QVariantMap photoPeople(const QString &photoId) const;
     /// Fotos (vazio = a seleção) furam a fila da etapa de faces.
     Q_INVOKABLE void findFacesNow(const QStringList &photoIds);
+    /// "Mostrar na pasta": aba Pastas, a árvore aberta até a pasta da foto e
+    /// a foto escolhida na grade (focusRequested quando a grade chega).
+    Q_INVOKABLE void showInFolder(const QString &photoId);
     /// Grupos de pessoas (aba Pessoas do painel).
     Q_INVOKABLE QString createPersonGroup(const QString &name);
     Q_INVOKABLE void renamePersonGroup(const QString &groupId, const QString &name);
@@ -162,6 +165,8 @@ signals:
     void savedFiltersChanged();
     void searchingChanged();
     void copiesChanged();
+    /// A grade deve rolar até ``index`` (showInFolder).
+    void focusRequested(int index);
     void categoryChoicesChanged();
     void albumChoicesChanged();
     void personChoicesChanged();
@@ -177,6 +182,8 @@ private:
     void readChoices();
     void scheduleTree(const QString &tab);
     pix::GridQuery query() const;
+    /// showInFolder: escolhe a foto pendente na grade que acabou de chegar.
+    void focusPending();
 
     pix::Catalog *m_catalog;
     pix::Pipeline *m_pipeline;
@@ -191,6 +198,8 @@ private:
     QString m_copiesName;
     int m_copiesTolerance = 1;
     QVariantList m_copyGroups;
+    QString m_revealPending;    ///< nó a abrir quando a árvore da aba chegar
+    QString m_focusPhoto;       ///< foto a escolher quando a grade chegar
     QString m_sort = QStringLiteral("date-desc");
     int m_thumbSize = 180;
     QVariantList m_rules;

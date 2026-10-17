@@ -126,7 +126,15 @@ int main(int argc, char *argv[])
                                        QStringLiteral("tab"));
     const QCommandLineOption copiesOption(QStringLiteral("copies"),
                                           QStringLiteral("Show the copies of the Nth photo of the library (screenshot)."), QStringLiteral("n"));
-    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption, tabOption, copiesOption});
+    const QCommandLineOption nodeOption(QStringLiteral("node"),
+                                        QStringLiteral("Select a side panel node, e.g. dir:/photos/2024 (screenshot)."), QStringLiteral("key"));
+    const QCommandLineOption searchOption(QStringLiteral("search"), QStringLiteral("Type this in the search box (screenshot)."),
+                                          QStringLiteral("text"));
+    const QCommandLineOption aiSearchOption(QStringLiteral("ai-search"), QStringLiteral("Search with the AI (screenshot, with --search)."));
+    const QCommandLineOption similarOption(QStringLiteral("similar"),
+                                           QStringLiteral("Find faces similar to the Nth person (screenshot)."), QStringLiteral("n"));
+    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption, tabOption, copiesOption, nodeOption, searchOption,
+                       aiSearchOption, similarOption});
     // O Finder às vezes passa -psn_0_12345: ignorado.
     QStringList args = QCoreApplication::arguments();
     args.erase(std::remove_if(args.begin(), args.end(), [](const QString &a) { return a.startsWith(QLatin1String("-psn_")); }),
@@ -248,23 +256,51 @@ int main(int argc, char *argv[])
                 }
             });
         }
+        if (parser.isSet(similarOption)) {
+            QTimer::singleShot(std::max(0, wait - 5000), &controller, [&controller, n = parser.value(similarOption).toInt()]() {
+                const QVariantList people = controller.people()->people();
+                if (n >= 0 && n < people.size()) {
+                    controller.people()->searchByPerson(people[n].toMap().value(QStringLiteral("id")).toString());
+                    controller.setPage(QStringLiteral("faceSearch"));
+                }
+            });
+        }
         if (parser.isSet(faceOption)) {
-            QTimer::singleShot(std::max(0, wait - 6000), &controller, [&controller, file = parser.value(faceOption)]() {
+            QTimer::singleShot(std::max(0, wait - 15000), &controller, [&controller, file = parser.value(faceOption)]() {
                 controller.people()->searchByPhoto(QUrl::fromLocalFile(QDir(file).absolutePath()));
                 controller.setPage(QStringLiteral("faceSearch"));
             });
         }
+        // A N-ésima foto da grade, ou a de um caminho.
+        auto photoArg = [&controller](const QString &value) {
+            bool number = false;
+            const int n = value.toInt(&number);
+            return number ? controller.library()->grid()->idAt(n) : controller.photoIdByPath(value);
+        };
+        if (parser.isSet(nodeOption)) {
+            QTimer::singleShot(std::max(0, wait - 6000), &controller, [&controller, key = parser.value(nodeOption)]() {
+                controller.library()->tree()->reveal(key);
+                controller.library()->selectNode(key);
+            });
+        }
+        if (parser.isSet(searchOption)) {
+            QTimer::singleShot(std::max(0, wait - 6000), &controller,
+                               [&controller, text = parser.value(searchOption), ai = parser.isSet(aiSearchOption)]() {
+                                   controller.library()->setAiSearch(ai);
+                                   controller.library()->setSearch(text);
+                               });
+        }
         if (parser.isSet(openOption)) {
             // Abre a foto um pouco antes da captura (a grade já carregou).
-            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, n = parser.value(openOption).toInt()]() {
-                const QString id = controller.library()->grid()->idAt(n);
+            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, photoArg, value = parser.value(openOption)]() {
+                const QString id = photoArg(value);
                 if (!id.isEmpty())
                     controller.openPhoto(id);
             });
         }
         if (parser.isSet(copiesOption)) {
-            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, n = parser.value(copiesOption).toInt()]() {
-                const QString id = controller.library()->grid()->idAt(n);
+            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, photoArg, value = parser.value(copiesOption)]() {
+                const QString id = photoArg(value);
                 if (!id.isEmpty())
                     controller.library()->findCopies(id);
             });
