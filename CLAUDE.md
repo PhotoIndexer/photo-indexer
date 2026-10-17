@@ -257,6 +257,13 @@ na raiz do domínio), com a deploy key do secret `SITE_DEPLOY_KEY`. As
 capturas de tela moram em `docs/images/` (o README também as usa), geradas
 pelo próprio app (`--screenshot`).
 
+- **Toda release termina republicando o site:** o `release.yml`, depois do
+  job dos instaladores, chama o `pages.yml` (`workflow_call`). O build grava
+  `assets/releases.json` com as releases e os instaladores publicados (com o
+  token do workflow); a página consulta a API do GitHub ao vivo e, se ela não
+  responder (limite anônimo de 60/h por IP), usa esse arquivo. O site sai
+  sempre da `main`, mesmo chamado por uma release de tag antiga.
+
 ### 18. Como validar
 - `make test` — todos os testes (QtTest).
 - `make run ARGS="<pasta> --screenshot /tmp/x.png --size 1440x900"` abre o

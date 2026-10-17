@@ -69,3 +69,10 @@ jobs:
       ref: ${{ inputs.ref || needs.version.outputs.tag }}
       release-tag: ${{ needs.version.outputs.tag }}
       targets: ${{ inputs.targets || 'all' }}
+
+  # Regra: toda release termina republicando o site, que leva a lista dos
+  # instaladores que acabaram de ser anexados (assets/releases.json).
+  site:
+    needs: package
+    uses: ./.github/workflows/pages.yml
+    secrets: inherit

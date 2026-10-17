@@ -248,6 +248,20 @@
     });
   }
 
+  // A lista gravada no build do site (packaging/site.py), refeito no fim de
+  // toda release: vale quando a API anônima do GitHub não responde (limite
+  // de 60 pedidos por hora por IP, rede).
+  function loadBaked() {
+    return fetch("assets/releases.json?v=" + (window.PIX_BUILD || ""))
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .then(function (data) {
+        if (!Array.isArray(data) || !data.length) throw new Error("empty");
+        resolved = resolve(data);
+        if (!Object.keys(resolved).length) throw new Error("no installers");
+        render();
+      });
+  }
+
   function load() {
     var cached = readCache();
     if (cached) { resolved = resolve(cached); render(); return; }
@@ -258,10 +272,12 @@
         var releases = slim(data);
         writeCache(releases);
         resolved = resolve(releases);
-        if (!Object.keys(resolved).length) failed = true;
+        if (!Object.keys(resolved).length) throw new Error("no installers");
         render();
       })
-      .catch(function () { failed = true; render(); });
+      .catch(function () {
+        loadBaked().catch(function () { failed = true; render(); });
+      });
   }
 
   if (document.querySelector("[data-dl-hero]")) {

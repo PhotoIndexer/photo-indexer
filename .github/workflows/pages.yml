@@ -5,7 +5,12 @@
 # (`make site`) e o publica lá, num commit só, com a deploy key daquele
 # repositório (secret SITE_DEPLOY_KEY; a chave só escreve no repositório do
 # site). Roda a cada push na main que mexe no site (docs/) ou no que ele copia
-# do app (logo e ícones). À mão: Actions -> Hotsite -> Run workflow.
+# do app (logo e ícones), e no FIM DE TODA RELEASE (release.yml chama este
+# workflow depois dos instaladores): o build grava assets/releases.json com
+# os instaladores publicados (packaging/site.py, com o token do workflow) — o
+# que a página usa quando a API anônima do GitHub não responde. O site sai
+# sempre da main, mesmo chamado por uma release de uma tag antiga.
+# À mão: Actions -> Hotsite -> Run workflow.
 
 name: Hotsite
 
@@ -18,13 +23,10 @@ on:
       - "packaging/site.py"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: hotsite
-  cancel-in-progress: true
 
 env:
   SITE_REPO: PhotoIndexer/photoindexer.github.io
@@ -32,9 +34,17 @@ env:
 jobs:
   publish:
     runs-on: ubuntu-24.04
+    # Um publish por vez (no fim de uma release e num push ao mesmo tempo).
+    concurrency:
+      group: hotsite
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: main
       - name: Build the site
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: make site SITE_OUT=_site
       - name: Publish to the organization site repository
         env:
@@ -50,6 +60,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -q -m "Hotsite from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+          git commit -q -m "Hotsite from ${GITHUB_REPOSITORY}@$(git -C .. rev-parse --short HEAD)"
           git push -q --force "git@github.com:${SITE_REPO}.git" main
-          echo "Published https://photoindexer.github.io/ from ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published https://photoindexer.github.io/ from $(git -C .. rev-parse --short HEAD)" >> "$GITHUB_STEP_SUMMARY"
