@@ -4,6 +4,7 @@
 #include "ImageProviders.h"
 
 #include "core/Catalog.h"
+#include "core/CatalogReader.h"
 #include "core/Pipeline.h"
 #include "imaging/Faces.h"
 
@@ -21,13 +22,21 @@ QString fileUrl(const QString &path)
 
 } // namespace
 
-PeopleController::PeopleController(Catalog *catalog, Pipeline *pipeline, QObject *parent)
+PeopleController::PeopleController(Catalog *catalog, Pipeline *pipeline, CatalogReader *reader, QObject *parent)
     : QObject(parent)
     , m_catalog(catalog)
     , m_pipeline(pipeline)
+    , m_reader(reader)
     , m_threshold(catalog->setting(QStringLiteral("faces/matchSimilarity"), imaging::kFaceMatchSimilarity).toDouble())
 {
-    connect(catalog, &Catalog::peopleChanged, this, &PeopleController::reload);
+    // Indexando, as pessoas mudam a cada foto com rosto: a lista é refeita no
+    // leitor, no máximo a cada 5 s (parado, quase na hora).
+    m_reloadTimer.setSingleShot(true);
+    connect(&m_reloadTimer, &QTimer::timeout, this, &PeopleController::reload);
+    connect(catalog, &Catalog::peopleChanged, this, [this]() {
+        if (!m_reloadTimer.isActive())
+            m_reloadTimer.start(m_pipeline->busy() ? 5000 : 200);
+    });
     reload();
 }
 
@@ -38,19 +47,37 @@ bool PeopleController::facesAvailable() const
 
 void PeopleController::reload()
 {
-    m_people.clear();
-    int unnamed = 0;
-    for (const QVariant &v : m_catalog->people()) {
-        QVariantMap p = v.toMap();
-        const QString name = p.value(QStringLiteral("name")).toString();
-        p.insert(QStringLiteral("label"), name.isEmpty() ? tr("Person %1").arg(++unnamed) : name);
-        p.insert(QStringLiteral("coverUrl"), fileUrl(p.value(QStringLiteral("coverPath")).toString()));
-        m_people << p;
-    }
-    m_unassignedCount = int(m_catalog->unassignedFaces().size());
-    emit peopleChanged();
-    if (!m_personId.isEmpty() || m_unassignedOpen)
-        loadPerson();
+    struct People
+    {
+        QVariantList people;
+        int unassigned = 0;
+    };
+    const int serial = ++m_reloadSerial;
+    m_reader->read<People>(
+        this,
+        [](const Catalog &c) { return People{c.people(), int(c.unassignedFaces().size())}; },
+        [this, serial](People r) {
+            if (serial != m_reloadSerial)
+                return;
+            QVariantList people;
+            int unnamed = 0;
+            for (const QVariant &v : r.people) {
+                QVariantMap p = v.toMap();
+                const QString name = p.value(QStringLiteral("name")).toString();
+                p.insert(QStringLiteral("label"), name.isEmpty() ? tr("Person %1").arg(++unnamed) : name);
+                p.insert(QStringLiteral("coverUrl"), fileUrl(p.value(QStringLiteral("coverPath")).toString()));
+                people << p;
+            }
+            // Igual ao que já está: a tela não refaz a grade.
+            if (people == m_people && r.unassigned == m_unassignedCount)
+                return;
+            m_people = people;
+            m_list.setPeople(people);
+            m_unassignedCount = r.unassigned;
+            emit peopleChanged();
+            if (!m_personId.isEmpty() || m_unassignedOpen)
+                loadPerson();
+        });
 }
 
 QString PeopleController::labelOf(const QString &personId) const
@@ -58,7 +85,10 @@ QString PeopleController::labelOf(const QString &personId) const
     for (const QVariant &v : m_people)
         if (v.toMap().value(QStringLiteral("id")).toString() == personId)
             return v.toMap().value(QStringLiteral("label")).toString();
-    return {};
+    // Fora da lista (sem nome e com poucas fotos — aparece só na busca por
+    // rosto): o nome, se tiver, ou um rótulo genérico.
+    const QString name = m_catalog->person(personId).value(QStringLiteral("name")).toString();
+    return name.isEmpty() ? tr("Unnamed person") : name;
 }
 
 void PeopleController::openPerson(const QString &personId)

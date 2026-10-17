@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "LibraryController.h"
 
+#include "core/Perf.h"
+
 #include "core/Catalog.h"
+#include "core/CatalogReader.h"
 #include "core/GridReader.h"
 #include "core/Pipeline.h"
 
@@ -25,7 +28,7 @@ constexpr int kAiLimit = 600;
 
 } // namespace
 
-LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, QObject *parent)
+LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, CatalogReader *reader, QObject *parent)
     : QObject(parent)
     , m_catalog(catalog)
     , m_pipeline(pipeline)
@@ -38,8 +41,9 @@ LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, QObje
 
     // Uma thread só para ler a grade, que vive o app inteiro (a conexão de
     // leitura é dela).
-    m_reader.setMaxThreadCount(1);
-    m_reader.setExpiryTimeout(-1);
+    m_gridPool.setMaxThreadCount(1);
+    m_gridPool.setExpiryTimeout(-1);
+    m_reader = reader;
     m_refreshTimer.setSingleShot(true);
     connect(&m_refreshTimer, &QTimer::timeout, this, &LibraryController::refresh);
     m_treeTimer.setSingleShot(true);
@@ -55,7 +59,7 @@ LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, QObje
     connect(catalog, &Catalog::treeChanged, this, [this](const QString &tab) {
         scheduleTree(tab);
         if (tab == QLatin1String("categories") || tab == QLatin1String("albums"))
-            emit choicesChanged();
+            scheduleChoices(tab);
     });
     // Disco que entrou ou saiu: a marca de "offline" troca já (a árvore de
     // fundo, indexando, só se refaz a cada 20 s).
@@ -67,10 +71,14 @@ LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, QObje
     });
     connect(catalog, &Catalog::peopleChanged, this, [this]() {
         scheduleTree(QStringLiteral("people"));
-        emit choicesChanged();
+        scheduleChoices(QStringLiteral("people"));
     });
+    m_choicesTimer.setSingleShot(true);
+    connect(&m_choicesTimer, &QTimer::timeout, this, &LibraryController::readChoices);
     refreshTree();
     refresh();
+    m_staleChoices = {QStringLiteral("categories"), QStringLiteral("albums"), QStringLiteral("people")};
+    readChoices();
 }
 
 bool LibraryController::aiAvailable() const
@@ -107,13 +115,24 @@ void LibraryController::setTab(const QString &tab)
 
 void LibraryController::refreshTree()
 {
-    m_tree.setNodes(m_catalog->tree(m_tab));
-    // O nome do nó escolhido pode ter mudado (renomeado, contagem).
-    const QVariantMap n = m_tree.node(m_node);
-    if (!n.isEmpty() && n.value(QStringLiteral("label")).toString() != m_nodeLabel) {
-        m_nodeLabel = n.value(QStringLiteral("label")).toString();
-        emit nodeChanged();
-    }
+    // A consulta roda no leitor; a árvore troca quando chega (e só se a aba
+    // ainda é a mesma e nenhum pedido mais novo saiu).
+    const QString tab = m_tab;
+    const int serial = ++m_treeSerial;
+    m_reader->read<QVariantList>(
+        this, [tab](const Catalog &c) { return c.tree(tab); },
+        [this, tab, serial](QVariantList nodes) {
+            if (serial != m_treeSerial || tab != m_tab)
+                return;
+            PIX_PERF("LibraryController::setTree");
+            m_tree.setNodes(nodes);
+            // O nome do nó escolhido pode ter mudado (renomeado, contagem).
+            const QVariantMap n = m_tree.node(m_node);
+            if (!n.isEmpty() && n.value(QStringLiteral("label")).toString() != m_nodeLabel) {
+                m_nodeLabel = n.value(QStringLiteral("label")).toString();
+                emit nodeChanged();
+            }
+        });
 }
 
 void LibraryController::selectNode(const QString &key)
@@ -189,6 +208,7 @@ GridQuery LibraryController::query() const
 
 void LibraryController::refresh()
 {
+    PIX_PERF("LibraryController::refresh");
     m_refreshTimer.stop();
     const bool background = std::exchange(m_backgroundRefresh, false);
     const int serial = ++m_searchSerial;
@@ -221,7 +241,7 @@ void LibraryController::refresh()
                 emit searchingChanged();
             }
         });
-        watcher->setFuture(QtConcurrent::run(&m_reader, [path, sql, params]() { return readGridRows(path, sql, params); }));
+        watcher->setFuture(QtConcurrent::run(&m_gridPool, [path, sql, params]() { return readGridRows(path, sql, params); }));
         return;
     }
     // Busca por IA: o texto vira embedding fora da thread principal; as fotos
@@ -363,30 +383,55 @@ QStringList LibraryController::orSelection(const QStringList &ids) const
     return ids.isEmpty() ? m_grid.selectedIds() : ids;
 }
 
-QVariantList LibraryController::categoryChoices() const
+void LibraryController::scheduleChoices(const QString &which)
 {
-    return m_catalog->categoryChoices();
+    m_staleChoices.insert(which);
+    // Indexando, as pessoas mudam a cada foto com rosto: no máximo a cada 5 s.
+    if (!m_choicesTimer.isActive())
+        m_choicesTimer.start(m_pipeline->busy() ? 5000 : 300);
 }
 
-QVariantList LibraryController::albumChoices() const
+void LibraryController::readChoices()
 {
-    return m_catalog->albumChoices();
-}
-
-QVariantList LibraryController::personChoices() const
-{
-    QVariantList out;
-    int unnamed = 0;
-    for (const QVariant &v : m_catalog->people()) {
-        const QVariantMap p = v.toMap();
-        QString name = p.value(QStringLiteral("name")).toString();
-        if (name.isEmpty())
-            name = tr("Person %1").arg(++unnamed);
-        out << QVariantMap{{QStringLiteral("id"), p.value(QStringLiteral("id"))},
-                           {QStringLiteral("name"), name},
-                           {QStringLiteral("depth"), 0}};
-    }
-    return out;
+    const QSet<QString> stale = std::exchange(m_staleChoices, {});
+    if (stale.contains(QStringLiteral("categories")))
+        m_reader->read<QVariantList>(
+            this, [](const Catalog &c) { return c.categoryChoices(); },
+            [this](QVariantList list) {
+                if (list != m_categoryChoices) {
+                    m_categoryChoices = list;
+                    emit categoryChoicesChanged();
+                }
+            });
+    if (stale.contains(QStringLiteral("albums")))
+        m_reader->read<QVariantList>(
+            this, [](const Catalog &c) { return c.albumChoices(); },
+            [this](QVariantList list) {
+                if (list != m_albumChoices) {
+                    m_albumChoices = list;
+                    emit albumChoicesChanged();
+                }
+            });
+    if (stale.contains(QStringLiteral("people")))
+        m_reader->read<QVariantList>(
+            this, [](const Catalog &c) { return c.people(); },
+            [this](QVariantList people) {
+                QVariantList out;
+                int unnamed = 0;
+                for (const QVariant &v : people) {
+                    const QVariantMap p = v.toMap();
+                    QString name = p.value(QStringLiteral("name")).toString();
+                    if (name.isEmpty())
+                        name = tr("Person %1").arg(++unnamed);
+                    out << QVariantMap{{QStringLiteral("id"), p.value(QStringLiteral("id"))},
+                                       {QStringLiteral("name"), name},
+                                       {QStringLiteral("depth"), 0}};
+                }
+                if (out != m_personChoices) {
+                    m_personChoices = out;
+                    emit personChoicesChanged();
+                }
+            });
 }
 
 void LibraryController::addToAlbum(const QStringList &photoIds, const QString &albumId)

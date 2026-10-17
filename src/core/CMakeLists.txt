@@ -4,6 +4,7 @@
 # biblioteca.
 add_library(photoidx_core STATIC
     Paths.h Paths.cpp
+    Perf.h Perf.cpp
     Database.h Database.cpp
     Disks.h Disks.cpp
     Places.h Places.cpp
@@ -17,6 +18,7 @@ add_library(photoidx_core STATIC
     Privacy.h Privacy.cpp
     Catalog.h Catalog.cpp CatalogAi.cpp CatalogPeople.cpp CatalogQuery.cpp CatalogOrganize.cpp CatalogFilter.cpp
     CatalogPrivate.cpp
+    CatalogReader.h CatalogReader.cpp
     GridReader.h GridReader.cpp
     Pipeline.h Pipeline.cpp
 )

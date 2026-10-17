@@ -366,6 +366,7 @@ QtObject {
         case "siblingMargin": return qsTr("Unsure between similar categories from");
         case "blurThreshold": return qsTr("Blurry below sharpness");
         case "minPersonScore": return qsTr("Face confidence to join People");
+        case "minPersonPhotos": return qsTr("People without a name: show from N photos");
         case "matchSimilarity": return qsTr("Same person from similarity");
         case "mergeSimilarity": return qsTr("Merge people from similarity");
         case "mergeMinFaces": return qsTr("Merge only with at least N faces each");
@@ -382,6 +383,7 @@ QtObject {
         case "siblingMargin": return qsTr("Two categories of the same group count as a tie when the second has at least this fraction of the first's confidence. Lower: more photos go to the group.");
         case "blurThreshold": return qsTr("Photos below this sharpness go to “Blurry / Low quality”.");
         case "minPersonScore": return qsTr("Faces detected with less confidence (animals, objects, tiny faces in the background) stay searchable but do not form people.");
+        case "minPersonPhotos": return qsTr("Unnamed people with fewer photos stay out of the People screen and the side panel (they still show up in “Search by photo”). People with a name always show, first.");
         case "matchSimilarity": return qsTr("A new face joins the most similar person from this similarity on (0.45, as in PhotoE).");
         case "mergeSimilarity": return qsTr("Two people are merged automatically when their average faces are at least this similar.");
         case "mergeMinFaces": return qsTr("Confidence: only people with at least this many faces take part in automatic merges.");

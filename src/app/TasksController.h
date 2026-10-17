@@ -12,6 +12,7 @@
 
 namespace pix {
 class Catalog;
+class CatalogReader;
 class Pipeline;
 }
 
@@ -36,7 +37,7 @@ class TasksController : public QObject
     Q_PROPERTY(QVariantMap memory READ memory NOTIFY changed)
 
 public:
-    TasksController(pix::Catalog *catalog, pix::Pipeline *pipeline, QObject *parent = nullptr);
+    TasksController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
 
     QVariantList stages() const { return m_stages; }
     QVariantMap stats() const { return m_stats; }
@@ -79,4 +80,6 @@ private:
     QVariantMap m_stats;
     QVariantList m_errors;
     QTimer m_statsTimer;
+    pix::CatalogReader *m_reader;
+    void readStats();
 };

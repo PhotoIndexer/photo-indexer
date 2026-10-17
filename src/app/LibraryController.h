@@ -20,6 +20,7 @@
 
 namespace pix {
 class Catalog;
+class CatalogReader;
 class Pipeline;
 }
 
@@ -46,14 +47,17 @@ class LibraryController : public QObject
     Q_PROPERTY(TreeModel *tree READ tree CONSTANT)
     Q_PROPERTY(bool searching READ searching NOTIFY searchingChanged)
     /// Escolhas para menus e filtros: [{id, name, depth}]
-    Q_PROPERTY(QVariantList categoryChoices READ categoryChoices NOTIFY choicesChanged)
-    Q_PROPERTY(QVariantList albumChoices READ albumChoices NOTIFY choicesChanged)
-    Q_PROPERTY(QVariantList personChoices READ personChoices NOTIFY choicesChanged)
+    /// Guardadas aqui e lidas no CatalogReader (fora da thread principal): os
+    /// menus as pedem a cada avaliação de binding, e uma por lista — uma face
+    /// nova não refaz as categorias.
+    Q_PROPERTY(QVariantList categoryChoices READ categoryChoices NOTIFY categoryChoicesChanged)
+    Q_PROPERTY(QVariantList albumChoices READ albumChoices NOTIFY albumChoicesChanged)
+    Q_PROPERTY(QVariantList personChoices READ personChoices NOTIFY personChoicesChanged)
     /// O nó escolhido é o álbum privado (ou um de dentro dele).
     Q_PROPERTY(bool privateNode READ privateNode NOTIFY nodeChanged)
 
 public:
-    LibraryController(pix::Catalog *catalog, pix::Pipeline *pipeline, QObject *parent = nullptr);
+    LibraryController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
 
     QString tab() const { return m_tab; }
     void setTab(const QString &tab);
@@ -76,9 +80,9 @@ public:
     PhotoGridModel *grid() { return &m_grid; }
     TreeModel *tree() { return &m_tree; }
     bool searching() const { return m_searching; }
-    QVariantList categoryChoices() const;
-    QVariantList albumChoices() const;
-    QVariantList personChoices() const;
+    QVariantList categoryChoices() const { return m_categoryChoices; }
+    QVariantList albumChoices() const { return m_albumChoices; }
+    QVariantList personChoices() const { return m_personChoices; }
     bool privateNode() const;
 
     Q_INVOKABLE void selectNode(const QString &key);
@@ -127,7 +131,9 @@ signals:
     void rulesChanged();
     void savedFiltersChanged();
     void searchingChanged();
-    void choicesChanged();
+    void categoryChoicesChanged();
+    void albumChoicesChanged();
+    void personChoicesChanged();
     void failed(const QString &key, const QVariantMap &params);
 
 private:
@@ -135,6 +141,9 @@ private:
     template<typename F>
     void act(F &&fn);
     void scheduleRefresh();
+    /// Refaz uma lista dos menus ("categories" | "albums" | "people") no leitor.
+    void scheduleChoices(const QString &which);
+    void readChoices();
     void scheduleTree(const QString &tab);
     pix::GridQuery query() const;
 
@@ -154,8 +163,15 @@ private:
     bool m_searching = false;
     int m_searchSerial = 0;
     QTimer m_refreshTimer;
+    QTimer m_choicesTimer;
+    QSet<QString> m_staleChoices;
+    QVariantList m_categoryChoices;
+    QVariantList m_albumChoices;
+    QVariantList m_personChoices;
+    int m_treeSerial = 0;
+    pix::CatalogReader *m_reader;
     bool m_backgroundRefresh = false;   ///< o refresh pendente é de fundo (mantém a rolagem)
-    QThreadPool m_reader;               ///< lê a grade fora da thread principal (GridReader)
+    QThreadPool m_gridPool;             ///< lê a grade fora da thread principal (GridReader)
     QTimer m_treeTimer;
     QSet<QString> m_staleTabs;
 };

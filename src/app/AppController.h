@@ -14,6 +14,8 @@
 #include "TasksController.h"
 #include "ViewerController.h"
 
+#include "core/Catalog.h"
+
 #include <QObject>
 #include <QTimer>
 #include <QQmlEngine>
@@ -24,6 +26,7 @@
 #include <memory>
 
 namespace pix {
+class CatalogReader;
 class Catalog;
 class Pipeline;
 }
@@ -153,8 +156,12 @@ private:
     /// Os volumes montados mudaram (pendrive, HD externo, compartilhamento
     /// de rede): reconhece os discos e revarre os que voltaram.
     void checkVolumes();
+    void applyVolumes(const QStringList &roots, const pix::Catalog::DiskProbe &probe);
+    /// Relê pastas e discos no leitor (agrupando pedidos seguidos).
+    void readFolders();
 
     std::unique_ptr<pix::Catalog> m_catalog;
+    std::unique_ptr<pix::CatalogReader> m_reader;  ///< antes dos controllers: eles o usam
     std::unique_ptr<pix::Pipeline> m_pipeline;
     std::unique_ptr<LibraryController> m_library;
     std::unique_ptr<ViewerController> m_viewer;
@@ -165,5 +172,9 @@ private:
     QString m_catalogError;
     bool m_dark = true;
     QTimer m_volumeWatch;
+    QTimer m_foldersTimer;
+    QVariantList m_folders;         ///< cache de folders()/disks() (lidos no CatalogReader)
+    QVariantList m_disks;
     QStringList m_volumes;          ///< pontos de montagem da última olhada
+    bool m_probing = false;
 };

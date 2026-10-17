@@ -18,7 +18,14 @@ AppMenu {
 
     signal picked(string id)
 
+    // Os itens só existem com o menu aberto: fechado, uma lista de milhares
+    // (pessoas) não cria nada nem se refaz a cada mudança dela.
+    property bool _built: false
+    onAboutToShow: _built = true
+    onClosed: _built = false
+
     Instantiator {
+        active: menu._built
         model: menu.choices.length > 0 ? menu.choices : [null]
         delegate: AppMenuItem {
             id: item

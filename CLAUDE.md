@@ -99,6 +99,14 @@ abrem threads próprias dentro de cada foto.
   resultado tem de responder em ~1 ms com 100 mil fotos. A grade é lida fora
   da thread principal (`core/GridReader`) e uma atualização de fundo com a
   mesma ordem não refaz o modelo (`PhotoGridModel::setRows`).
+- **Telemetria:** `PIX_PERF("rótulo")` (`core/Perf.h`) nas funções pesadas;
+  o vigia registra em `logs/perf.log` cada travada da interface (> 250 ms)
+  com o que rodava, e um resumo por minuto. Travou? Comece por lá.
+  `tests/bench_catalog <cópia do banco>` mede cada consulta num catálogo real.
+- **Listas grandes no QML:** grade/lista com modelo C++ (nunca `Repeater`/
+  `Flow` nem `.filter()` em JavaScript sobre milhares de itens); menus
+  (`ChoiceMenu`) só criam os itens ao abrir; imagens esperam a rolagem
+  rápida parar (`components/ScrollWatch.qml`).
 
 ## Internacionalização (i18n)
 
@@ -160,9 +168,21 @@ O catálogo é dado real e persiste entre versões: o esquema mora em
   nada de trigger.
 
 ### 9. Banco só na thread principal; o pesado roda fora dela
-`QSqlDatabase` não cruza threads. Única exceção: a leitura da grade, numa
-conexão **só de leitura** da thread do `GridReader` (WAL), com o SQL montado
-pelo `Catalog` (`photosSql`). O `Catalog` monta na thread principal os
+`QSqlDatabase` não cruza threads. Exceção: **leituras da navegação** em
+conexões **só de leitura** (WAL: veem o último commit, não esperam nem travam
+a gravação):
+
+- `core/CatalogReader`: uma thread com um `Catalog` só de leitura
+  (`openReaderOf`) — árvores do painel, listas dos menus (categorias,
+  álbuns, pessoas), pastas/discos, totais e erros das Tarefas, contagens do
+  Pipeline. `reader->read<T>(contexto, trabalho, pronto)`; o resultado volta
+  na thread principal. O checkpoint do WAL também roda nela (a principal
+  desliga o automático).
+- `core/GridReader`: a grade, com o SQL montado pelo `Catalog` (`photosSql`).
+
+Leitura nova que a interface pede (lista, contagem, árvore) vai pelo
+`CatalogReader`, nunca por um getter de `Q_PROPERTY` que consulta o banco —
+o QML avalia bindings muitas vezes. Gravações continuam só na principal. O `Catalog` monta na thread principal os
 pedidos (`IndexJob`, `CategorizeJob`, `FaceJob`), o `Pipeline` os roda no
 pool de cada etapa e grava o resultado de volta por `invokeMethod` em fila.
 A fila de cada etapa **é o estado da foto no banco** (`state`, `ai_state`,

@@ -4,6 +4,7 @@
 // privadas (criptografia, cofre, cifrar/decifrar os arquivos de verdade).
 
 #include "core/Catalog.h"
+#include "core/CatalogReader.h"
 #include "core/Classifier.h"
 #include "core/Crypto.h"
 #include "core/Disks.h"
@@ -24,6 +25,7 @@
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QThread>
 
 #include <limits>
 
@@ -253,6 +255,7 @@ private slots:
     {
         Catalog catalog;
         catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);  // pessoas de 1-2 fotos aparecem
         const QStringList photos = seedPhotos(catalog, 6, m_photos.path() + QStringLiteral("/people"));
         QCOMPARE(photos.size(), 6);
         const auto ana1 = vec({1, 0.1f}), ana2 = vec({1, 0.15f}), bob = vec({0, 0, 1});
@@ -291,6 +294,7 @@ private slots:
     {
         Catalog catalog;
         catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);  // pessoas de 1-2 fotos aparecem
         const QStringList photos = seedPhotos(catalog, 8, m_photos.path() + QStringLiteral("/merge"));
         // Limiar de match alto: o mesmo rosto vira duas pessoas...
         catalog.setSetting(QStringLiteral("faces/matchSimilarity"), 0.999);
@@ -604,6 +608,81 @@ private slots:
         QCOMPARE(changed.size(), 1);
     }
 
+    void readerReadsInAnotherThread()
+    {
+        // Catálogo em arquivo: o leitor abre outra conexão, só de leitura, numa
+        // thread própria; vê o que a principal já gravou e não a bloqueia.
+        const QString file = m_home.filePath(QStringLiteral("reader.sqlite3"));
+        Catalog catalog;
+        catalog.open(file);
+        catalog.createAlbum(QString(), QStringLiteral("Viagem"));
+        CatalogReader reader(catalog);
+        QVERIFY(reader.threaded());
+        QThread *mainThread = QThread::currentThread();
+        QThread *workThread = nullptr;
+        QVariantList albums;
+        bool done = false;
+        reader.read<QVariantList>(
+            this,
+            [&](const Catalog &c) {
+                workThread = QThread::currentThread();
+                return c.albumChoices();
+            },
+            [&](QVariantList list) {
+                albums = list;
+                done = QThread::currentThread() == mainThread;
+            });
+        QTRY_VERIFY(done);
+        QVERIFY(workThread && workThread != mainThread);
+        bool found = false;
+        for (const QVariant &a : albums)
+            found = found || a.toMap().value(QStringLiteral("name")).toString() == QLatin1String("Viagem");
+        QVERIFY(found);
+        // Em memória (sem segunda conexão possível): lê no próprio catálogo.
+        Catalog memory;
+        memory.open(QString());
+        CatalogReader inline_(memory);
+        QVERIFY(!inline_.threaded());
+        int stats = -1;
+        inline_.read<int>(this, [](const Catalog &c) { return c.stats().value(QStringLiteral("photos")).toInt(); },
+                          [&](int n) { stats = n; });
+        QCOMPARE(stats, 0);
+    }
+
+    void peopleListHidesSmallUnnamed()
+    {
+        // Sem nome e com menos de people/minPhotos fotos (padrão 20): fora da
+        // lista (e do painel); com nome, sempre, e primeiro.
+        Catalog catalog;
+        catalog.open(QString());
+        const QStringList photos = seedPhotos(catalog, 24, m_photos.path() + QStringLiteral("/many"));
+        const auto big = vec({1, 0.1f}), small = vec({0, 1}), named = vec({0, 0, 1});
+        for (int i = 0; i < 21; ++i)
+            catalog.applyFaces(faces(photos[i], {big}));
+        catalog.applyFaces(faces(photos[21], {small}));
+        catalog.applyFaces(faces(photos[22], {named}));
+        auto ids = [&]() {
+            QStringList out;
+            for (const QVariant &v : catalog.people())
+                out << v.toMap().value(QStringLiteral("name")).toString() + u':' + v.toMap().value(QStringLiteral("photoCount")).toString();
+            return out;
+        };
+        QCOMPARE(ids(), QStringList{QStringLiteral(":21")});
+        // Dar nome a quem tem 1 foto: aparece, e na frente.
+        QSqlQuery q = catalog.db().exec(QStringLiteral("SELECT person_id FROM face WHERE photo_id = ?"), {photos[22]});
+        QVERIFY(q.next());
+        catalog.renamePerson(q.value(0).toString(), QStringLiteral("Ana"));
+        QCOMPARE(ids(), (QStringList{QStringLiteral("Ana:1"), QStringLiteral(":21")}));
+        // O painel lateral segue a mesma regra.
+        int persons = 0;
+        for (const QVariant &n : catalog.tree(QStringLiteral("people")))
+            persons += n.toMap().value(QStringLiteral("key")).toString().startsWith(QLatin1String("person:"));
+        QCOMPARE(persons, 2);
+        // Limite menor: as pequenas voltam.
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
+        QCOMPARE(catalog.people().size(), 3);
+    }
+
     void cryptoFormat()
     {
         const QByteArray key = crypto::randomBytes(crypto::kKeyBytes);
@@ -696,6 +775,7 @@ private slots:
     {
         Catalog catalog;
         catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);  // pessoas de 1-2 fotos aparecem
         const QString folder = m_photos.path() + QStringLiteral("/private");
         const QStringList ids = seedPhotos(catalog, 2, folder);
         QCOMPARE(ids.size(), 2);

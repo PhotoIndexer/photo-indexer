@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Catalog.h"
+#include "core/Perf.h"
 
 #include "core/Taxonomy.h"
 #include "imaging/Hashes.h"
@@ -113,6 +114,7 @@ QString Catalog::categoryName(const QString &categoryId) const
 
 QVariantList Catalog::tree(const QString &tab) const
 {
+    PIX_PERF("Catalog::tree");
     QVariantList out;
     const QLocale locale;
 
@@ -323,8 +325,12 @@ QVariantList Catalog::tree(const QString &tab) const
                                                          "AND face_count > 0")).toInt();
         out << node(QStringLiteral("faces:any"), QString(), QCoreApplication::translate("Catalog", "Photos with faces"), withFaces, 0,
                     QStringLiteral("scan-face"), {}, QStringLiteral("special"));
-        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, photo_count FROM person WHERE face_count > 0 OR name != '' "
-                                               "ORDER BY (name = ''), name COLLATE NOCASE, face_count DESC"));
+        // As mesmas da tela Pessoas (people()): com nome, ou sem nome a partir
+        // de people/minPhotos fotos.
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, photo_count FROM person WHERE name != '' "
+                                               "OR (face_count > 0 AND photo_count >= ?) "
+                                               "ORDER BY (name = ''), name COLLATE NOCASE, photo_count DESC, face_count DESC"),
+                                {minPersonPhotos()});
         int unnamed = 0;
         while (q.next()) {
             QString label = q.value(1).toString();
@@ -415,6 +421,7 @@ QString Catalog::nodeFilter(const QString &key, QVariantList &params) const
 
 QString Catalog::searchFilter(const QString &search, QVariantList &params) const
 {
+    PIX_PERF("Catalog::searchFilter");
     const QStringList tokens = search.simplified().split(u' ', Qt::SkipEmptyParts);
     if (tokens.isEmpty())
         return {};
@@ -521,6 +528,7 @@ const char *const kGridColumns = "p.id, p.name, p.thumb_path, p.width, p.height,
 
 QList<GridRow> Catalog::photos(const GridQuery &query) const
 {
+    PIX_PERF("Catalog::photos");
     QVariantList params;
     QSqlQuery q = m_db.exec(photosSql(query, params), params);
     QList<GridRow> out;
@@ -531,6 +539,7 @@ QList<GridRow> Catalog::photos(const GridQuery &query) const
 
 QString Catalog::photosSql(const GridQuery &query, QVariantList &params) const
 {
+    PIX_PERF("Catalog::photosSql");
     QString where = nodeFilter(query.node, params);
     const QString search = searchFilter(query.search, params);
     if (!search.isEmpty())
@@ -553,6 +562,7 @@ QString Catalog::photosSql(const GridQuery &query, QVariantList &params) const
 
 QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) const
 {
+    PIX_PERF("Catalog::photosByIds");
     QHash<QString, GridRow> rows;
     for (qsizetype start = 0; start < ranked.size(); start += 500) {
         QVariantList params;
@@ -603,6 +613,7 @@ QString Catalog::photoIdByPath(const QString &path) const
 
 QVariantMap Catalog::photoDetail(const QString &photoId) const
 {
+    PIX_PERF("Catalog::photoDetail");
     QSqlQuery q = m_db.exec(QStringLiteral(
                                 "SELECT p.*, d.label AS disk_label, d.kind AS disk_kind, d.protocol AS disk_protocol, "
                                 "d.server AS disk_server, d.share AS disk_share, d.mount_point AS disk_mount, d.online AS disk_online, "
@@ -683,6 +694,7 @@ QVariantMap Catalog::photoDetail(const QString &photoId) const
 
 QVariantList Catalog::similarPhotos(const QString &photoId, int maxDistance) const
 {
+    PIX_PERF("Catalog::similarPhotos");
     QVariantList out;
     QSqlQuery me = m_db.exec(QStringLiteral("SELECT picture_hash, phash, private FROM photo WHERE id = ?"), {photoId});
     if (!me.next())
@@ -732,6 +744,7 @@ QVariantList Catalog::similarPhotos(const QString &photoId, int maxDistance) con
 
 QVariantMap Catalog::stats() const
 {
+    PIX_PERF("Catalog::stats");
     QSqlQuery q = m_db.exec(QStringLiteral(
         "SELECT count(*), "
         "  sum(state = 'indexed'), sum(is_raw AND state != 'missing'), sum(state = 'error' OR ai_state = 'error' OR faces_state = 'error'), "
@@ -754,6 +767,7 @@ QVariantMap Catalog::stats() const
 
 QVariantList Catalog::errors(int limit) const
 {
+    PIX_PERF("Catalog::errors");
     QVariantList out;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, path, state, ai_state, faces_state, error, private_state FROM photo "
                                            "WHERE (state = 'error' OR ai_state = 'error' OR faces_state = 'error' "

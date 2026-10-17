@@ -15,7 +15,6 @@ Item {
 
     signal faceSearchRequested()
 
-    property string nameFilter: ""
     /// Faces marcadas na pessoa aberta (ids).
     property var picked: []
 
@@ -86,7 +85,9 @@ Item {
                         color: Theme.foreground
                     }
                     Text {
-                        text: qsTr("%n person(s)", "", App.people.people.length)
+                        text: qsTr("%n person(s)", "", App.people.list.count)
+                            + " · " + qsTr("with a name, or with %1+ photos. The others appear in “Search by photo”.")
+                                .arg(App.tasks.settings.minPersonPhotos || 20)
                         font.pixelSize: Theme.fontXs
                         color: Theme.mutedForeground
                     }
@@ -98,7 +99,7 @@ Item {
                     iconName: "search"
                     placeholderText: qsTr("Filter by name")
                     font.pixelSize: Theme.fontSm
-                    onTextChanged: page.nameFilter = text.toLowerCase()
+                    onTextChanged: App.people.list.filter = text
                 }
                 Button {
                     size: "sm"
@@ -138,11 +139,20 @@ Item {
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             T.ScrollBar.vertical: ThinScrollBar {}
-            model: App.people.people.filter((p) => page.nameFilter === "" || p.label.toLowerCase().indexOf(page.nameFilter) >= 0)
+            // Modelo C++ (filtro por nome em C++): milhares de pessoas sem
+            // passar por listas em JavaScript.
+            model: App.people.list
+            reuseItems: true
+            // Rolando rápido, as fotos que só passam não são lidas.
+            ScrollWatch {
+                id: peopleScroll
+                target: peopleGrid
+            }
 
             delegate: T.AbstractButton {
                 id: card
-                required property var modelData
+                required property var person
+                readonly property var modelData: person
                 width: peopleGrid.cellWidth
                 height: peopleGrid.cellHeight
                 hoverEnabled: true
@@ -167,8 +177,10 @@ Item {
                         border.width: card.hovered ? 2 : 0
                         border.color: Theme.brand400
                         Image {
+                            property string loadedUrl: ""
                             anchors.fill: parent
-                            source: card.modelData.coverUrl
+                            source: peopleScroll.fast && loadedUrl !== card.modelData.coverUrl ? "" : card.modelData.coverUrl
+                            onStatusChanged: if (status === Image.Ready) loadedUrl = String(source)
                             fillMode: Image.PreserveAspectCrop
                             asynchronous: true
                             sourceSize: Qt.size(224, 224)
@@ -202,7 +214,7 @@ Item {
         ColumnLayout {
             Layout.alignment: Qt.AlignCenter
             Layout.bottomMargin: 120
-            visible: App.people.people.length === 0
+            visible: App.people.list.count === 0 && App.people.list.filter === ""
             spacing: 12
             Icon {
                 Layout.alignment: Qt.AlignHCenter
@@ -402,6 +414,11 @@ Item {
             boundsBehavior: Flickable.StopAtBounds
             T.ScrollBar.vertical: ThinScrollBar {}
             model: App.people.faces
+            reuseItems: true
+            ScrollWatch {
+                id: faceScroll
+                target: faceGrid
+            }
 
             delegate: Item {
                 id: faceCell
@@ -422,11 +439,14 @@ Item {
                     border.width: faceCell.marked ? 3 : 0
                     border.color: Theme.brand400
                     Image {
+                        property string loadedUrl: ""
                         anchors.fill: parent
                         anchors.margins: faceCell.marked ? 3 : 0
-                        source: faceCell.modelData.cropUrl
+                        source: faceScroll.fast && loadedUrl !== faceCell.modelData.cropUrl ? "" : faceCell.modelData.cropUrl
+                        onStatusChanged: if (status === Image.Ready) loadedUrl = String(source)
                         fillMode: Image.PreserveAspectCrop
                         asynchronous: true
+                        sourceSize: Qt.size(256, 256)
                     }
                     SelectionCheck {
                         visible: page.picked.length > 0

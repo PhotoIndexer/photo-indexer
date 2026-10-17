@@ -19,6 +19,7 @@
 #include "SingleInstance.h"
 
 #include "core/Paths.h"
+#include "core/Perf.h"
 
 #include <QCommandLineParser>
 #include <QDir>
@@ -128,6 +129,8 @@ int main(int argc, char *argv[])
     parser.process(args);
 
     pix::app::setupLogging(parser.isSet(debugOption));
+    // Onde a interface trava: ~/.photo_indexer/logs/perf.log (core/Perf.h).
+    pix::perf::startWatchdog();
     qCInfo(lcMain) << "PhotoIDX" << PHOTOIDX_VERSION << "starting; data in" << pix::AppPaths::dataDir();
 
     QStringList paths;
@@ -263,6 +266,7 @@ int main(int argc, char *argv[])
     }
 
     const int code = QGuiApplication::exec();
+    pix::perf::stopWatchdog();
     QThreadPool::globalInstance()->waitForDone();
     qCInfo(lcMain) << "PhotoIDX exiting with" << code;
     return code;

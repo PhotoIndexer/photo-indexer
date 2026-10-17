@@ -2320,6 +2320,14 @@
         <source>“%1” was disconnected. Its photos stay browsable through the thumbnails.</source>
         <translation>“%1” foi desconectado. As fotos dele continuam navegáveis pelas miniaturas.</translation>
     </message>
+    <message>
+        <source>People without a name: show from N photos</source>
+        <translation>Pessoas sem nome: mostrar a partir de N fotos</translation>
+    </message>
+    <message>
+        <source>Unnamed people with fewer photos stay out of the People screen and the side panel (they still show up in “Search by photo”). People with a name always show, first.</source>
+        <translation>Pessoas sem nome com menos fotos ficam fora da tela Pessoas e do painel lateral (continuam aparecendo na “Busca por foto”). Pessoas com nome sempre aparecem, primeiro.</translation>
+    </message>
 </context>
 <context>
     <name>Modal</name>
@@ -2439,6 +2447,10 @@
     <message>
         <source>Faces without a person</source>
         <translation>Faces sem pessoa</translation>
+    </message>
+    <message>
+        <source>Unnamed person</source>
+        <translation>Pessoa sem nome</translation>
     </message>
 </context>
 <context>
@@ -2622,6 +2634,10 @@
     <message>
         <source>Merge</source>
         <translation>Juntar</translation>
+    </message>
+    <message>
+        <source>with a name, or with %1+ photos. The others appear in “Search by photo”.</source>
+        <translation>com nome, ou com %1+ fotos. As outras aparecem na “Busca por foto”.</translation>
     </message>
 </context>
 <context>

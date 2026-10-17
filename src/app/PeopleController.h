@@ -5,15 +5,18 @@
 // faces dela, as correções (nome, juntar, tirar ou pôr faces) e a busca por
 // rosto a partir de uma foto que a pessoa escolhe no disco.
 
+#include "PeopleListModel.h"
 #include "PhotoGridModel.h"
 
 #include <QObject>
+#include <QTimer>
 #include <QUrl>
 #include <QVariantList>
 #include <QVariantMap>
 
 namespace pix {
 class Catalog;
+class CatalogReader;
 class Pipeline;
 }
 
@@ -22,6 +25,9 @@ class PeopleController : public QObject
     Q_OBJECT
     /// [{id, name, coverUrl, faceCount, photoCount, label}]
     Q_PROPERTY(QVariantList people READ people NOTIFY peopleChanged)
+    /// As mesmas pessoas como modelo de lista, com filtro por nome (a grade
+    /// da tela Pessoas usa este).
+    Q_PROPERTY(PeopleListModel *list READ list CONSTANT)
     Q_PROPERTY(int unassignedCount READ unassignedCount NOTIFY peopleChanged)
     Q_PROPERTY(QString personId READ personId NOTIFY personChanged)
     Q_PROPERTY(QVariantMap person READ person NOTIFY personChanged)
@@ -45,9 +51,10 @@ class PeopleController : public QObject
     Q_PROPERTY(bool facesAvailable READ facesAvailable CONSTANT)
 
 public:
-    PeopleController(pix::Catalog *catalog, pix::Pipeline *pipeline, QObject *parent = nullptr);
+    PeopleController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
 
     QVariantList people() const { return m_people; }
+    PeopleListModel *list() { return &m_list; }
     int unassignedCount() const { return m_unassignedCount; }
     QString personId() const { return m_personId; }
     QVariantMap person() const { return m_person; }
@@ -100,6 +107,10 @@ private:
     pix::Catalog *m_catalog;
     pix::Pipeline *m_pipeline;
     QVariantList m_people;
+    PeopleListModel m_list;
+    pix::CatalogReader *m_reader;
+    QTimer m_reloadTimer;   ///< junta as mudanças (indexando, uma por foto com rosto)
+    int m_reloadSerial = 0;
     int m_unassignedCount = 0;
     QString m_personId;
     bool m_unassignedOpen = false;

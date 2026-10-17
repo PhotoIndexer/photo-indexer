@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/GridReader.h"
+#include "core/Perf.h"
 
 #include <QSqlDatabase>
 #include <QSqlError>
@@ -11,6 +12,7 @@ namespace pix {
 
 QList<GridRow> readGridRows(const QString &databasePath, const QString &sql, const QVariantList &params)
 {
+    PIX_PERF("readGridRows");
     // Uma conexão por thread (QSqlDatabase não cruza threads); a thread do
     // leitor vive o app inteiro.
     static thread_local QString connection;

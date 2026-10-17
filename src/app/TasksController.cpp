@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "TasksController.h"
 
+#include "core/Perf.h"
+
 #include "core/Catalog.h"
+#include "core/CatalogReader.h"
 #include "core/Pipeline.h"
 #include "imaging/Faces.h"
 #include "imaging/Memory.h"
@@ -26,6 +29,7 @@ const Setting kSettings[] = {
     {"siblingMargin", "ai/siblingMargin", 0.3},
     {"blurThreshold", "ai/blurThreshold", 40},
     {"minPersonScore", "faces/minPersonScore", 0.5},
+    {"minPersonPhotos", "people/minPhotos", 20},
     {"matchSimilarity", "faces/matchSimilarity", double(imaging::kFaceMatchSimilarity)},
     {"mergeSimilarity", "faces/mergeSimilarity", 0.55},
     {"mergeMinFaces", "faces/mergeMinFaces", 3},
@@ -34,20 +38,18 @@ const Setting kSettings[] = {
 
 } // namespace
 
-TasksController::TasksController(Catalog *catalog, Pipeline *pipeline, QObject *parent)
+TasksController::TasksController(Catalog *catalog, Pipeline *pipeline, CatalogReader *reader, QObject *parent)
     : QObject(parent)
     , m_catalog(catalog)
     , m_pipeline(pipeline)
+    , m_reader(reader)
 {
     connect(pipeline, &Pipeline::statusChanged, this, &TasksController::update);
     // Os totais do catálogo varrem a tabela (~60 ms com 70 mil fotos): no
     // máximo a cada 3 s.
     m_statsTimer.setInterval(3000);
     m_statsTimer.setSingleShot(true);
-    connect(&m_statsTimer, &QTimer::timeout, this, [this]() {
-        m_stats = m_catalog->stats();
-        emit changed();
-    });
+    connect(&m_statsTimer, &QTimer::timeout, this, &TasksController::readStats);
     connect(catalog, &Catalog::photosChanged, this, [this]() {
         if (!m_statsTimer.isActive())
             m_statsTimer.start();
@@ -57,12 +59,13 @@ TasksController::TasksController(Catalog *catalog, Pipeline *pipeline, QObject *
                                                       {QStringLiteral("queued"), queued},
                                                       {QStringLiteral("missing"), missing}});
     });
-    m_stats = catalog->stats();
+    readStats();
     update();
 }
 
 void TasksController::update()
 {
+    PIX_PERF("TasksController::update");
     m_stages = m_pipeline->status();
     emit changed();
 }
@@ -140,7 +143,8 @@ void TasksController::pauseAll()
 
 void TasksController::scanAll()
 {
-    m_catalog->refreshDisks();
+    // Os discos são reconhecidos pelo AppController (vigia dos volumes, fora
+    // da thread principal); a varredura pula pasta que não existe.
     m_pipeline->scan();
 }
 
@@ -152,6 +156,7 @@ void TasksController::requeue(const QString &stage, const QString &scope)
     m_pipeline->start(stage);
     emit notice(QStringLiteral("tasks.requeued"), {{QStringLiteral("count"), n}, {QStringLiteral("stage"), stage}});
     refreshErrors();
+    m_pipeline->wake();
 }
 
 void TasksController::reclusterPeople()
@@ -166,10 +171,22 @@ void TasksController::mergePeopleNow()
     emit notice(QStringLiteral("people.merged"), {{QStringLiteral("count"), n}});
 }
 
+void TasksController::readStats()
+{
+    // Os totais varrem a tabela inteira: no leitor, sem prender a interface.
+    m_reader->read<QVariantMap>(this, [](const Catalog &c) { return c.stats(); }, [this](QVariantMap stats) {
+        m_stats = stats;
+        emit changed();
+    });
+}
+
 void TasksController::refreshErrors()
 {
-    m_errors = m_catalog->errors(500);
-    emit errorsChanged();
+    PIX_PERF("TasksController::refreshErrors");
+    m_reader->read<QVariantList>(this, [](const Catalog &c) { return c.errors(500); }, [this](QVariantList errors) {
+        m_errors = errors;
+        emit errorsChanged();
+    });
 }
 
 QVariantMap TasksController::settings() const
@@ -187,6 +204,9 @@ void TasksController::setSetting(const QString &name, const QVariant &value)
             continue;
         m_catalog->setSetting(QString::fromLatin1(s.key), value.toDouble());
         emit settingsChanged();
+        // Quem aparece na tela Pessoas mudou: a lista é refeita.
+        if (name == QLatin1String("minPersonPhotos"))
+            emit m_catalog->peopleChanged();
         return;
     }
 }

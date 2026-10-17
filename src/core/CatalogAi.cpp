@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Catalog.h"
+#include "core/Perf.h"
 
 #include "core/Taxonomy.h"
 
@@ -19,6 +20,7 @@ QString Catalog::builtinId(const char *key) const
 
 QList<Catalog::Classifiable> Catalog::classifiableCategories() const
 {
+    PIX_PERF("Catalog::classifiableCategories");
     // Folhas com ``auto`` ligado, menos as de regra (sem categoria, borrada,
     // duplicata): o CLIP só escolhe entre as que descrevem o conteúdo.
     const QSet<QString> rules{builtinId(builtin::kUncategorized), builtinId(builtin::kBlurry), builtinId(builtin::kDuplicate)};
@@ -39,6 +41,7 @@ QList<Catalog::Classifiable> Catalog::classifiableCategories() const
 
 void Catalog::applyCategorize(const CategorizeResult &r)
 {
+    PIX_PERF("Catalog::applyCategorize");
     if (!m_db.scalar(QStringLiteral("SELECT 1 FROM photo WHERE id = ?"), {r.photoId}).isValid())
         return;
     Transaction tx(m_db);
@@ -75,6 +78,7 @@ void Catalog::applyCategorize(const CategorizeResult &r)
 
 void Catalog::applyRuleCategories(const QString &photoId)
 {
+    PIX_PERF("Catalog::applyRuleCategories");
     const QString blurry = builtinId(builtin::kBlurry);
     const QString uncategorized = builtinId(builtin::kUncategorized);
     const QString duplicate = builtinId(builtin::kDuplicate);
@@ -106,6 +110,7 @@ void Catalog::applyRuleCategories(const QString &photoId)
 
 QList<QPair<QString, float>> Catalog::rankByEmbedding(const imaging::Embedding &text, float minScore, int limit)
 {
+    PIX_PERF("Catalog::rankByEmbedding");
     QList<QPair<QString, float>> out;
     if (text.empty())
         return out;

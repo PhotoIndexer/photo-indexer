@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "AppController.h"
 
+#include "core/Perf.h"
+
 #include "ImageProviders.h"
 #include "Language.h"
 
 #include "core/Catalog.h"
+#include "core/CatalogReader.h"
 #include "core/Paths.h"
 #include "core/Pipeline.h"
 #include "imaging/Exif.h"
@@ -21,6 +24,10 @@
 #include <QProcess>
 #include <QSettings>
 #include <QStorageInfo>
+#include <QFutureWatcher>
+#include <QtConcurrent/QtConcurrentRun>
+
+#include <optional>
 
 Q_LOGGING_CATEGORY(lcApp, "photoidx.app")
 
@@ -59,10 +66,34 @@ AppController::AppController(QObject *parent)
         m_catalog->open(QString());
     }
     m_pipeline = std::make_unique<Pipeline>(m_catalog.get());
-    m_library = std::make_unique<LibraryController>(m_catalog.get(), m_pipeline.get());
+    // Leituras da navegação numa conexão só de leitura, em outra thread
+    // (core/CatalogReader.h): a interface não espera o banco.
+    m_reader = std::make_unique<CatalogReader>(*m_catalog);
+    m_pipeline->setReader(m_reader.get());
+    m_library = std::make_unique<LibraryController>(m_catalog.get(), m_pipeline.get(), m_reader.get());
+    // As pastas já na abertura (a tela não começa em "adicione uma pasta");
+    // os discos (mais caros) chegam pelo leitor logo depois.
+    m_folders = m_catalog->folders();
+    m_foldersTimer.setSingleShot(true);
+    m_foldersTimer.setInterval(500);
+    connect(&m_foldersTimer, &QTimer::timeout, this, [this]() {
+        struct Lists
+        {
+            QVariantList folders, disks;
+        };
+        m_reader->read<Lists>(
+            this, [](const Catalog &c) { return Lists{c.folders(), c.disks()}; },
+            [this](Lists l) {
+                if (l.folders == m_folders && l.disks == m_disks)
+                    return;
+                m_folders = l.folders;
+                m_disks = l.disks;
+                emit foldersChanged();
+            });
+    });
     m_viewer = std::make_unique<ViewerController>(m_catalog.get(), m_library->grid());
-    m_people = std::make_unique<PeopleController>(m_catalog.get(), m_pipeline.get());
-    m_tasks = std::make_unique<TasksController>(m_catalog.get(), m_pipeline.get());
+    m_people = std::make_unique<PeopleController>(m_catalog.get(), m_pipeline.get(), m_reader.get());
+    m_tasks = std::make_unique<TasksController>(m_catalog.get(), m_pipeline.get(), m_reader.get());
     m_privacy = std::make_unique<PrivacyController>(m_catalog.get());
     connect(m_privacy.get(), &PrivacyController::notice, this, &AppController::notice);
     // Trancou com uma foto privada aberta: volta para a biblioteca.
@@ -77,20 +108,22 @@ AppController::AppController(QObject *parent)
     connect(m_tasks.get(), &TasksController::notice, this, &AppController::notice);
     connect(m_catalog.get(), &Catalog::treeChanged, this, [this](const QString &tab) {
         if (tab == QLatin1String("folders"))
-            emit foldersChanged();
+            readFolders();
     });
-    connect(m_pipeline.get(), &Pipeline::scanFinished, this, &AppController::foldersChanged);
+    connect(m_pipeline.get(), &Pipeline::scanFinished, this, &AppController::readFolders);
 
     // Ao abrir: reconhece os discos (algum pode ter voltado em outro lugar),
     // liga as etapas e revarre as pastas — o que mudou com o app fechado entra.
-    m_catalog->refreshDisks();
     m_pipeline->startAll();
     // Disco conectado ou desconectado com o app aberto: a lista de volumes
     // montados é barata de ler (QStorageInfo, igual nos três SOs).
-    m_volumes = mountedRoots();
+    // A primeira olhada (m_volumes vazio) sonda todos os discos, fora da
+    // thread principal; até ela voltar, valem os estados da última sessão.
+    checkVolumes();
     m_volumeWatch.setInterval(3000);
     connect(&m_volumeWatch, &QTimer::timeout, this, &AppController::checkVolumes);
     m_volumeWatch.start();
+    readFolders();
     if (m_catalog->setting(QStringLiteral("scan/onStartup"), true).toBool())
         m_pipeline->scan();
 }
@@ -191,12 +224,21 @@ QString AppController::dataDir() const
 
 QVariantList AppController::folders() const
 {
-    return m_catalog->folders();
+    return m_folders;
 }
 
 QVariantList AppController::disks() const
 {
-    return m_catalog->disks();
+    return m_disks;
+}
+
+void AppController::readFolders()
+{
+    // Pastas e discos (com as contagens): no leitor; o sinal só sai quando os
+    // dados chegam e se mudaram. Vários pedidos seguidos viram uma leitura.
+    if (m_foldersTimer.isActive())
+        return;
+    m_foldersTimer.start();
 }
 
 bool AppController::addFolder(const QUrl &folder)
@@ -205,7 +247,7 @@ bool AppController::addFolder(const QUrl &folder)
     try {
         const QString id = m_catalog->addFolder(path);
         m_pipeline->scan({id});
-        emit foldersChanged();
+        readFolders();
         emit notice(QStringLiteral("folder.added"), {{QStringLiteral("path"), QDir::toNativeSeparators(path)}});
         return true;
     } catch (const ActionError &e) {
@@ -239,26 +281,49 @@ void AppController::removeFolder(const QString &folderId)
     m_pipeline->cancel(QStringLiteral("search"));
     m_catalog->removeFolder(folderId);
     m_pipeline->start(QStringLiteral("search"));
-    emit foldersChanged();
+    readFolders();
 }
 
 void AppController::rescanFolder(const QString &folderId)
 {
-    m_catalog->refreshDisks();
+    m_volumes.clear();  // força a sonda dos discos (fora da thread principal)
+    checkVolumes();
     m_pipeline->scan(folderId.isEmpty() ? QStringList() : QStringList{folderId});
 }
 
 void AppController::checkVolumes()
 {
-    const QStringList now = mountedRoots();
-    if (now == m_volumes)
+    // Tudo o que pergunta ao SO roda fora da thread principal: um
+    // compartilhamento de rede caído pode demorar segundos para responder.
+    if (m_probing)
         return;
-    m_volumes = now;
+    m_probing = true;
+    const QStringList last = m_volumes;
+    const QStringList folders = m_catalog->allFolderPaths();
+    auto *watcher = new QFutureWatcher<std::optional<std::pair<QStringList, Catalog::DiskProbe>>>(this);
+    connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher]() {
+        watcher->deleteLater();
+        m_probing = false;
+        const auto result = watcher->result();
+        if (result)
+            applyVolumes(result->first, result->second);
+    });
+    watcher->setFuture(QtConcurrent::run([last, folders]() -> std::optional<std::pair<QStringList, Catalog::DiskProbe>> {
+        const QStringList now = mountedRoots();
+        if (now == last)
+            return std::nullopt;  // nada mudou: nem sonda os discos
+        return std::make_pair(now, Catalog::probeDisks(folders));
+    }));
+}
+
+void AppController::applyVolumes(const QStringList &roots, const Catalog::DiskProbe &probe)
+{
+    m_volumes = roots;
     QStringList back, gone;
-    if (m_catalog->refreshDisks(&back, &gone) == 0)
+    if (m_catalog->applyDiskProbe(probe, &back, &gone) == 0)
         return;
     QHash<QString, QString> labels;
-    for (const QVariant &d : m_catalog->disks())
+    for (const QVariant &d : std::as_const(m_disks))
         labels.insert(d.toMap().value(QStringLiteral("id")).toString(), d.toMap().value(QStringLiteral("label")).toString());
     // O que voltou: revarre (o que mudou com ele desconectado entra) e a
     // fila parada dele anda sozinha (as etapas só pegam discos online).
@@ -271,17 +336,18 @@ void AppController::checkVolumes()
         emit notice(QStringLiteral("disk.offline"), {{QStringLiteral("label"), labels.value(disk)}});
     if (!folders.isEmpty())
         m_pipeline->scan(folders);
-    emit foldersChanged();
+    readFolders();
 }
 
 void AppController::refreshDisks()
 {
-    m_catalog->refreshDisks();
-    emit foldersChanged();
+    m_volumes.clear();  // força a sonda dos discos (fora da thread principal)
+    checkVolumes();
 }
 
 void AppController::openPhoto(const QString &photoId)
 {
+    PIX_PERF("AppController::openPhoto");
     m_viewer->open(photoId);
     setPage(QStringLiteral("viewer"));
 }

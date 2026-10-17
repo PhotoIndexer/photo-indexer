@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Catalog.h"
+#include "core/Perf.h"
 
 #include "core/Crypto.h"
 #include "core/Vault.h"
@@ -183,6 +184,7 @@ void Catalog::pruneKeys()
 
 int Catalog::makePrivate(const QStringList &photoIds)
 {
+    PIX_PERF("Catalog::makePrivate");
     if (!hasVaultPassword())
         throw ActionError(QStringLiteral("vault.noPassword"));
     if (!m_keys->isOpen())
@@ -249,6 +251,7 @@ int Catalog::makePublic(const QStringList &photoIds)
 
 QList<PrivacyJob> Catalog::nextPrivacyJobs(int limit, const QSet<QString> &busy) const
 {
+    PIX_PERF("Catalog::nextPrivacyJobs");
     QList<PrivacyJob> out;
     if (!m_keys->isOpen())
         return out;
@@ -279,6 +282,7 @@ QList<PrivacyJob> Catalog::nextPrivacyJobs(int limit, const QSet<QString> &busy)
 
 void Catalog::applyPrivacy(const PrivacyResult &r)
 {
+    PIX_PERF("Catalog::applyPrivacy");
     if (!r.ok) {
         m_db.exec(QStringLiteral("UPDATE photo SET private_state = 'error:' || ?, error = ? WHERE id = ?"),
                   {r.op, r.error, r.photoId});
@@ -325,6 +329,7 @@ int Catalog::pendingPrivacy() const
 
 QVariantMap Catalog::privacyStatus() const
 {
+    PIX_PERF("Catalog::privacyStatus");
     QSqlQuery q = m_db.exec(QStringLiteral(
         "SELECT count(*), sum(private_state = 'done'), sum(private_state IN ('encrypt', 'decrypt')), "
         "sum(private_state LIKE 'error:%') FROM photo WHERE private = 1"));

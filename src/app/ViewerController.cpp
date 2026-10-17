@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "ViewerController.h"
 
+#include "core/Perf.h"
+
 #include "ImageProviders.h"
 #include "PhotoGridModel.h"
 
@@ -22,6 +24,9 @@ namespace {
 constexpr int kViewSide = 2560;
 /// Distância de Hamming máxima para "parecida" na árvore de hashes.
 constexpr int kSimilarDistance = 8;
+/// As parecidas mais próximas que a tela mostra (cada uma é uma miniatura
+/// carregada de uma vez — um Repeater, não uma grade preguiçosa).
+constexpr int kMaxSimilar = 48;
 
 } // namespace
 
@@ -54,8 +59,9 @@ void ViewerController::open(const QString &photoId)
 
 void ViewerController::load()
 {
+    PIX_PERF("ViewerController::load");
     m_detail = m_catalog->photoDetail(m_photoId);
-    m_similar = m_catalog->similarPhotos(m_photoId, kSimilarDistance);
+    m_similar = m_catalog->similarPhotos(m_photoId, kSimilarDistance).mid(0, kMaxSimilar);
     const QString path = m_catalog->photoPath(m_photoId);
     const QString thumb = m_detail.value(QStringLiteral("thumbPath")).toString();
     const bool isPrivate = m_detail.value(QStringLiteral("private")).toInt() == 1;
@@ -101,7 +107,7 @@ void ViewerController::reload()
     m_detail = m_catalog->photoDetail(m_photoId);
     m_detail.insert(QStringLiteral("offline"), offline);
     m_detail.insert(QStringLiteral("isPrivate"), m_detail.value(QStringLiteral("private")).toInt() == 1);
-    m_similar = m_catalog->similarPhotos(m_photoId, kSimilarDistance);
+    m_similar = m_catalog->similarPhotos(m_photoId, kSimilarDistance).mid(0, kMaxSimilar);
     emit photoChanged();
 }
 

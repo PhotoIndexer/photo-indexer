@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Catalog.h"
+#include "core/Perf.h"
 
 #include <QSqlQuery>
 
@@ -93,6 +94,7 @@ void Catalog::setCategoryPrompt(const QString &categoryId, const QString &prompt
 
 void Catalog::addPhotosToCategory(const QStringList &photoIds, const QString &categoryId)
 {
+    PIX_PERF("Catalog::addPhotosToCategory");
     Transaction tx(m_db);
     for (const QString &id : photoIds) {
         m_db.exec(QStringLiteral("INSERT INTO photo_category(photo_id, category_id, score, source) VALUES(?, ?, 1, 'user') "
@@ -122,6 +124,7 @@ void Catalog::removePhotosFromCategory(const QStringList &photoIds, const QStrin
 
 void Catalog::movePhotosToCategory(const QStringList &photoIds, const QString &categoryId, const QString &fromCategoryId)
 {
+    PIX_PERF("Catalog::movePhotosToCategory");
     // As categorias de onde a foto sai: a de origem e as de dentro dela.
     QStringList from;
     if (!fromCategoryId.isEmpty()) {
@@ -228,6 +231,7 @@ void Catalog::moveAlbum(const QString &albumId, const QString &newParentId)
 
 void Catalog::addPhotosToAlbum(const QStringList &photoIds, const QString &albumId)
 {
+    PIX_PERF("Catalog::addPhotosToAlbum");
     const bool toPrivate = isPrivateAlbum(albumId);
     // Pôr num álbum privado = tornar privada (cifra o original e a miniatura).
     if (toPrivate)

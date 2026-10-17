@@ -12,3 +12,7 @@ endfunction()
 photoidx_test(imaging photoidx_imaging)
 photoidx_test(ai photoidx_imaging)
 photoidx_test(core photoidx_core)
+
+# Medição num catálogo de verdade (fora do ctest): bench_catalog <cópia>.
+add_executable(bench_catalog bench_catalog.cpp)
+target_link_libraries(bench_catalog PRIVATE photoidx_core)

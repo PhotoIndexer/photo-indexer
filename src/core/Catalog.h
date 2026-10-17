@@ -97,7 +97,14 @@ public:
 
     /// Abre (cria/migra) o banco, semeia as categorias e monta os índices em memória.
     void open(const QString &path);
+    /// Um catálogo SÓ DE LEITURA sobre o mesmo arquivo de ``main`` (o mesmo
+    /// chaveiro: as privadas continuam escondidas com o cofre trancado). É o
+    /// do CatalogReader: árvores, listas e contagens lidas em outra thread.
+    /// Sem os índices em memória (árvore de hashes, faces): só consultas SQL.
+    void openReaderOf(const Catalog &main);
+    bool isReader() const { return m_reader; }
     Database &db() { return m_db; }
+    const Database &db() const { return m_db; }
 
     QVariant setting(const QString &key, const QVariant &fallback = {}) const;
     void setSetting(const QString &key, const QVariant &value);
@@ -123,6 +130,20 @@ public:
     /// outro ponto de montagem, refaz os caminhos. Devolve quantos mudaram;
     /// em ``cameOnline``/``wentOffline``, os ids dos que voltaram/saíram.
     int refreshDisks(QStringList *cameOnline = nullptr, QStringList *wentOffline = nullptr);
+
+    /// O que o SO diz dos discos (volumes montados e quais pastas indexadas
+    /// existem). Sem banco: roda em qualquer thread — e deve rodar fora da
+    /// principal, porque um compartilhamento de rede caído pode demorar
+    /// segundos para responder.
+    struct DiskProbe
+    {
+        QList<DiskInfo> mounted;
+        QSet<QString> reachableFolders;
+    };
+    static DiskProbe probeDisks(const QStringList &folderPaths);
+    QStringList allFolderPaths() const;
+    /// A parte do refreshDisks que é banco (rápida): aplica uma sondagem.
+    int applyDiskProbe(const DiskProbe &probe, QStringList *cameOnline = nullptr, QStringList *wentOffline = nullptr);
     /// As pastas indexadas de um disco.
     QStringList folderIdsOnDisk(const QString &diskId) const;
 
@@ -184,8 +205,12 @@ public:
     void reclusterPeople();
     const FaceIndex &faceIndex() const { return m_faces; }
 
-    /// [{id, name, coverPath, faceCount, photoCount}] — nomeadas primeiro.
+    /// [{id, name, coverPath, faceCount, photoCount}] — nomeadas primeiro; as
+    /// sem nome só com pelo menos minPersonPhotos() fotos (as outras aparecem
+    /// na busca por rosto).
     QVariantList people() const;
+    /// A partir de quantas fotos uma pessoa sem nome aparece (people/minPhotos).
+    int minPersonPhotos() const;
     QVariantMap person(const QString &personId) const;
     /// [{id, photoId, cropPath, score, similarity, assignment, x, y, w, h}]
     QVariantList personFaces(const QString &personId) const;
@@ -370,6 +395,7 @@ private:
     std::shared_ptr<crypto::KeyRing> m_keys = std::make_shared<crypto::KeyRing>();
     QByteArray m_passwordKey;                  ///< só com o cofre aberto
 
+    bool m_reader = false;
     bool m_embeddingsLoaded = false;
     QStringList m_embeddingIds;
     std::vector<float> m_embeddings;           ///< CLIP de todas as fotos (busca por IA)

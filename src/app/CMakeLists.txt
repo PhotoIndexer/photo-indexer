@@ -14,6 +14,7 @@ qt_add_executable(photoidx
     PrivacyController.h PrivacyController.cpp
     SingleInstance.h SingleInstance.cpp
     PhotoGridModel.h PhotoGridModel.cpp
+    PeopleListModel.h PeopleListModel.cpp
     TreeModel.h TreeModel.cpp
     ImageProviders.h ImageProviders.cpp
     Language.h Language.cpp

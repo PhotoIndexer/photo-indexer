@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Catalog.h"
+#include "core/Perf.h"
 
 #include "imaging/Faces.h"
 
@@ -36,6 +37,7 @@ float similarityToSum(const imaging::Embedding &sum, const imaging::Embedding &e
 
 void Catalog::loadPeople()
 {
+    PIX_PERF("Catalog::loadPeople");
     m_people.clear();
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name FROM person"));
     while (q.next())
@@ -106,6 +108,7 @@ QString Catalog::clusterFace(const QString &faceId, const imaging::Embedding &em
 
 void Catalog::refreshPerson(const QString &personId)
 {
+    PIX_PERF("Catalog::refreshPerson");
     if (personId.isEmpty())
         return;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, photo_id, score FROM face WHERE person_id = ? ORDER BY score DESC"), {personId});
@@ -150,6 +153,7 @@ void Catalog::refreshPerson(const QString &personId)
 
 void Catalog::applyFaces(const FaceResult &r)
 {
+    PIX_PERF("Catalog::applyFaces");
     if (!m_db.scalar(QStringLiteral("SELECT 1 FROM photo WHERE id = ?"), {r.photoId}).isValid()) {
         for (const FoundFace &f : r.faces)
             QFile::remove(f.cropPath);
@@ -204,6 +208,7 @@ void Catalog::applyFaces(const FaceResult &r)
 
 int Catalog::autoMergePeople()
 {
+    PIX_PERF("Catalog::autoMergePeople");
     // Junta duas pessoas quando os centroides são parecidos o bastante
     // (similaridade) E as duas são confiáveis: faces suficientes e confiança
     // média de detecção alta. Nomes diferentes nunca se juntam.
@@ -274,6 +279,7 @@ int Catalog::autoMergePeople()
 
 void Catalog::reclusterPeople()
 {
+    PIX_PERF("Catalog::reclusterPeople");
     Transaction tx(m_db);
     // Fica o que a pessoa confirmou e o que está em pessoas com nome; o
     // automático das pessoas sem nome (e as faces soltas) é refeito.
@@ -314,13 +320,23 @@ void Catalog::reclusterPeople()
 // Pessoas: leitura
 // --------------------------------------------------------------------------- //
 
+int Catalog::minPersonPhotos() const
+{
+    return std::max(1, setting(QStringLiteral("people/minPhotos"), 20).toInt());
+}
+
 QVariantList Catalog::people() const
 {
+    PIX_PERF("Catalog::people");
     QVariantList out;
+    // As com nome sempre, primeiro (em ordem alfabética); as sem nome só a
+    // partir de people/minPhotos fotos (padrão 20), as com mais fotos antes.
+    // As outras continuam existindo: aparecem na busca por rosto.
     QSqlQuery q = m_db.exec(QStringLiteral(
         "SELECT p.id, p.name, f.crop_path, p.face_count, p.photo_count FROM person p "
-        "LEFT JOIN face f ON f.id = p.cover_face_id WHERE p.face_count > 0 OR p.name != '' "
-        "ORDER BY (p.name = ''), p.name COLLATE NOCASE, p.face_count DESC"));
+        "LEFT JOIN face f ON f.id = p.cover_face_id WHERE p.name != '' OR (p.face_count > 0 AND p.photo_count >= ?) "
+        "ORDER BY (p.name = ''), p.name COLLATE NOCASE, p.photo_count DESC, p.face_count DESC"),
+        {minPersonPhotos()});
     while (q.next())
         out << QVariantMap{{QStringLiteral("id"), q.value(0)},
                            {QStringLiteral("name"), q.value(1)},
@@ -332,6 +348,7 @@ QVariantList Catalog::people() const
 
 QVariantMap Catalog::person(const QString &personId) const
 {
+    PIX_PERF("Catalog::person");
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT p.id, p.name, f.crop_path, p.face_count, p.photo_count, p.created_at "
                                            "FROM person p LEFT JOIN face f ON f.id = p.cover_face_id WHERE p.id = ?"),
                             {personId});
@@ -347,6 +364,7 @@ QVariantMap Catalog::person(const QString &personId) const
 
 QVariantList Catalog::personFaces(const QString &personId) const
 {
+    PIX_PERF("Catalog::personFaces");
     QVariantList out;
     const imaging::Embedding centroid = centroidOf(personId);
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.id, f.photo_id, f.crop_path, f.score, f.assignment, f.x, f.y, f.w, f.h, "
@@ -370,6 +388,7 @@ QVariantList Catalog::personFaces(const QString &personId) const
 
 QVariantList Catalog::unassignedFaces() const
 {
+    PIX_PERF("Catalog::unassignedFaces");
     QVariantList out;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.id, f.photo_id, f.crop_path, f.score, p.name FROM face f "
                                            "JOIN photo p ON p.id = f.photo_id WHERE f.person_id IS NULL AND f.assignment = 'user' "
@@ -432,6 +451,7 @@ void Catalog::deletePerson(const QString &personId)
 
 void Catalog::mergePeople(const QString &targetId, const QString &sourceId)
 {
+    PIX_PERF("Catalog::mergePeople");
     if (targetId == sourceId || targetId.isEmpty() || sourceId.isEmpty())
         return;
     Transaction tx(m_db);
@@ -453,6 +473,7 @@ void Catalog::mergePeople(const QString &targetId, const QString &sourceId)
 
 void Catalog::assignFaces(const QStringList &faceIds, const QString &personId)
 {
+    PIX_PERF("Catalog::assignFaces");
     QSet<QString> touched{personId};
     Transaction tx(m_db);
     for (const QString &faceId : faceIds) {
@@ -472,6 +493,7 @@ void Catalog::assignFaces(const QStringList &faceIds, const QString &personId)
 
 void Catalog::rejectFaces(const QStringList &faceIds)
 {
+    PIX_PERF("Catalog::rejectFaces");
     QSet<QString> touched;
     const QString now = Database::timestamp();
     Transaction tx(m_db);

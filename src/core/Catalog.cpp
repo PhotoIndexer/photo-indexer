@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Catalog.h"
+#include "core/Perf.h"
 
 #include "core/Paths.h"
 #include "core/Taxonomy.h"
@@ -63,6 +64,7 @@ Catalog::~Catalog() = default;
 
 void Catalog::open(const QString &path)
 {
+    PIX_PERF("Catalog::open");
     m_db.open(path);
     seedCategories();
     ensureVault();
@@ -71,6 +73,14 @@ void Catalog::open(const QString &path)
     loadPeople();
     qCInfo(lcCatalog) << "Catalog open:" << (path.isEmpty() ? QStringLiteral(":memory:") : path) << "-"
                       << m_hashes.size() << "hashed photos," << m_faces.size() << "faces," << m_people.size() << "people";
+}
+
+void Catalog::openReaderOf(const Catalog &main)
+{
+    m_db.openReadOnly(main.m_db.path());
+    m_keys = main.m_keys;
+    m_builtinIds = main.m_builtinIds;
+    m_reader = true;
 }
 
 QVariant Catalog::setting(const QString &key, const QVariant &fallback) const
@@ -169,6 +179,7 @@ QString Catalog::ensureDisk(const DiskInfo &disk)
 
 QString Catalog::addFolder(const QString &rawPath)
 {
+    PIX_PERF("Catalog::addFolder");
     const QString path = cleanPath(rawPath);
     if (!QFileInfo(path).isDir())
         throw ActionError(QStringLiteral("folder.notFound"), {{QStringLiteral("path"), QDir::toNativeSeparators(path)}});
@@ -223,6 +234,7 @@ void Catalog::removePhotoFiles(const QString &photoId)
 
 void Catalog::removeFolder(const QString &folderId)
 {
+    PIX_PERF("Catalog::removeFolder");
     QStringList photoIds;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM photo WHERE folder_id = ?"), {folderId});
     while (q.next())
@@ -265,13 +277,15 @@ QStringList Catalog::folderIds() const
 
 QVariantList Catalog::folders() const
 {
+    PIX_PERF("Catalog::folders");
     QVariantList out;
+    // Uma passada na tabela, agrupada por pasta (três subconsultas por pasta
+    // varriam a tabela três vezes).
     QSqlQuery q = m_db.exec(QStringLiteral(
-        "SELECT f.id, f.path, f.disk_id, f.scanned_at, d.online, "
-        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state != 'missing' AND p.private = 0), "
-        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state = 'indexed' AND p.private = 0), "
-        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state = 'error' AND p.private = 0) "
-        "FROM folder f JOIN disk d ON d.id = f.disk_id ORDER BY f.path"));
+        "WITH c AS (SELECT folder_id, sum(state != 'missing') n, sum(state = 'indexed') i, sum(state = 'error') e "
+        "           FROM photo WHERE private = 0 GROUP BY folder_id) "
+        "SELECT f.id, f.path, f.disk_id, f.scanned_at, d.online, coalesce(c.n, 0), coalesce(c.i, 0), coalesce(c.e, 0) "
+        "FROM folder f JOIN disk d ON d.id = f.disk_id LEFT JOIN c ON c.folder_id = f.id ORDER BY f.path"));
     while (q.next())
         out << QVariantMap{{QStringLiteral("id"), q.value(0)},
                            {QStringLiteral("path"), QDir::toNativeSeparators(q.value(1).toString())},
@@ -286,13 +300,16 @@ QVariantList Catalog::folders() const
 
 QVariantList Catalog::disks() const
 {
+    PIX_PERF("Catalog::disks");
     QVariantList out;
     QSqlQuery q = m_db.exec(QStringLiteral(
         "SELECT d.id, d.disk_key, d.label, d.kind, d.protocol, d.server, d.share, d.fs_type, d.device, d.serial, d.model, "
-        "  d.mount_point, d.total_bytes, d.online, "
-        "  (SELECT count(*) FROM folder f WHERE f.disk_id = d.id), "
-        "  (SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id WHERE f.disk_id = d.id AND p.state != 'missing' AND p.private = 0) "
-        "FROM disk d ORDER BY d.kind, d.label"));
+        "  d.mount_point, d.total_bytes, d.online, coalesce(fc.k, 0), coalesce(c.n, 0) "
+        "FROM disk d "
+        "LEFT JOIN (SELECT disk_id, count(*) k FROM folder GROUP BY disk_id) fc ON fc.disk_id = d.id "
+        "LEFT JOIN (SELECT f.disk_id, count(*) n FROM photo p JOIN folder f ON f.id = p.folder_id "
+        "           WHERE p.state != 'missing' AND p.private = 0 GROUP BY f.disk_id) c ON c.disk_id = d.id "
+        "ORDER BY d.kind, d.label"));
     while (q.next())
         out << QVariantMap{{QStringLiteral("id"), q.value(0)},           {QStringLiteral("key"), q.value(1)},
                            {QStringLiteral("label"), q.value(2)},        {QStringLiteral("kind"), q.value(3)},
@@ -315,10 +332,36 @@ QStringList Catalog::folderIdsOnDisk(const QString &diskId) const
     return out;
 }
 
+Catalog::DiskProbe Catalog::probeDisks(const QStringList &folderPaths)
+{
+    PIX_PERF("Catalog::probeDisks");
+    DiskProbe probe;
+    probe.mounted = mountedDisks();
+    for (const QString &path : folderPaths)
+        if (QFileInfo(path).isDir())
+            probe.reachableFolders.insert(path);
+    return probe;
+}
+
+QStringList Catalog::allFolderPaths() const
+{
+    QStringList out;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT path FROM folder"));
+    while (q.next())
+        out << q.value(0).toString();
+    return out;
+}
+
 int Catalog::refreshDisks(QStringList *cameOnline, QStringList *wentOffline)
 {
+    return applyDiskProbe(probeDisks(allFolderPaths()), cameOnline, wentOffline);
+}
+
+int Catalog::applyDiskProbe(const DiskProbe &probe, QStringList *cameOnline, QStringList *wentOffline)
+{
+    PIX_PERF("Catalog::applyDiskProbe");
     QHash<QString, DiskInfo> mounted;
-    for (const DiskInfo &d : mountedDisks())
+    for (const DiskInfo &d : probe.mounted)
         mounted.insert(d.key, d);
     int changed = 0;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, disk_key, mount_point, online FROM disk"));
@@ -338,7 +381,7 @@ int Catalog::refreshDisks(QStringList *cameOnline, QStringList *wentOffline)
             bool reachable = false;
             QSqlQuery f = m_db.exec(QStringLiteral("SELECT path FROM folder WHERE disk_id = ?"), {row.id});
             while (f.next())
-                reachable = reachable || QFileInfo(f.value(0).toString()).isDir();
+                reachable = reachable || probe.reachableFolders.contains(f.value(0).toString());
             if (row.online != reachable) {
                 m_db.exec(QStringLiteral("UPDATE disk SET online = ? WHERE id = ?"), {reachable ? 1 : 0, row.id});
                 ++changed;
@@ -392,6 +435,7 @@ int Catalog::refreshDisks(QStringList *cameOnline, QStringList *wentOffline)
 
 int Catalog::ingest(const QString &folderId, const QList<FoundFile> &files)
 {
+    PIX_PERF("Catalog::ingest");
     int queued = 0;
     const QString now = Database::timestamp();
     Transaction tx(m_db);
@@ -455,6 +499,7 @@ int Catalog::ingest(const QString &folderId, const QList<FoundFile> &files)
 
 int Catalog::finishScan(const QString &folderId, const QSet<QString> &seenPaths)
 {
+    PIX_PERF("Catalog::finishScan");
     QStringList missing, dropped;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, path, indexed_at, private, private_state FROM photo "
                                            "WHERE folder_id = ? AND state != 'missing'"),
@@ -490,6 +535,7 @@ int Catalog::finishScan(const QString &folderId, const QSet<QString> &seenPaths)
 
 QList<IndexJob> Catalog::nextIndexJobs(int limit, const QSet<QString> &busy) const
 {
+    PIX_PERF("Catalog::nextIndexJobs");
     QList<IndexJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral(
                                 "SELECT p.id, p.path, p.thumb_path, p.file_created_at, p.file_modified_at, p.private FROM photo p "
@@ -516,6 +562,7 @@ QList<IndexJob> Catalog::nextIndexJobs(int limit, const QSet<QString> &busy) con
 
 QList<CategorizeJob> Catalog::nextCategorizeJobs(int limit, const QSet<QString> &busy) const
 {
+    PIX_PERF("Catalog::nextCategorizeJobs");
     QList<CategorizeJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT p.id, p.thumb_path, e.vector FROM photo p "
                                            "LEFT JOIN photo_embedding e ON e.photo_id = p.id "
@@ -532,6 +579,7 @@ QList<CategorizeJob> Catalog::nextCategorizeJobs(int limit, const QSet<QString> 
 
 QList<FaceJob> Catalog::nextFaceJobs(int limit, const QSet<QString> &busy) const
 {
+    PIX_PERF("Catalog::nextFaceJobs");
     QList<FaceJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral(
                                 "SELECT p.id, p.path, p.year, p.month, p.day FROM photo p "
@@ -554,6 +602,7 @@ QList<FaceJob> Catalog::nextFaceJobs(int limit, const QSet<QString> &busy) const
 
 int Catalog::pendingCount(const QString &stage) const
 {
+    PIX_PERF("Catalog::pendingCount");
     if (stage == QLatin1String("index"))
         return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p WHERE p.state = 'pending' AND (p.private = 0 OR ?) "
                                           "AND +p.folder_id IN %1").arg(QLatin1String(kOnlineFolders)),
@@ -575,6 +624,7 @@ int Catalog::pendingCount(const QString &stage) const
 
 QHash<QString, int> Catalog::stageTotals() const
 {
+    PIX_PERF("Catalog::stageTotals");
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT sum(state != 'missing'), sum(state = 'indexed' AND thumb_path != '') "
                                            "FROM photo WHERE private = 0"));
     q.next();
@@ -587,6 +637,7 @@ QHash<QString, int> Catalog::stageTotals() const
 
 int Catalog::requeue(const QString &stage, const QString &scope)
 {
+    PIX_PERF("Catalog::requeue");
     const bool errorsOnly = scope == QLatin1String("errors");
     QString sql;
     if (stage == QLatin1String("index"))
@@ -630,6 +681,7 @@ QString Catalog::ensurePlace(const PlaceMatch &place)
 
 void Catalog::applyIndex(const IndexResult &r)
 {
+    PIX_PERF("Catalog::applyIndex");
     QSqlQuery p = m_db.exec(QStringLiteral("SELECT picture_hash, thumb_path, orientation, indexed_at FROM photo WHERE id = ?"),
                             {r.photoId});
     if (!p.next())
@@ -718,6 +770,7 @@ void Catalog::applyIndex(const IndexResult &r)
 
 void Catalog::applyIndexBatch(const QList<IndexResult> &results)
 {
+    PIX_PERF("Catalog::applyIndexBatch");
     Transaction tx(m_db);
     for (const IndexResult &r : results) {
         try {
@@ -731,6 +784,7 @@ void Catalog::applyIndexBatch(const QList<IndexResult> &results)
 
 void Catalog::markDuplicates(const QString &photoId, const QString &pictureHash, quint64 phash)
 {
+    PIX_PERF("Catalog::markDuplicates");
     const QString dup = builtinId(builtin::kDuplicate);
     if (dup.isEmpty())
         return;

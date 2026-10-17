@@ -37,6 +37,9 @@ public:
 
     /// Abre (cria e migra, se preciso). ``path`` vazio = banco em memória.
     void open(const QString &path);
+    /// Só leitura (sem migrar), para ler em outra thread enquanto a principal
+    /// grava: com WAL, quem lê vê um retrato consistente e ninguém espera.
+    void openReadOnly(const QString &path);
     /// O arquivo do banco ("" = em memória).
     QString path() const { return m_path; }
     void close();
@@ -69,6 +72,7 @@ private:
     void migrate();
 
     QString m_connection;
+    void tuneCache();
     int m_depth = 0;
     QString m_path;            ///< transações abertas (as de dentro são SAVEPOINTs)
 };

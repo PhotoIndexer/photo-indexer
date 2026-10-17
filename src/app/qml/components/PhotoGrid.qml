@@ -61,6 +61,16 @@ GridView {
         }
     }
 
+    // Rolagem rápida (barra arrastada, arremesso forte): as células que só
+    // passam não pedem a miniatura; quando a rolagem para, só as visíveis
+    // carregam. Sem isso, varrer milhares de fotos enfileirava milhares de
+    // leituras de arquivo.
+    readonly property bool fastScroll: scrollWatch.fast
+    ScrollWatch {
+        id: scrollWatch
+        target: grid
+    }
+
     Keys.onReturnPressed: if (currentIndex >= 0) grid.opened(photos.idAt(currentIndex))
     Keys.onEnterPressed: if (currentIndex >= 0) grid.opened(photos.idAt(currentIndex))
     Keys.onSpacePressed: if (currentIndex >= 0) photos.click(currentIndex, Qt.ControlModifier)
@@ -138,9 +148,12 @@ GridView {
 
             Image {
                 id: thumb
+                // A que já carregou fica; a que ainda não, espera a rolagem parar.
+                property string loadedUrl: ""
                 anchors.fill: parent
                 anchors.margins: cell.selected ? 6 : 4
-                source: cell.thumbUrl
+                source: grid.fastScroll && loadedUrl !== cell.thumbUrl ? "" : cell.thumbUrl
+                onStatusChanged: if (status === Image.Ready) loadedUrl = String(source)
                 sourceSize: Qt.size(grid.cellWidth * Screen.devicePixelRatio, grid.cellHeight * Screen.devicePixelRatio)
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true

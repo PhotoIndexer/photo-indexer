@@ -43,6 +43,7 @@
 namespace pix {
 
 class Catalog;
+class CatalogReader;
 
 class Pipeline : public QObject
 {
@@ -71,6 +72,8 @@ public:
     /// Para a etapa e descarta o que estava na fila do pool.
     void cancel(const QString &stage);
     void setThreads(const QString &stage, int threads);
+    /// Há trabalho novo na fila (requeue, fotos novas): olha já.
+    void wake();
     int threads(const QString &stage) const;
     /// Teto de tarefas ao mesmo tempo, somando todas as etapas (o padrão
     /// é metade dos núcleos, entre 2 e 8).
@@ -80,6 +83,10 @@ public:
 
     /// As frases das categorias mudaram: recalcula os embeddings de texto.
     void invalidatePrompts();
+
+    /// Contagens de pendentes e totais lidas no CatalogReader (sem ele, na
+    /// thread principal — testes).
+    void setReader(CatalogReader *reader) { m_reader = reader; }
 
     imaging::ClipModel &clip() { return *m_clip; }
     imaging::FaceEngine &faceEngine() { return *m_faces; }
@@ -154,11 +161,15 @@ private:
 
     int m_facesSinceMerge = 0;
     int m_maxTasks = 4;
+    QElapsedTimer m_indexIdle;      ///< a última busca do Indexer veio vazia (desde quando)
     int m_roundRobin = 0;
 
     // Pendentes por etapa (contagens no banco), guardados por 2 s.
     mutable QHash<QString, int> m_pendingCache;
     mutable QHash<QString, int> m_totalCache;     ///< universo de cada etapa (mesmo instante)
+    mutable bool m_countsInFlight = false;
+    CatalogReader *m_reader = nullptr;
+    void readCounts() const;
     mutable QElapsedTimer m_pendingTimer;
 };
 

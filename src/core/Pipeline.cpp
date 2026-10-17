@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "core/Pipeline.h"
+#include "core/Perf.h"
 
 #include "core/Catalog.h"
+#include "core/CatalogReader.h"
 #include "core/Classifier.h"
 #include "core/Crypto.h"
 #include "core/Paths.h"
@@ -133,6 +135,7 @@ QDateTime fileDate(const IndexJob &job)
 
 IndexResult runIndex(const IndexJob &job)
 {
+    PIX_PERF("runIndex");
     IndexResult r;
     r.photoId = job.photoId;
     imaging::Inspection in;
@@ -200,6 +203,7 @@ IndexResult runIndex(const IndexJob &job)
 CategorizeResult runCategorize(const CategorizeJob &job, imaging::ClipModel &clip,
                                const std::shared_ptr<const QList<CategoryPrompt>> &prompts, const ClassifierParams &params)
 {
+    PIX_PERF("runCategorize");
     CategorizeResult r;
     r.photoId = job.photoId;
     imaging::Embedding image = job.embedding;
@@ -243,6 +247,7 @@ CategorizeResult runCategorize(const CategorizeJob &job, imaging::ClipModel &cli
 
 FaceResult runFaces(const FaceJob &job, imaging::FaceEngine &engine)
 {
+    PIX_PERF("runFaces");
     FaceResult r;
     r.photoId = job.photoId;
     const cv::Mat rgb = imaging::loadDisplayImage(job.path, imaging::kFaceImageSide);
@@ -321,9 +326,13 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
     m_statusTimer.setSingleShot(true);
     m_statusTimer.setInterval(250);
     connect(&m_statusTimer, &QTimer::timeout, this, &Pipeline::statusChanged);
+    // Disco que voltou: a fila do Indexer pode ter trabalho (as fotos novas
+    // do Searcher e os "refazer" das Tarefas avisam por wake()).
+    connect(catalog, &Catalog::disksChanged, this, &Pipeline::wake);
     // Abriu o cofre (ou pediram privada/pública): a etapa "privacy" anda.
     connect(catalog, &Catalog::privacyChanged, this, [this]() {
         m_pendingTimer.invalidate();
+        m_indexIdle.invalidate();  // cofre aberto: as privadas pendentes entram
         if (m_timer.isActive())
             QTimer::singleShot(0, this, &Pipeline::pump);
     });
@@ -392,6 +401,7 @@ void Pipeline::emitStatus()
 
 QVariantList Pipeline::status() const
 {
+    PIX_PERF("Pipeline::status");
     QVariantList out;
     const qint64 now = m_clock.elapsed();
     for (const QString &key : stageKeys()) {
@@ -403,14 +413,8 @@ QVariantList Pipeline::status() const
             pending = int(m_scanQueue.size() + m_scanning.size());
             detail = QString::number(m_scanFound);
         } else {
-            if (!m_pendingTimer.isValid() || m_pendingTimer.elapsed() > 2000 || !m_pendingCache.contains(key)) {
-                for (const QString &k : {QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces"),
-                                         QStringLiteral("privacy")})
-                    m_pendingCache.insert(k, m_catalog->pendingCount(k));
-                // O total no mesmo instante que os pendentes: a fração não pula.
-                m_totalCache = m_catalog->stageTotals();
-                m_pendingTimer.restart();
-            }
+            if (!m_pendingTimer.isValid() || m_pendingTimer.elapsed() > 2000 || !m_pendingCache.contains(key))
+                readCounts();
             pending = m_pendingCache.value(key);
         }
         if (key == QLatin1String("categorize") && !m_clip->available())
@@ -433,6 +437,42 @@ QVariantList Pipeline::status() const
                            {QStringLiteral("total"), m_totalCache.value(key, -1)}};
     }
     return out;
+}
+
+void Pipeline::readCounts() const
+{
+    // Pendentes e totais no mesmo instante (a fração não pula), lidos fora
+    // da thread principal; até chegarem, valem os anteriores.
+    struct Counts
+    {
+        QHash<QString, int> pending;
+        QHash<QString, int> totals;
+    };
+    auto work = [](const Catalog &c) {
+        Counts out;
+        for (const QString &k : {QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces"),
+                                 QStringLiteral("privacy")})
+            out.pending.insert(k, c.pendingCount(k));
+        out.totals = c.stageTotals();
+        return out;
+    };
+    m_pendingTimer.restart();
+    if (!m_reader) {
+        const Counts c = work(*m_catalog);
+        m_pendingCache = c.pending;
+        m_totalCache = c.totals;
+        return;
+    }
+    if (m_countsInFlight)
+        return;
+    m_countsInFlight = true;
+    auto *self = const_cast<Pipeline *>(this);
+    m_reader->read<Counts>(self, work, [self](Counts c) {
+        self->m_countsInFlight = false;
+        self->m_pendingCache = c.pending;
+        self->m_totalCache = c.totals;
+        self->emitStatus();
+    });
 }
 
 bool Pipeline::busy() const
@@ -528,6 +568,7 @@ void Pipeline::finished(Stage &s, const QString &id, bool ok, const QString &nam
 
 void Pipeline::pump()
 {
+    PIX_PERF("Pipeline::pump");
     // Searcher: uma pasta por thread do pool.
     Stage &search = stage(QStringLiteral("search"));
     while (search.running && !m_scanQueue.isEmpty() && search.inFlight < search.threads && totalInFlight() < m_maxTasks) {
@@ -560,6 +601,8 @@ void Pipeline::pump()
                             return;
                         Pipeline &p = *self;
                         int queued = p.m_catalog->ingest(folderId, files);
+                        if (queued > 0)
+                            p.m_indexIdle.invalidate();
                         p.m_scanFound += int(files.size());
                         if (last) {
                             Stage &st = p.stage(QStringLiteral("search"));
@@ -652,6 +695,7 @@ void Pipeline::scan(const QStringList &folderIds)
 
 void Pipeline::dispatchWork()
 {
+    PIX_PERF("Pipeline::dispatchWork");
     int free = m_maxTasks - totalInFlight();
     if (free <= 0)
         return;
@@ -660,8 +704,17 @@ void Pipeline::dispatchWork()
 
     Stage &index = stage(QStringLiteral("index"));
     QList<IndexJob> indexJobs;
-    if (room(index) > 0)
+    // Fila vazia (ou só de discos desconectados) da última vez: não pergunta
+    // de novo a cada resultado — só quando algo muda (fotos entraram, disco
+    // voltou) ou a cada 5 s. A consulta, com dezenas de milhares de
+    // pendentes num disco fora, varria a fila inteira para achar nada.
+    if (room(index) > 0 && (!m_indexIdle.isValid() || m_indexIdle.hasExpired(5000))) {
         indexJobs = m_catalog->nextIndexJobs(room(index), index.busy);
+        if (indexJobs.isEmpty())
+            m_indexIdle.start();
+        else
+            m_indexIdle.invalidate();
+    }
 
     Stage &categorize = stage(QStringLiteral("categorize"));
     QList<CategorizeJob> categorizeJobs;
@@ -755,6 +808,7 @@ void Pipeline::dispatchIndex(const IndexJob &job)
 
 void Pipeline::flushIndexResults()
 {
+    PIX_PERF("Pipeline::flushIndexResults");
     if (m_indexResults.isEmpty())
         return;
     const auto batch = std::exchange(m_indexResults, {});
@@ -774,6 +828,12 @@ void Pipeline::flushIndexResults()
     schedulePump();
 }
 
+void Pipeline::wake()
+{
+    m_indexIdle.invalidate();
+    schedulePump();
+}
+
 void Pipeline::schedulePump()
 {
     // Vários resultados chegando juntos: um despacho só, logo depois.
@@ -788,6 +848,7 @@ void Pipeline::invalidatePrompts()
 
 void Pipeline::preparePrompts()
 {
+    PIX_PERF("Pipeline::preparePrompts");
     if (m_preparingPrompts)
         return;
     m_preparingPrompts = true;

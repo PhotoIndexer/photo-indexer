@@ -451,6 +451,7 @@ Item {
                         { key: "siblingMargin", from: 0.2, to: 1, step: 0.05, decimals: 2 },
                         { key: "blurThreshold", from: 0, to: 300, step: 5, decimals: 0 },
                         { key: "minPersonScore", from: 0.35, to: 0.9, step: 0.01, decimals: 2 },
+                        { key: "minPersonPhotos", from: 1, to: 100, step: 1, decimals: 0 },
                         { key: "matchSimilarity", from: 0.25, to: 0.8, step: 0.01, decimals: 2 },
                         { key: "mergeSimilarity", from: 0.3, to: 0.9, step: 0.01, decimals: 2 },
                         { key: "mergeMinFaces", from: 1, to: 20, step: 1, decimals: 0 },

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "PhotoGridModel.h"
 
+#include "core/Perf.h"
+
 #include "ImageProviders.h"
 
 PhotoGridModel::PhotoGridModel(QObject *parent)
@@ -53,6 +55,7 @@ bool sameCell(const pix::GridRow &a, const pix::GridRow &b)
 
 void PhotoGridModel::setRows(const QList<pix::GridRow> &rows, bool keepPosition)
 {
+    PIX_PERF("PhotoGridModel::setRows");
     m_keepPosition = keepPosition;
     // As mesmas fotos na mesma ordem (o caso comum de uma atualização de
     // fundo): troca os dados e avisa só as células diferentes.

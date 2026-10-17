@@ -74,8 +74,32 @@ void Database::open(const QString &path)
     if (!path.isEmpty()) {
         exec(QStringLiteral("PRAGMA journal_mode = WAL"));
         exec(QStringLiteral("PRAGMA synchronous = NORMAL"));
+        tuneCache();
     }
     migrate();
+}
+
+void Database::openReadOnly(const QString &path)
+{
+    close();
+    m_path = path;
+    static std::atomic<int> counter{0};
+    m_connection = QStringLiteral("photoidx-ro-%1").arg(counter++);
+    QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connection);
+    db.setDatabaseName(path);
+    db.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY;QSQLITE_BUSY_TIMEOUT=5000"));
+    if (!db.open())
+        throw DatabaseError(db.lastError().text().toStdString());
+    tuneCache();
+}
+
+void Database::tuneCache()
+{
+    // Catálogos de centenas de MB: o cache padrão do SQLite (2 MB) relia o
+    // arquivo a cada varredura. 64 MB de páginas e leitura por mmap.
+    exec(QStringLiteral("PRAGMA cache_size = -65536"));
+    exec(QStringLiteral("PRAGMA mmap_size = 268435456"));
+    exec(QStringLiteral("PRAGMA temp_store = MEMORY"));
 }
 
 void Database::close()
