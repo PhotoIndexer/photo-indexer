@@ -7,7 +7,7 @@
 //
 // A grade se refaz quando o catálogo muda — agrupando as mudanças: durante a
 // indexação chegam centenas por minuto, e a grade se refaz no máximo a cada
-// ~1,5 s (a árvore, a cada ~3 s).
+// ~5 s (a árvore, a cada ~10 s).
 
 #include "PhotoGridModel.h"
 #include "TreeModel.h"

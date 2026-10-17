@@ -18,6 +18,10 @@ std::unique_ptr<Ort::Session> open(const QString &path, int intraThreads)
 {
     Ort::SessionOptions opts;
     opts.SetIntraOpNumThreads(intraThreads);
+    opts.SetInterOpNumThreads(1);
+    // Sem o arena do ONNX Runtime: com várias execuções simultâneas ele
+    // guarda o pico de cada uma e a memória só cresce (o photo-editor idem).
+    opts.DisableCpuMemArena();
     opts.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 #ifdef _WIN32
     const std::wstring native = QDir::toNativeSeparators(path).toStdWString();

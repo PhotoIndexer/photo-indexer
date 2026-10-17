@@ -13,6 +13,7 @@
 #include <QJsonObject>
 #include <QTest>
 
+#include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
 
 using namespace pix::imaging;
@@ -51,6 +52,36 @@ private slots:
         QVERIFY(!isImageFile(QStringLiteral("/x.jpg/noext")));
         QCOMPARE(formatLabel(QStringLiteral("jpeg")), QStringLiteral("JPEG"));
         QCOMPARE(formatLabel(QStringLiteral("nef")), QStringLiteral("NEF"));
+    }
+
+    void sniffByContent()
+    {
+        // Imagens de verdade: pelo conteúdo, não pela extensão.
+        QCOMPARE(sniffImageFile(data(QStringLiteral("sample.jpg"))), QStringLiteral("image/jpeg"));
+        const cv::Mat img(8, 8, CV_8UC3, cv::Scalar(10, 20, 30));
+        std::vector<uchar> png;
+        cv::imencode(".png", img, png);
+        QCOMPARE(sniffImageMime(QByteArray(reinterpret_cast<const char *>(png.data()), qsizetype(png.size()))),
+                 QStringLiteral("image/png"));
+        auto head = [](const QByteArray &prefix) { return prefix + QByteArray(64, '\0'); };
+        QCOMPARE(sniffImageMime(head(QByteArray("II*\0", 4))), QStringLiteral("image/tiff"));       // NEF, CR2, ARW, DNG...
+        QCOMPARE(sniffImageMime(head(QByteArray("MM\0*", 4))), QStringLiteral("image/tiff"));
+        QCOMPARE(sniffImageMime(head(QByteArray("\0\0\0\x18" "ftypcrx ", 12))), QStringLiteral("image/x-canon-cr3"));
+        QCOMPARE(sniffImageMime(head("FUJIFILMCCD-RAW 0201")), QStringLiteral("image/x-fuji-raf"));
+        QCOMPARE(sniffImageMime(head("IIRO")), QStringLiteral("image/x-olympus-orf"));
+        QCOMPARE(sniffImageMime(head(QByteArray("IIU\0", 4))), QStringLiteral("image/x-panasonic-rw2"));
+        QCOMPARE(sniffImageMime(head(QByteArray("\0\0\0\x18" "ftypheic", 12))), QStringLiteral("image/heif"));
+        QCOMPARE(sniffImageMime(head(QByteArray("RIFF\0\0\0\0WEBP", 12))), QStringLiteral("image/webp"));
+        // Não são imagens: imagem de disco (zeros), texto, binário qualquer,
+        // JPEG truncado no primeiro byte.
+        QVERIFY(sniffImageMime(QByteArray(4096, '\0')).isEmpty());
+        QVERIFY(sniffImageMime(QByteArray("hello world, this is text\n").repeated(50)).isEmpty());
+        QByteArray random(4096, Qt::Uninitialized);
+        for (int i = 0; i < random.size(); ++i)
+            random[i] = char((i * 7919 + 13) & 0xFF);
+        QVERIFY(sniffImageMime(random).isEmpty());
+        QVERIFY(sniffImageMime(QByteArray("\xFF", 1)).isEmpty());
+        QVERIFY(sniffImageMime(QByteArray("ftyp", 4)).isEmpty());
     }
 
     void orientationFromExif_data()

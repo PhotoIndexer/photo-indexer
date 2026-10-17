@@ -406,17 +406,25 @@ int Catalog::ingest(const QString &folderId, const QList<FoundFile> &files)
 
 int Catalog::finishScan(const QString &folderId, const QSet<QString> &seenPaths)
 {
-    QStringList missing;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, path FROM photo WHERE folder_id = ? AND state != 'missing'"), {folderId});
-    while (q.next())
-        if (!seenPaths.contains(q.value(1).toString()))
-            missing << q.value(0).toString();
+    QStringList missing, dropped;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, path, indexed_at FROM photo WHERE folder_id = ? AND state != 'missing'"),
+                            {folderId});
+    while (q.next()) {
+        if (seenPaths.contains(q.value(1).toString()))
+            continue;
+        // Nunca indexado (ainda na fila): não há o que guardar — sai do
+        // catálogo. Já indexado: fica como "sumido" (miniatura, categorias,
+        // pessoas continuam).
+        (q.value(2).isNull() ? dropped : missing) << q.value(0).toString();
+    }
     Transaction tx(m_db);
+    for (const QString &id : dropped)
+        m_db.exec(QStringLiteral("DELETE FROM photo WHERE id = ?"), {id});
     for (const QString &id : missing)
         m_db.exec(QStringLiteral("UPDATE photo SET state = 'missing' WHERE id = ?"), {id});
     m_db.exec(QStringLiteral("UPDATE folder SET scanned_at = ? WHERE id = ?"), {Database::timestamp(), folderId});
     tx.commit();
-    if (!missing.isEmpty())
+    if (!missing.isEmpty() || !dropped.isEmpty())
         emit photosChanged();
     emit treeChanged(QStringLiteral("folders"));
     return int(missing.size());

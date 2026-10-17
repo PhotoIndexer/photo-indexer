@@ -225,7 +225,7 @@ bool ClipModel::load()
     try {
         if (!d->tokenizer.load(dir.filePath(QLatin1String(kVocabFile)), dir.filePath(QLatin1String(kMergesFile))))
             throw std::runtime_error("tokenizer files unreadable");
-        d->vision = onnx::open(dir.filePath(QLatin1String(kVisionFile)), 2);
+        d->vision = onnx::open(dir.filePath(QLatin1String(kVisionFile)), 1);
         d->text = onnx::open(dir.filePath(QLatin1String(kTextFile)), 1);
         d->visionIn = onnx::inputNames(*d->vision);
         d->visionOut = onnx::outputNames(*d->vision);

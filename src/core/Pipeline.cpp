@@ -16,6 +16,8 @@
 #include <QTimeZone>
 #include <QUuid>
 
+#include <opencv2/core.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -33,16 +35,37 @@ constexpr int kScanBatch = 400;
 /// A cada quantas fotos com rosto o merge automático de pessoas roda.
 constexpr int kMergeEvery = 300;
 
+/// Imagem menor que isso é ícone, recurso de programa ou miniatura de cache,
+/// não foto (padrão da preferência scan/minBytes).
+constexpr qint64 kMinImageBytes = 16 * 1024;
+/// A extensão ".raw" também é de imagens de disco (QEMU, recuperação do
+/// macOS) com gigabytes: acima disso, não é foto.
+constexpr qint64 kMaxGenericRawBytes = 200LL * 1024 * 1024;
+
 /// Pastas que não são fotos de ninguém: lixeiras, caches de miniatura de NAS
-/// e do SO, pacotes do Fotos/Lightroom.
+/// e do SO, e as de programas e de desenvolvimento (pacotes de app, recursos
+/// de projeto, dependências) — que juntas têm dezenas de milhares de ícones.
 bool skipDirectory(const QString &name)
 {
     if (name.startsWith(u'.'))
         return true;
-    static const QStringList skip{QStringLiteral("@eaDir"), QStringLiteral("$RECYCLE.BIN"),
-                                  QStringLiteral("System Volume Information"), QStringLiteral("#recycle"),
-                                  QStringLiteral("#snapshot"), QStringLiteral("lost+found")};
-    return skip.contains(name, Qt::CaseInsensitive);
+    static const QStringList skip{
+        QStringLiteral("@eaDir"), QStringLiteral("$RECYCLE.BIN"), QStringLiteral("System Volume Information"),
+        QStringLiteral("#recycle"), QStringLiteral("#snapshot"), QStringLiteral("lost+found"),
+        QStringLiteral("__MACOSX"), QStringLiteral("node_modules"), QStringLiteral("bower_components"),
+        QStringLiteral("site-packages"), QStringLiteral("dist-packages"), QStringLiteral("__pycache__"),
+        QStringLiteral("Pods"), QStringLiteral("DerivedData"), QStringLiteral("vendor"),
+    };
+    if (skip.contains(name, Qt::CaseInsensitive))
+        return true;
+    // Pacotes do macOS e recursos de projeto: Foo.app, Bar.framework, *.xcassets...
+    static const QStringList bundles{QStringLiteral(".app"), QStringLiteral(".framework"), QStringLiteral(".bundle"),
+                                     QStringLiteral(".xcassets"), QStringLiteral(".appiconset"), QStringLiteral(".imageset"),
+                                     QStringLiteral(".lproj"), QStringLiteral(".plugin"), QStringLiteral(".kext")};
+    for (const QString &suffix : bundles)
+        if (name.endsWith(suffix, Qt::CaseInsensitive))
+            return true;
+    return false;
 }
 
 /// Mesmo caminho? (sem diferenciar maiúsculas onde o SO não diferencia).
@@ -218,20 +241,28 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
     , m_faces(std::make_unique<imaging::FaceEngine>(AppPaths::modelDir(QString::fromLatin1(imaging::FaceEngine::kName))))
 {
     m_clock.start();
+    // Padrões contidos: a indexação roda enquanto a pessoa usa o computador.
+    // O paralelismo é por foto; o OpenCV e o ONNX não abrem threads próprias
+    // dentro de cada uma (setNumThreads(1), intra-op 1).
+    cv::setNumThreads(1);
     const int cores = std::max(2, QThread::idealThreadCount());
     const QHash<QString, int> defaults{{QStringLiteral("search"), 2},
-                                       {QStringLiteral("index"), std::max(2, cores - 2)},
-                                       {QStringLiteral("categorize"), std::max(1, cores / 4)},
-                                       {QStringLiteral("faces"), std::max(1, cores / 4)}};
+                                       {QStringLiteral("index"), std::clamp(cores / 2, 2, 6)},
+                                       {QStringLiteral("categorize"), std::clamp(cores / 8, 1, 2)},
+                                       {QStringLiteral("faces"), std::clamp(cores / 8, 1, 2)}};
     for (const QString &key : stageKeys()) {
         Stage s;
         s.key = key;
         s.pool = std::make_unique<QThreadPool>();
+        // Prioridade baixa: o resto do sistema (e a interface) passa na frente.
+        s.pool->setThreadPriority(QThread::LowPriority);
         s.threads = std::clamp(catalog->setting(QStringLiteral("threads/") + key, defaults.value(key)).toInt(), 1, 64);
         s.pool->setMaxThreadCount(s.threads);
         m_stages.emplace(key, std::move(s));
     }
     m_interactive.setMaxThreadCount(1);
+    // Os pendentes de cada etapa são contagens no banco: no máximo a cada 2 s.
+    m_pendingTimer.start();
     m_timer.setInterval(2000);
     connect(&m_timer, &QTimer::timeout, this, &Pipeline::pump);
     m_statusTimer.setSingleShot(true);
@@ -291,7 +322,12 @@ QVariantList Pipeline::status() const
             pending = int(m_scanQueue.size() + m_scanning.size());
             detail = QString::number(m_scanFound);
         } else {
-            pending = m_catalog->pendingCount(key == QLatin1String("index") ? QStringLiteral("index") : key);
+            if (!m_pendingTimer.isValid() || m_pendingTimer.elapsed() > 2000 || !m_pendingCache.contains(key)) {
+                for (const QString &k : {QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces")})
+                    m_pendingCache.insert(k, m_catalog->pendingCount(k));
+                m_pendingTimer.restart();
+            }
+            pending = m_pendingCache.value(key);
         }
         if (key == QLatin1String("categorize") && !m_clip->available())
             state = QStringLiteral("unavailable");
@@ -419,7 +455,8 @@ void Pipeline::pump()
         // A pasta de dados do app (miniaturas e recortes de rosto) nunca é
         // indexada, mesmo que a pessoa indexe a raiz do disco (C:\, /).
         const QString appData = QFileInfo(AppPaths::dataDir()).canonicalFilePath();
-        runInPool(*search.pool, [self, folderId, root, cancelled, appData]() {
+        const qint64 minBytes = m_catalog->setting(QStringLiteral("scan/minBytes"), kMinImageBytes).toLongLong();
+        runInPool(*search.pool, [self, folderId, root, cancelled, appData, minBytes]() {
             QSet<QString> seen;
             QList<FoundFile> batch;
             int found = 0;
@@ -464,6 +501,14 @@ void Pipeline::pump()
                     }
                     const QString name = fi.fileName();
                     if (name.startsWith(QLatin1String("._")) || !imaging::isImageFile(name))
+                        continue;
+                    if (fi.size() < minBytes
+                        || (imaging::extensionOf(name) == QLatin1String("raw") && fi.size() > kMaxGenericRawBytes))
+                        continue;
+                    // A extensão diz "imagem"; o conteúdo (os primeiros 4 KB)
+                    // confirma: imagem de disco, arquivo corrompido ou
+                    // renomeado fica de fora.
+                    if (imaging::sniffImageFile(fi.absoluteFilePath()).isEmpty())
                         continue;
                     FoundFile f;
                     f.path = QDir::fromNativeSeparators(fi.absoluteFilePath());

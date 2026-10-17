@@ -63,16 +63,17 @@ bool LibraryController::aiAvailable() const
 
 void LibraryController::scheduleRefresh()
 {
-    // Indexando: no máximo um refresh a cada 1,5 s; parado, quase na hora.
+    // Indexando: no máximo um refresh a cada 5 s (refazer a grade de um
+    // catálogo grande custa); parado, quase na hora.
     if (!m_refreshTimer.isActive())
-        m_refreshTimer.start(m_pipeline->busy() ? 1500 : 150);
+        m_refreshTimer.start(m_pipeline->busy() ? 5000 : 150);
 }
 
 void LibraryController::scheduleTree(const QString &tab)
 {
     m_staleTabs.insert(tab);
     if (!m_treeTimer.isActive())
-        m_treeTimer.start(m_pipeline->busy() ? 3000 : 150);
+        m_treeTimer.start(m_pipeline->busy() ? 10000 : 150);
 }
 
 void LibraryController::setTab(const QString &tab)

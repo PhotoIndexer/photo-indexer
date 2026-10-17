@@ -134,6 +134,10 @@ private:
     bool m_promptsDirty = true;
 
     int m_facesSinceMerge = 0;
+
+    // Pendentes por etapa (contagens no banco), guardados por 2 s.
+    mutable QHash<QString, int> m_pendingCache;
+    mutable QElapsedTimer m_pendingTimer;
 };
 
 } // namespace pix

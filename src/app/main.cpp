@@ -41,7 +41,12 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationVersion(QStringLiteral(PHOTOIDX_VERSION));
     QGuiApplication::setApplicationDisplayName(QStringLiteral(PHOTOIDX_BRAND_NAME));
     QGuiApplication::setDesktopFileName(QStringLiteral("br.com.photoidx.desktop"));
+#ifndef Q_OS_MACOS
+    // No macOS o Dock usa o ícone do pacote (PhotoIDX.icns); definir outro
+    // aqui o trocaria enquanto o app roda. favicon.png = o mesmo desenho do
+    // packaging/art.py (atualize com `make art` se o logo mudar).
     QGuiApplication::setWindowIcon(QIcon(QStringLiteral(":/qt/qml/PhotoIDX/assets/favicon.png")));
+#endif
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("Photo catalog with AI categories, faces and places"));

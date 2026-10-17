@@ -78,7 +78,9 @@ rosto (`FaceSearchPage`) são telas (`App.page`), nunca modais.
 O banco é só da thread principal (regra 9); imagens grandes vêm de providers
 assíncronos; miniaturas e recortes são arquivos lidos por `file://` com
 `asynchronous: true`. Mudanças do catálogo durante a indexação são agrupadas
-(`LibraryController`: refaz a grade no máximo a cada ~1,5 s).
+(`LibraryController`: refaz a grade no máximo a cada ~5 s). As etapas rodam
+com prioridade baixa e padrões de threads contidos; o OpenCV e o ONNX não
+abrem threads próprias dentro de cada foto.
 
 ## Internacionalização (i18n)
 

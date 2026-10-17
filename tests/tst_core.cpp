@@ -342,6 +342,7 @@ private slots:
         QVERIFY(QFile::copy(data(QStringLiteral("exif/o1.jpg")), cache + QStringLiteral("/thumbnail/2024/01/t.jpg")));
         const QByteArray previous = qgetenv("PHOTOIDX_DATA_DIR");
         qputenv("PHOTOIDX_DATA_DIR", cache.toUtf8());
+        catalog.setSetting(QStringLiteral("scan/minBytes"), 0);
         const QString folderId = catalog.addFolder(root);
         Pipeline pipeline(&catalog);
         pipeline.pauseAll();
@@ -350,6 +351,44 @@ private slots:
         QTRY_COMPARE_WITH_TIMEOUT(scanned.size(), 1, 30000);
         qputenv("PHOTOIDX_DATA_DIR", previous);
         QCOMPARE(scanned.first().at(1).toInt(), 1);
+    }
+
+    void scanSkipsNoise()
+    {
+        // Ícones, recursos de programa e dependências não são fotos.
+        const QString root = m_photos.path() + QStringLiteral("/noise");
+        for (const char *dir : {"node_modules/pkg", "Foo.app/Contents/Resources", "Assets.xcassets/x.imageset", "fotos"})
+            QDir().mkpath(root + u'/' + QString::fromLatin1(dir));
+        QVERIFY(QFile::copy(data(QStringLiteral("sample.jpg")), root + QStringLiteral("/fotos/real.jpg")));
+        QVERIFY(QFile::copy(data(QStringLiteral("exif/o1.jpg")), root + QStringLiteral("/fotos/icon.jpg")));  // 854 bytes
+        for (const char *f : {"node_modules/pkg/a.jpg", "Foo.app/Contents/Resources/b.jpg", "Assets.xcassets/x.imageset/c.jpg"})
+            QVERIFY(QFile::copy(data(QStringLiteral("sample.jpg")), root + u'/' + QString::fromLatin1(f)));
+        // Extensão de imagem, conteúdo que não é: uma "imagem de disco" .raw e
+        // um texto renomeado para .jpg.
+        for (const char *f : {"fotos/disk.raw", "fotos/notes.jpg"}) {
+            QFile fake(root + u'/' + QString::fromLatin1(f));
+            QVERIFY(fake.open(QIODevice::WriteOnly));
+            fake.write(QByteArray(64 * 1024, f[6] == 'd' ? '\0' : 'x'));
+        }
+
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("scan/minBytes"), 0);
+        const QString folderId = catalog.addFolder(root);
+        Pipeline pipeline(&catalog);
+        pipeline.pauseAll();
+        QSignalSpy scanned(&pipeline, &Pipeline::scanFinished);
+        pipeline.scan({folderId});
+        QTRY_COMPARE_WITH_TIMEOUT(scanned.size(), 1, 30000);
+        QCOMPARE(scanned.last().at(1).toInt(), 2);  // real.jpg e icon.jpg; as pastas de programa, não
+        // Com o tamanho mínimo padrão, o ícone some — e, como nunca foi
+        // indexado, sai do catálogo (não fica como "sumido").
+        catalog.setSetting(QStringLiteral("scan/minBytes"), 16 * 1024);
+        pipeline.scan({folderId});
+        QTRY_COMPARE_WITH_TIMEOUT(scanned.size(), 2, 30000);
+        QCOMPARE(scanned.last().at(1).toInt(), 1);
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT count(*) FROM photo")).toInt(), 1);
+        QCOMPARE(catalog.stats().value(QStringLiteral("missing")).toInt(), 0);
     }
 
     void pipelineEndToEnd()
@@ -371,6 +410,7 @@ private slots:
 
         Catalog catalog;
         catalog.open(QString());
+        catalog.setSetting(QStringLiteral("scan/minBytes"), 0);  // os JPEGs de teste são pequenos
         const QString folderId = catalog.addFolder(m_photos.path() + QStringLiteral("/library"));
         QVERIFY_THROWS_EXCEPTION(ActionError, catalog.addFolder(folder));  // já está dentro
         Pipeline pipeline(&catalog);

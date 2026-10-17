@@ -174,7 +174,7 @@ bool FaceEngine::load()
     }
     try {
         const QDir dir(d->dir);
-        d->det = onnx::open(dir.filePath(QLatin1String(kDetFile)), 2);
+        d->det = onnx::open(dir.filePath(QLatin1String(kDetFile)), 1);
         d->rec = onnx::open(dir.filePath(QLatin1String(kRecFile)), 1);
         d->detIn = onnx::inputNames(*d->det);
         d->detOut = onnx::outputNames(*d->det);
