@@ -94,6 +94,10 @@ public:
     // Pastas
     Q_INVOKABLE bool addFolder(const QUrl &folder);
     Q_INVOKABLE bool addFolderPath(const QString &path) { return addFolder(QUrl::fromLocalFile(path)); }
+    /// Arrastar e soltar na janela: cada pasta passa pelo mesmo addFolder do
+    /// "Adicionar pasta" (avisos e erros iguais); um arquivo abre como no
+    /// dois cliques (openPaths). Devolve quantas pastas entraram.
+    Q_INVOKABLE int dropUrls(const QList<QUrl> &urls);
     Q_INVOKABLE void removeFolder(const QString &folderId);
     Q_INVOKABLE void rescanFolder(const QString &folderId);
     Q_INVOKABLE void refreshDisks();

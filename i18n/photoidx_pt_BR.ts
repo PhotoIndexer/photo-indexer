@@ -1608,6 +1608,14 @@
         <source>Add folder</source>
         <translation>Adicionar pasta</translation>
     </message>
+    <message>
+        <source>Drop folders to add them to the catalog</source>
+        <translation>Solte pastas para adicioná-las ao catálogo</translation>
+    </message>
+    <message>
+        <source>Every subfolder is searched too. A dropped photo opens in the viewer.</source>
+        <translation>As subpastas também são vasculhadas. Uma foto solta abre no visualizador.</translation>
+    </message>
 </context>
 <context>
     <name>Messages</name>

@@ -409,5 +409,58 @@ QQC.ApplicationWindow {
         }
     }
 
+    // Arrastar pastas para a janela = "Adicionar pasta" (um arquivo solto
+    // abre como no dois cliques). Por cima de tudo, só enquanto arrasta.
+    DropArea {
+        id: drop
+        anchors.fill: parent
+        z: 950
+        onEntered: (drag) => {
+            drag.accepted = drag.hasUrls;
+            if (drag.accepted)
+                drag.acceptProposedAction();
+        }
+        onDropped: (event) => {
+            if (!event.hasUrls)
+                return;
+            event.acceptProposedAction();
+            App.dropUrls(event.urls);
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 12
+            visible: drop.containsDrag
+            radius: Theme.radiusLg
+            color: Theme.alpha(Theme.background, 0.85)
+            border.width: 2
+            border.color: Theme.brand400
+
+            Column {
+                anchors.centerIn: parent
+                spacing: 12
+                Icon {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    name: "folder-plus"
+                    size: 48
+                    color: Theme.brandForeground
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Drop folders to add them to the catalog")
+                    font.pixelSize: Theme.fontLg
+                    font.weight: Font.DemiBold
+                    color: Theme.foreground
+                }
+                Text {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    text: qsTr("Every subfolder is searched too. A dropped photo opens in the viewer.")
+                    font.pixelSize: Theme.fontBase
+                    color: Theme.mutedForeground
+                }
+            }
+        }
+    }
+
     DialogHost {}
 }

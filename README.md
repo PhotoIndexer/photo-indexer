@@ -40,8 +40,9 @@ Requisitos mínimos: macOS 14, Windows 10/11 64 bits, ou Linux com glibc 2.39
 
 ## Primeiros passos
 
-1. Clique em **Adicionar pasta** e escolha uma pasta — ou a raiz de um disco.
-   O PhotoIDX percorre a pasta e **todas as subpastas**.
+1. Clique em **Adicionar pasta** e escolha uma pasta (ou a raiz de um disco),
+   ou simplesmente **arraste a pasta** do Finder/Explorer para a janela. O
+   PhotoIDX percorre a pasta e **todas as subpastas**.
 2. A indexação começa sozinha e roda em segundo plano; acompanhe pelo
    indicador no alto ou pela tela **Tarefas**.
 3. Navegue pelo painel lateral e abra qualquer foto com um duplo clique.

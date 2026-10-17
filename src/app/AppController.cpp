@@ -198,6 +198,24 @@ bool AppController::addFolder(const QUrl &folder)
     return false;
 }
 
+int AppController::dropUrls(const QList<QUrl> &urls)
+{
+    int added = 0;
+    QStringList files;
+    for (const QUrl &url : urls) {
+        if (!url.isLocalFile())
+            continue;
+        const QFileInfo fi(url.toLocalFile());
+        if (fi.isDir())
+            added += addFolder(QUrl::fromLocalFile(fi.absoluteFilePath())) ? 1 : 0;
+        else if (fi.isFile())
+            files << fi.absoluteFilePath();
+    }
+    if (!files.isEmpty())
+        openPaths(files);
+    return added;
+}
+
 void AppController::removeFolder(const QString &folderId)
 {
     m_pipeline->cancel(QStringLiteral("search"));
