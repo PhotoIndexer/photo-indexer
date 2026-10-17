@@ -2559,6 +2559,22 @@
         <source>Open</source>
         <translation>Abrir</translation>
     </message>
+    <message>
+        <source>Simultaneous tasks</source>
+        <translation>Tarefas simultâneas</translation>
+    </message>
+    <message>
+        <source>Limit for all stages together, so indexing never takes over the computer. Running now: %1. Image memory: %2 of %3 MB.</source>
+        <translation>Limite para todas as etapas juntas, para a indexação nunca tomar conta do computador. Rodando agora: %1. Memória de imagens: %2 de %3 MB.</translation>
+    </message>
+    <message>
+        <source>Fewer tasks</source>
+        <translation>Menos tarefas</translation>
+    </message>
+    <message>
+        <source>More tasks</source>
+        <translation>Mais tarefas</translation>
+    </message>
 </context>
 <context>
     <name>TreeList</name>

@@ -86,6 +86,32 @@ void runInPool(QThreadPool &pool, F &&fn)
     pool.start(QRunnable::create(std::forward<F>(fn)));
 }
 
+/// Roda o trabalho de UMA foto sem deixar exceção escapar para o pool (o
+/// QThreadPool chama std::terminate e o app inteiro cai por um arquivo
+/// ruim): vira o erro da foto, que vai para a lista de erros das tarefas.
+template<typename Result, typename F>
+Result guarded(const QString &photoId, F &&work)
+{
+    try {
+        return work();
+    } catch (const std::bad_alloc &) {
+        Result r;
+        r.photoId = photoId;
+        r.error = QStringLiteral("out of memory");
+        return r;
+    } catch (const std::exception &e) {
+        Result r;
+        r.photoId = photoId;
+        r.error = QStringLiteral("internal error: %1").arg(QString::fromUtf8(e.what()).left(300));
+        return r;
+    } catch (...) {
+        Result r;
+        r.photoId = photoId;
+        r.error = QStringLiteral("internal error");
+        return r;
+    }
+}
+
 /// Data de criação quando a foto não tem EXIF: a do arquivo (ou a da última
 /// gravação, se o SO não conta a criação).
 QDateTime fileDate(const IndexJob &job)
@@ -250,6 +276,9 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
                                        {QStringLiteral("index"), std::clamp(cores / 2, 2, 6)},
                                        {QStringLiteral("categorize"), std::clamp(cores / 8, 1, 2)},
                                        {QStringLiteral("faces"), std::clamp(cores / 8, 1, 2)}};
+    // Teto de tarefas simultâneas somando TODAS as etapas: as threads de
+    // cada etapa são o limite dela; este é o do computador.
+    m_maxTasks = std::clamp(catalog->setting(QStringLiteral("tasks/max"), defaultMaxTasks()).toInt(), 1, 64);
     for (const QString &key : stageKeys()) {
         Stage s;
         s.key = key;
@@ -286,6 +315,27 @@ Pipeline::~Pipeline()
     for (auto &[key, s] : m_stages)
         s.pool->waitForDone();
     m_interactive.waitForDone();
+}
+
+int Pipeline::defaultMaxTasks()
+{
+    return std::clamp(QThread::idealThreadCount() / 2, 2, 8);
+}
+
+void Pipeline::setMaxTasks(int tasks)
+{
+    m_maxTasks = std::clamp(tasks, 1, 64);
+    m_catalog->setSetting(QStringLiteral("tasks/max"), m_maxTasks);
+    pump();
+    emitStatus();
+}
+
+int Pipeline::totalInFlight() const
+{
+    int total = 0;
+    for (const auto &[key, s] : m_stages)
+        total += s.inFlight;
+    return total;
 }
 
 QStringList Pipeline::stageKeys()
@@ -442,7 +492,7 @@ void Pipeline::pump()
 {
     // Searcher: uma pasta por thread do pool.
     Stage &search = stage(QStringLiteral("search"));
-    while (search.running && !m_scanQueue.isEmpty() && search.inFlight < search.threads) {
+    while (search.running && !m_scanQueue.isEmpty() && search.inFlight < search.threads && totalInFlight() < m_maxTasks) {
         const QString folderId = m_scanQueue.takeFirst();
         const QString root = m_catalog->folderPath(folderId);
         if (root.isEmpty() || !QFileInfo(root).isDir())
@@ -489,6 +539,7 @@ void Pipeline::pump()
                     Qt::QueuedConnection);
             };
             QStringList stack{root};
+            try {
             while (!stack.isEmpty() && !cancelled->load()) {
                 const QDir dir(stack.takeLast());
                 const QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::NoSymLinks,
@@ -523,12 +574,13 @@ void Pipeline::pump()
                         flush(false);
                 }
             }
+            } catch (const std::exception &e) {
+                qCWarning(lcPipeline) << "Scan of" << root << "stopped:" << e.what();
+            }
             flush(true);
         });
     }
-    pumpIndex();
-    pumpCategorize();
-    pumpFaces();
+    dispatchWork();
     emitStatus();
 }
 
@@ -545,43 +597,99 @@ void Pipeline::scan(const QStringList &folderIds)
     pump();
 }
 
-void Pipeline::pumpIndex()
+void Pipeline::dispatchWork()
+{
+    int free = m_maxTasks - totalInFlight();
+    if (free <= 0)
+        return;
+    // Quanto cada etapa ainda aceita (as threads dela) e o que há na fila.
+    auto room = [&](const Stage &s) { return s.running ? std::min(free, s.threads - s.inFlight) : 0; };
+
+    Stage &index = stage(QStringLiteral("index"));
+    QList<IndexJob> indexJobs;
+    if (room(index) > 0)
+        indexJobs = m_catalog->nextIndexJobs(room(index), index.busy);
+
+    Stage &categorize = stage(QStringLiteral("categorize"));
+    QList<CategorizeJob> categorizeJobs;
+    if (categorize.running && m_clip->available()) {
+        if (m_promptsDirty || !m_prompts) {
+            // Lote em andamento termina com as frases velhas; os próximos esperam as novas.
+            if (categorize.inFlight == 0)
+                preparePrompts();
+        } else if (room(categorize) > 0) {
+            categorizeJobs = m_catalog->nextCategorizeJobs(room(categorize), categorize.busy);
+        }
+    }
+
+    Stage &faces = stage(QStringLiteral("faces"));
+    QList<FaceJob> faceJobs;
+    if (faces.running && m_faces->available() && room(faces) > 0) {
+        faceJobs = m_catalog->nextFaceJobs(room(faces), faces.busy);
+        if (faceJobs.isEmpty() && faces.inFlight == 0 && m_facesSinceMerge > 0) {
+            // Fila vazia: junta as pessoas parecidas do que entrou.
+            m_facesSinceMerge = 0;
+            m_catalog->autoMergePeople();
+        }
+    }
+
+    // Uma de cada etapa por vez, começando por uma diferente a cada rodada:
+    // com o teto apertado nenhuma etapa fica parada esperando a outra esvaziar.
+    qsizetype next[3] = {0, 0, 0};
+    const qsizetype sizes[3] = {indexJobs.size(), categorizeJobs.size(), faceJobs.size()};
+    const int first = m_roundRobin;
+    m_roundRobin = (m_roundRobin + 1) % 3;
+    while (free > 0) {
+        bool any = false;
+        for (int k = 0; k < 3 && free > 0; ++k) {
+            const int which = (first + k) % 3;
+            if (next[which] >= sizes[which])
+                continue;
+            const qsizetype i = next[which]++;
+            if (which == 0)
+                dispatchIndex(indexJobs[i]);
+            else if (which == 1)
+                dispatchCategorize(categorizeJobs[i]);
+            else
+                dispatchFaces(faceJobs[i]);
+            --free;
+            any = true;
+        }
+        if (!any)
+            break;
+    }
+}
+
+void Pipeline::dispatchIndex(const IndexJob &job)
 {
     Stage &s = stage(QStringLiteral("index"));
-    if (!s.running)
-        return;
-    const int room = s.threads * 2 - s.inFlight;
-    if (room <= 0)
-        return;
     QPointer<Pipeline> self(this);
     const auto gen = s.generation;
     const int myGen = gen->load();
-    for (const IndexJob &job : m_catalog->nextIndexJobs(room, s.busy)) {
-        s.busy.insert(job.photoId);
-        ++s.inFlight;
-        runInPool(*s.pool, [self, job, gen, myGen]() {
-            if (gen->load() != myGen) {
-                QMetaObject::invokeMethod(self.data(), [self, job]() {
-                    if (self)
-                        self->finished(self->stage(QStringLiteral("index")), job.photoId, false, {});
-                }, Qt::QueuedConnection);
-                return;
-            }
-            IndexResult r = runIndex(job);
-            QMetaObject::invokeMethod(
-                self.data(),
-                [self, r = std::move(r), path = job.path]() {
-                    if (!self)
-                        return;
-                    self->m_catalog->applyIndex(r);
-                    if (!r.ok)
-                        qCWarning(lcPipeline) << "Index failed:" << path << "-" << r.error;
-                    self->finished(self->stage(QStringLiteral("index")), r.photoId, r.ok, QFileInfo(path).fileName());
-                    self->pump();
-                },
-                Qt::QueuedConnection);
-        });
-    }
+    s.busy.insert(job.photoId);
+    ++s.inFlight;
+    runInPool(*s.pool, [self, job, gen, myGen]() {
+        if (gen->load() != myGen) {
+            QMetaObject::invokeMethod(self.data(), [self, job]() {
+                if (self)
+                    self->finished(self->stage(QStringLiteral("index")), job.photoId, false, {});
+            }, Qt::QueuedConnection);
+            return;
+        }
+        IndexResult r = guarded<IndexResult>(job.photoId, [&job] { return runIndex(job); });
+        QMetaObject::invokeMethod(
+            self.data(),
+            [self, r = std::move(r), path = job.path]() {
+                if (!self)
+                    return;
+                self->m_catalog->applyIndex(r);
+                if (!r.ok)
+                    qCWarning(lcPipeline) << "Index failed:" << path << "-" << r.error;
+                self->finished(self->stage(QStringLiteral("index")), r.photoId, r.ok, QFileInfo(path).fileName());
+                self->pump();
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 void Pipeline::invalidatePrompts()
@@ -604,14 +712,18 @@ void Pipeline::preparePrompts()
     runInPool(m_interactive, [self, categories, cache, clip]() {
         auto prompts = std::make_shared<QList<CategoryPrompt>>();
         QHash<QString, imaging::Embedding> computed = cache;
-        for (const auto &[categoryId, texts] : categories)
-            for (const QString &text : texts) {
-                auto it = computed.find(text);
-                if (it == computed.end())
-                    it = computed.insert(text, clip->encodeText(text));
-                if (!it->empty())
-                    prompts->append({categoryId, *it});
-            }
+        try {
+            for (const auto &[categoryId, texts] : categories)
+                for (const QString &text : texts) {
+                    auto it = computed.find(text);
+                    if (it == computed.end())
+                        it = computed.insert(text, clip->encodeText(text));
+                    if (!it->empty())
+                        prompts->append({categoryId, *it});
+                }
+        } catch (const std::exception &e) {
+            qCWarning(lcPipeline) << "Category prompts failed:" << e.what();
+        }
         QMetaObject::invokeMethod(
             self.data(),
             [self, prompts, computed]() {
@@ -627,20 +739,9 @@ void Pipeline::preparePrompts()
     });
 }
 
-void Pipeline::pumpCategorize()
+void Pipeline::dispatchCategorize(const CategorizeJob &job)
 {
     Stage &s = stage(QStringLiteral("categorize"));
-    if (!s.running || !m_clip->available())
-        return;
-    if (m_promptsDirty || !m_prompts) {
-        // Lote em andamento termina com as frases velhas; os próximos esperam as novas.
-        if (s.inFlight == 0)
-            preparePrompts();
-        return;
-    }
-    const int room = s.threads * 2 - s.inFlight;
-    if (room <= 0)
-        return;
     QPointer<Pipeline> self(this);
     const auto prompts = m_prompts;
     imaging::ClipModel *clip = m_clip.get();
@@ -648,73 +749,60 @@ void Pipeline::pumpCategorize()
     const int maxCategories = m_catalog->setting(QStringLiteral("ai/maxCategories"), 3).toInt();
     const auto gen = s.generation;
     const int myGen = gen->load();
-    for (const CategorizeJob &job : m_catalog->nextCategorizeJobs(room, s.busy)) {
-        s.busy.insert(job.photoId);
-        ++s.inFlight;
-        runInPool(*s.pool, [self, job, prompts, clip, minProbability, maxCategories, gen, myGen]() {
-            CategorizeResult r;
-            const bool skip = gen->load() != myGen;
-            if (!skip)
-                r = runCategorize(job, *clip, prompts, minProbability, maxCategories);
-            QMetaObject::invokeMethod(
-                self.data(),
-                [self, r = std::move(r), skip, id = job.photoId]() {
-                    if (!self)
-                        return;
-                    if (!skip)
-                        self->m_catalog->applyCategorize(r);
-                    self->finished(self->stage(QStringLiteral("categorize")), id, !skip && r.ok, {});
-                    self->pump();
-                },
-                Qt::QueuedConnection);
-        });
-    }
+    s.busy.insert(job.photoId);
+    ++s.inFlight;
+    runInPool(*s.pool, [self, job, prompts, clip, minProbability, maxCategories, gen, myGen]() {
+        CategorizeResult r;
+        const bool skip = gen->load() != myGen;
+        if (!skip)
+            r = guarded<CategorizeResult>(job.photoId, [&] {
+                return runCategorize(job, *clip, prompts, minProbability, maxCategories);
+            });
+        QMetaObject::invokeMethod(
+            self.data(),
+            [self, r = std::move(r), skip, id = job.photoId]() {
+                if (!self)
+                    return;
+                if (!skip)
+                    self->m_catalog->applyCategorize(r);
+                self->finished(self->stage(QStringLiteral("categorize")), id, !skip && r.ok, {});
+                self->pump();
+            },
+            Qt::QueuedConnection);
+    });
 }
 
-void Pipeline::pumpFaces()
+void Pipeline::dispatchFaces(const FaceJob &job)
 {
     Stage &s = stage(QStringLiteral("faces"));
-    if (!s.running || !m_faces->available())
-        return;
-    const int room = s.threads * 2 - s.inFlight;
-    if (room <= 0)
-        return;
-    const QList<FaceJob> jobs = m_catalog->nextFaceJobs(room, s.busy);
-    if (jobs.isEmpty() && s.inFlight == 0 && m_facesSinceMerge > 0) {
-        // Fila vazia: junta as pessoas parecidas do que entrou.
-        m_facesSinceMerge = 0;
-        m_catalog->autoMergePeople();
-    }
     QPointer<Pipeline> self(this);
     imaging::FaceEngine *engine = m_faces.get();
     const auto gen = s.generation;
     const int myGen = gen->load();
-    for (const FaceJob &job : jobs) {
-        s.busy.insert(job.photoId);
-        ++s.inFlight;
-        runInPool(*s.pool, [self, job, engine, gen, myGen]() {
-            FaceResult r;
-            const bool skip = gen->load() != myGen;
-            if (!skip)
-                r = runFaces(job, *engine);
-            QMetaObject::invokeMethod(
-                self.data(),
-                [self, r = std::move(r), skip, id = job.photoId, path = job.path]() {
-                    if (!self)
-                        return;
-                    if (!skip) {
-                        self->m_catalog->applyFaces(r);
-                        if (!r.faces.isEmpty() && ++self->m_facesSinceMerge >= kMergeEvery) {
-                            self->m_facesSinceMerge = 0;
-                            self->m_catalog->autoMergePeople();
-                        }
+    s.busy.insert(job.photoId);
+    ++s.inFlight;
+    runInPool(*s.pool, [self, job, engine, gen, myGen]() {
+        FaceResult r;
+        const bool skip = gen->load() != myGen;
+        if (!skip)
+            r = guarded<FaceResult>(job.photoId, [&] { return runFaces(job, *engine); });
+        QMetaObject::invokeMethod(
+            self.data(),
+            [self, r = std::move(r), skip, id = job.photoId, path = job.path]() {
+                if (!self)
+                    return;
+                if (!skip) {
+                    self->m_catalog->applyFaces(r);
+                    if (!r.faces.isEmpty() && ++self->m_facesSinceMerge >= kMergeEvery) {
+                        self->m_facesSinceMerge = 0;
+                        self->m_catalog->autoMergePeople();
                     }
-                    self->finished(self->stage(QStringLiteral("faces")), id, !skip && r.ok, QFileInfo(path).fileName());
-                    self->pump();
-                },
-                Qt::QueuedConnection);
-        });
-    }
+                }
+                self->finished(self->stage(QStringLiteral("faces")), id, !skip && r.ok, QFileInfo(path).fileName());
+                self->pump();
+            },
+            Qt::QueuedConnection);
+    });
 }
 
 void Pipeline::encodeText(const QString &text, std::function<void(imaging::Embedding)> done)
@@ -722,7 +810,12 @@ void Pipeline::encodeText(const QString &text, std::function<void(imaging::Embed
     QPointer<Pipeline> self(this);
     imaging::ClipModel *clip = m_clip.get();
     runInPool(m_interactive, [self, text, clip, done]() {
-        imaging::Embedding e = clip->encodeText(text);
+        imaging::Embedding e;
+        try {
+            e = clip->encodeText(text);
+        } catch (const std::exception &ex) {
+            qCWarning(lcPipeline) << "Text encoding failed:" << ex.what();
+        }
         QMetaObject::invokeMethod(
             self.data(), [self, e = std::move(e), done]() {
                 if (self)
@@ -739,13 +832,18 @@ void Pipeline::detectFaces(const QString &imagePath, std::function<void(QList<im
     runInPool(m_interactive, [self, imagePath, engine, done]() {
         QList<imaging::DetectedFace> faces;
         QString error;
-        const cv::Mat rgb = imaging::loadDisplayImage(imagePath, imaging::kFaceImageSide);
-        if (rgb.empty())
+        try {
+            const cv::Mat rgb = imaging::loadDisplayImage(imagePath, imaging::kFaceImageSide);
+            if (rgb.empty())
+                error = QStringLiteral("image.unreadable");
+            else if (!engine->load())
+                error = QStringLiteral("faces.unavailable");
+            else
+                faces = engine->detect(rgb, 0, true);  // a foto enviada: sem tamanho mínimo
+        } catch (const std::exception &e) {
+            qCWarning(lcPipeline) << "Face detection failed:" << e.what();
             error = QStringLiteral("image.unreadable");
-        else if (!engine->load())
-            error = QStringLiteral("faces.unavailable");
-        else
-            faces = engine->detect(rgb, 0, true);  // a foto enviada: sem tamanho mínimo
+        }
         QMetaObject::invokeMethod(
             self.data(), [self, faces, error, done]() {
                 if (self)

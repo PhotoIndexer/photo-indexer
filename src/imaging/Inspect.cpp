@@ -4,6 +4,7 @@
 #include "imaging/Formats.h"
 #include "imaging/Hashes.h"
 #include "imaging/ImageIO.h"
+#include "imaging/Memory.h"
 #include "imaging/Raw.h"
 
 #include <QBuffer>
@@ -78,6 +79,27 @@ cv::Mat readWithQt(const QByteArray &data, int maxSide, int *fullWidth, int *ful
     return fitTo(fromQImage(image), maxSide);
 }
 
+/// Memória de uma decodificação completa: a imagem, a cópia ao orientar e a
+/// conversão para RGB (``channels`` por ponto), mais o arquivo lido.
+qint64 decodeBytes(qint64 width, qint64 height, int channels, qint64 fileBytes)
+{
+    if (width <= 0 || height <= 0)
+        return fileBytes * 12;  // sem cabeçalho: estimativa pela compressão típica
+    return width * height * channels * 3 + fileBytes;
+}
+
+/// Grande demais para decodificar inteira: fica catalogada, sem imagem.
+bool tooLarge(Inspection &out, qint64 width, qint64 height)
+{
+    if (width * height <= kMaxDecodePixels)
+        return false;
+    out.ok = true;
+    out.width = int(width);
+    out.height = int(height);
+    out.error = QStringLiteral("image too large to decode (%1 MP)").arg(width * height / 1000000);
+    return true;
+}
+
 void finish(Inspection &out)
 {
     if (out.image.empty())
@@ -130,8 +152,12 @@ Inspection inspect(const QString &path)
             out.tags = readExifTags(header->exif);
             out.shot = summarize(out.tags);
         }
+        if (header && tooLarge(out, header->width, header->height))
+            return out;
         // Pixels completos: o picture_hash é dos pixels como o Pillow os
         // decodifica (mesma libjpeg-turbo, mesmo IDCT), já orientados.
+        const MemoryLease lease(header ? decodeBytes(header->width, header->height, 3, data.size())
+                                       : decodeBytes(0, 0, 3, data.size()));
         cv::Mat full = decodeImage(data, 1, true);
         if (full.empty()) {
             out.error = QStringLiteral("unreadable JPEG");
@@ -155,6 +181,17 @@ Inspection inspect(const QString &path)
 
     out.tags = readExifTags(embeddedExif(data, ext));
     out.shot = summarize(out.tags);
+    // Tamanho pelo cabeçalho (o QImageReader não decodifica para isso).
+    QSize declared;
+    {
+        QByteArray probe = data;
+        QBuffer buffer(&probe);
+        buffer.open(QIODevice::ReadOnly);
+        declared = QImageReader(&buffer).size();
+    }
+    if (declared.isValid() && tooLarge(out, declared.width(), declared.height()))
+        return out;
+    const MemoryLease lease(decodeBytes(declared.width(), declared.height(), 4, data.size()));
     if (ext == QLatin1String("png")) {
         // PNG pelo OpenCV: os pixels completos para o hash.
         cv::Mat full = decodeImage(data, 1, true);
@@ -221,6 +258,16 @@ cv::Mat loadDisplayImage(const QString &path, int maxSide)
             }
         return fitTo(applyOrientation(decodeImage(data, scale), shot.orientation), maxSide);
     }
+    QSize declared;
+    {
+        QByteArray probe = data;
+        QBuffer buffer(&probe);
+        buffer.open(QIODevice::ReadOnly);
+        declared = QImageReader(&buffer).size();
+    }
+    if (declared.isValid() && qint64(declared.width()) * declared.height() > kMaxDecodePixels)
+        return {};
+    const MemoryLease lease(decodeBytes(declared.width(), declared.height(), 4, data.size()));
     int w = 0, h = 0;
     return readWithQt(data, maxSide, &w, &h);
 }

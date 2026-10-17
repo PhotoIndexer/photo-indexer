@@ -56,6 +56,70 @@ Item {
             }
         }
 
+        // Teto de tarefas simultâneas (todas as etapas somadas).
+        Card {
+            Layout.fillWidth: true
+            padding: 18
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 12
+                Rectangle {
+                    Layout.preferredWidth: 40
+                    Layout.preferredHeight: 40
+                    radius: Theme.radiusLg
+                    color: Theme.muted
+                    Icon {
+                        anchors.centerIn: parent
+                        name: "gauge"
+                        size: 20
+                        color: Theme.mutedForeground
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 0
+                    Text {
+                        text: qsTr("Simultaneous tasks")
+                        font.pixelSize: Theme.fontMd
+                        font.weight: Font.DemiBold
+                        color: Theme.foreground
+                    }
+                    Text {
+                        Layout.fillWidth: true
+                        text: qsTr("Limit for all stages together, so indexing never takes over the computer. Running now: %1. Image memory: %2 of %3 MB.")
+                              .arg(App.tasks.runningTasks).arg(App.tasks.memory.used).arg(App.tasks.memory.capacity)
+                        font.pixelSize: Theme.fontSm
+                        color: Theme.mutedForeground
+                        wrapMode: Text.Wrap
+                    }
+                }
+                IconButton {
+                    diameter: 26
+                    iconSize: 13
+                    iconName: "zoom-out"
+                    enabled: App.tasks.maxTasks > 1
+                    tooltip: qsTr("Fewer tasks")
+                    onClicked: App.tasks.setMaxTasks(App.tasks.maxTasks - 1)
+                }
+                Text {
+                    Layout.preferredWidth: 22
+                    horizontalAlignment: Text.AlignHCenter
+                    text: App.tasks.maxTasks
+                    font.pixelSize: Theme.fontBase
+                    font.weight: Font.Medium
+                    color: Theme.foreground
+                }
+                IconButton {
+                    diameter: 26
+                    iconSize: 13
+                    iconName: "zoom-in"
+                    enabled: App.tasks.maxTasks < 64
+                    tooltip: qsTr("More tasks")
+                    onClicked: App.tasks.setMaxTasks(App.tasks.maxTasks + 1)
+                }
+            }
+        }
+
         // Totais do catálogo.
         GridLayout {
             Layout.fillWidth: true

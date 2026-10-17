@@ -7,11 +7,13 @@
 #include "imaging/Hashes.h"
 #include "imaging/ImageIO.h"
 #include "imaging/Inspect.h"
+#include "imaging/Memory.h"
 
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QTest>
+#include <QThread>
 
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/imgproc.hpp>
@@ -52,6 +54,35 @@ private slots:
         QVERIFY(!isImageFile(QStringLiteral("/x.jpg/noext")));
         QCOMPARE(formatLabel(QStringLiteral("jpeg")), QStringLiteral("JPEG"));
         QCOMPARE(formatLabel(QStringLiteral("nef")), QStringLiteral("NEF"));
+    }
+
+    void memoryBudget()
+    {
+        using pix::imaging::MemoryBudget;
+        auto &budget = MemoryBudget::instance();
+        const qint64 saved = budget.capacity();
+        budget.setCapacity(100 * 1024 * 1024);
+        QCOMPARE(budget.used(), 0);
+        // Maior que o orçamento inteiro: roda sozinha, limitada à capacidade.
+        const qint64 big = budget.acquire(500 * 1024 * 1024);
+        QCOMPARE(big, budget.capacity());
+        // Outra reserva espera a primeira devolver.
+        std::atomic<bool> got{false};
+        QThread *waiter = QThread::create([&] {
+            const qint64 n = budget.acquire(10 * 1024 * 1024);
+            got = true;
+            budget.release(n);
+        });
+        waiter->start();
+        QTest::qWait(100);
+        QVERIFY(!got);
+        budget.release(big);
+        QVERIFY(waiter->wait(5000));
+        QVERIFY(got);
+        delete waiter;
+        QCOMPARE(budget.used(), 0);
+        QVERIFY(pix::imaging::physicalMemory() > 0);
+        budget.setCapacity(saved);
     }
 
     void sniffByContent()

@@ -3,6 +3,7 @@
 
 #include "imaging/Hashes.h"
 #include "imaging/ImageIO.h"
+#include "imaging/Memory.h"
 
 #include <QDir>
 #include <QFile>
@@ -158,6 +159,11 @@ RawInfo readRaw(const QString &path, bool wantPreview, bool wantHash)
     out.shot = summarize(out.tags);
 
     const auto &d = raw->imgdata;
+    // Dados do sensor (16 bits por ponto) e a prévia decodificada (RGB, com
+    // uma cópia ao orientar) — reservados antes de abrir (MemoryBudget).
+    const qint64 sensorBytes = wantHash ? qint64(d.sizes.raw_width) * d.sizes.raw_height * 2 : 0;
+    const qint64 previewBytes = wantPreview ? qint64(d.sizes.width) * d.sizes.height * 3 * 2 : 0;
+    const MemoryLease lease(sensorBytes + previewBytes);
     // O que as tags não trouxeram, dos campos já interpretados pelo LibRaw.
     if (out.shot.make.isEmpty())
         out.shot.make = latin(d.idata.make);

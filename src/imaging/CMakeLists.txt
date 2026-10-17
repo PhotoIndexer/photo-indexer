@@ -7,6 +7,7 @@ add_library(photoidx_imaging STATIC
     ImageIO.h ImageIO.cpp
     Hashes.h Hashes.cpp
     Raw.h Raw.cpp
+    Memory.h Memory.cpp
     Inspect.h Inspect.cpp
     Embedding.h Embedding.cpp
     Onnx.h Onnx.cpp

@@ -29,6 +29,11 @@ class TasksController : public QObject
     /// Ajustes: {minProbability, maxCategories, blurThreshold, minPersonScore, matchSimilarity,
     /// mergeSimilarity, mergeMinFaces, mergeMinScore}
     Q_PROPERTY(QVariantMap settings READ settings NOTIFY settingsChanged)
+    /// Teto de tarefas simultâneas (todas as etapas somadas) e quantas rodam agora.
+    Q_PROPERTY(int maxTasks READ maxTasks NOTIFY changed)
+    Q_PROPERTY(int runningTasks READ runningTasks NOTIFY changed)
+    /// Orçamento de memória das decodificações, em MB: {capacity, used}.
+    Q_PROPERTY(QVariantMap memory READ memory NOTIFY changed)
 
 public:
     TasksController(pix::Catalog *catalog, pix::Pipeline *pipeline, QObject *parent = nullptr);
@@ -39,6 +44,10 @@ public:
     int pending() const;
     QVariantList errors() const { return m_errors; }
     QVariantMap settings() const;
+    int maxTasks() const;
+    int runningTasks() const;
+    QVariantMap memory() const;
+    Q_INVOKABLE void setMaxTasks(int tasks);
 
     Q_INVOKABLE void start(const QString &stage);
     Q_INVOKABLE void pause(const QString &stage);

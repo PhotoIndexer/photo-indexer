@@ -4,6 +4,7 @@
 #include "core/Catalog.h"
 #include "core/Pipeline.h"
 #include "imaging/Faces.h"
+#include "imaging/Memory.h"
 
 using namespace pix;
 
@@ -96,6 +97,31 @@ void TasksController::cancel(const QString &stage)
 void TasksController::setThreads(const QString &stage, int threads)
 {
     m_pipeline->setThreads(stage, threads);
+}
+
+int TasksController::maxTasks() const
+{
+    return m_pipeline->maxTasks();
+}
+
+int TasksController::runningTasks() const
+{
+    int total = 0;
+    for (const QVariant &v : m_stages)
+        total += v.toMap().value(QStringLiteral("inFlight")).toInt();
+    return total;
+}
+
+QVariantMap TasksController::memory() const
+{
+    const auto &budget = imaging::MemoryBudget::instance();
+    constexpr qint64 kMB = 1024 * 1024;
+    return {{QStringLiteral("capacity"), budget.capacity() / kMB}, {QStringLiteral("used"), budget.used() / kMB}};
+}
+
+void TasksController::setMaxTasks(int tasks)
+{
+    m_pipeline->setMaxTasks(tasks);
 }
 
 void TasksController::startAll()

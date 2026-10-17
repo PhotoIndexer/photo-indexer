@@ -82,6 +82,15 @@ assíncronos; miniaturas e recortes são arquivos lidos por `file://` com
 com prioridade baixa e padrões de threads contidos; o OpenCV e o ONNX não
 abrem threads próprias dentro de cada foto.
 
+- **Teto de tarefas:** além das threads de cada etapa, o `Pipeline` tem um
+  teto somando todas (`tasks/max`, padrão metade dos núcleos entre 2 e 8),
+  repartido em rodízio entre as etapas. Nada de pré-enfileirar no pool.
+- **Memória:** decodificação completa reserva antes o que vai ocupar no
+  `imaging::MemoryBudget` (25% da RAM, 512 MB–4 GB) e espera se não couber;
+  acima de `kMaxDecodePixels` a imagem não é decodificada.
+- **Exceção nunca escapa de um worker** (o `QThreadPool` derruba o app):
+  todo trabalho de foto passa por `guarded()` e a exceção vira o erro da foto.
+
 ## Internacionalização (i18n)
 
 ### 5. Todo texto visível é traduzível; inglês é o padrão e o fallback

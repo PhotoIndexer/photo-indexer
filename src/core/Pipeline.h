@@ -68,6 +68,11 @@ public:
     void cancel(const QString &stage);
     void setThreads(const QString &stage, int threads);
     int threads(const QString &stage) const;
+    /// Teto de tarefas ao mesmo tempo, somando todas as etapas (o padrão
+    /// é metade dos núcleos, entre 2 e 8).
+    int maxTasks() const { return m_maxTasks; }
+    void setMaxTasks(int tasks);
+    static int defaultMaxTasks();
 
     /// As frases das categorias mudaram: recalcula os embeddings de texto.
     void invalidatePrompts();
@@ -105,9 +110,12 @@ private:
     Stage &stage(const QString &key);
     const Stage &stage(const QString &key) const;
     void pump();
-    void pumpIndex();
-    void pumpCategorize();
-    void pumpFaces();
+    /// Reparte as vagas do teto entre as etapas (uma de cada por vez).
+    void dispatchWork();
+    void dispatchIndex(const IndexJob &job);
+    void dispatchCategorize(const CategorizeJob &job);
+    void dispatchFaces(const FaceJob &job);
+    int totalInFlight() const;
     void finished(Stage &s, const QString &id, bool ok, const QString &name);
     void preparePrompts();
     void emitStatus();
@@ -134,6 +142,8 @@ private:
     bool m_promptsDirty = true;
 
     int m_facesSinceMerge = 0;
+    int m_maxTasks = 4;
+    int m_roundRobin = 0;
 
     // Pendentes por etapa (contagens no banco), guardados por 2 s.
     mutable QHash<QString, int> m_pendingCache;
