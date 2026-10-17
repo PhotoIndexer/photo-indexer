@@ -1558,7 +1558,7 @@
     </message>
     <message>
         <source>Close: resized, recompressed, watermark</source>
-        <translation>Parecida: redimensionada, recomprimida, marca d'água</translation>
+        <translation>Parecida: redimensionada, recomprimida, marca d&apos;água</translation>
     </message>
     <message>
         <source>Loose: also crops and color edits</source>
@@ -2700,10 +2700,6 @@
         <translation>similaridade %1%</translation>
     </message>
     <message>
-        <source>Double-click to open the photo</source>
-        <translation>Duplo clique abre a foto</translation>
-    </message>
-    <message>
         <source>No other people</source>
         <translation>Nenhuma outra pessoa</translation>
     </message>
@@ -2718,6 +2714,32 @@
     <message>
         <source>Merge</source>
         <translation>Juntar</translation>
+    </message>
+    <message>
+        <source>Double-click to open the photo · right-click for more</source>
+        <translation>Clique duplo abre a foto · botão direito para mais opções</translation>
+    </message>
+    <message numerus="yes">
+        <source>Not this person (%n face(s))</source>
+        <translation>
+            <numerusform>Não é esta pessoa (%n face)</numerusform>
+            <numerusform>Não é esta pessoa (%n faces)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Move %n face(s) to another person</source>
+        <translation>
+            <numerusform>Mover %n face para outra pessoa</numerusform>
+            <numerusform>Mover %n faces para outra pessoa</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Move face to another person</source>
+        <translation>Mover a face para outra pessoa</translation>
+    </message>
+    <message>
+        <source>Open photo</source>
+        <translation>Abrir a foto</translation>
     </message>
 </context>
 <context>

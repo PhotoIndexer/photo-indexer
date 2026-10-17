@@ -22,6 +22,15 @@ Item {
 
     readonly property bool unassignedOpen: Object.keys(App.people.person).length > 0 && !App.people.person.id
 
+    /// As faces do menu de contexto: a seleção, se a clicada está nela; senão, só a clicada.
+    property var menuFaces: []
+
+    function openFaceMenu(faceId, photoId, item, x, y) {
+        menuFaces = picked.indexOf(faceId) >= 0 ? picked.slice() : [faceId];
+        faceMenu.photoId = photoId;
+        faceMenu.popup(item, x, y);
+    }
+
     function togglePick(id) {
         const i = picked.indexOf(id);
         picked = i >= 0 ? picked.filter((x) => x !== id) : picked.concat([id]);
@@ -294,12 +303,17 @@ Item {
                     anchors.fill: faceFrame
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    acceptedButtons: Qt.LeftButton
-                    onClicked: detail.togglePick(faceCell.modelData.id)
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: (event) => {
+                        if (event.button === Qt.RightButton)
+                            detail.openFaceMenu(faceCell.modelData.id, faceCell.modelData.photoId, faceMouse, event.x, event.y);
+                        else
+                            detail.togglePick(faceCell.modelData.id);
+                    }
                     onDoubleClicked: App.openPhoto(faceCell.modelData.photoId)
                 }
                 Tip {
-                    text: faceCell.modelData.photoName + "\n" + qsTr("Double-click to open the photo")
+                    text: faceCell.modelData.photoName + "\n" + qsTr("Double-click to open the photo · right-click for more")
                     visible: faceMouse.containsMouse
                 }
             }
@@ -326,6 +340,50 @@ Item {
         onPicked: (id) => {
             App.people.assignFaces(detail.picked, id);
             detail.picked = [];
+        }
+    }
+
+    // Botão direito numa face (ou na seleção): tirar daqui, mover para outra
+    // pessoa, criar uma pessoa com ela, abrir a foto.
+    AppMenu {
+        id: faceMenu
+
+        property string photoId: ""
+
+        AppMenuItem {
+            visible: !detail.unassignedOpen
+            height: visible ? implicitHeight : 0
+            text: detail.menuFaces.length > 1 ? qsTr("Not this person (%n face(s))", "", detail.menuFaces.length)
+                                             : qsTr("Not this person")
+            onTriggered: {
+                App.people.rejectFaces(detail.menuFaces);
+                detail.picked = [];
+            }
+        }
+        ChoiceMenu {
+            title: detail.menuFaces.length > 1 ? qsTr("Move %n face(s) to another person", "", detail.menuFaces.length)
+                                               : qsTr("Move face to another person")
+            choices: App.library.personChoices.filter((p) => p.id !== App.people.person.id)
+            emptyText: qsTr("No other people")
+            onPicked: (id) => {
+                App.people.assignFaces(detail.menuFaces, id);
+                detail.picked = [];
+            }
+        }
+        AppMenuItem {
+            text: qsTr("New person…")
+            onTriggered: {
+                const faces = detail.menuFaces;
+                detail.names.ask({ title: qsTr("New person"), label: qsTr("Name"), confirmLabel: qsTr("Create") }, (name) => {
+                    App.people.createPerson(name, faces);
+                    detail.picked = [];
+                });
+            }
+        }
+        AppMenuSeparator {}
+        AppMenuItem {
+            text: qsTr("Open photo")
+            onTriggered: App.openPhoto(faceMenu.photoId)
         }
     }
 }

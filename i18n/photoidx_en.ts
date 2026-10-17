@@ -147,6 +147,20 @@
             <numerusform>%n faces selected</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>Not this person (%n face(s))</source>
+        <translation>
+            <numerusform>Not this person (%n face)</numerusform>
+            <numerusform>Not this person (%n faces)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Move %n face(s) to another person</source>
+        <translation>
+            <numerusform>Move %n face to another person</numerusform>
+            <numerusform>Move %n faces to another person</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>PrivacyPage</name>
