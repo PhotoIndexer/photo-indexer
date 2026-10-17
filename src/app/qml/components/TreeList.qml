@@ -6,7 +6,9 @@ import PhotoIDX
 // A árvore de uma aba do painel lateral (App.library.tree): uma linha por nó
 // visível, recuada pela profundidade. Clique escolhe o nó (a grade mostra as
 // fotos dele); a seta abre/fecha; o botão direito pede o menu do nó. Fotos
-// arrastadas da grade (PhotoGrid) podem cair numa categoria ou num álbum.
+// arrastadas da grade (PhotoGrid) podem cair numa categoria ou num álbum; uma
+// pessoa arrastada cai num grupo de pessoas (ou em "Com nome"/"Sem nome",
+// que a tira do grupo).
 ListView {
     id: list
 
@@ -17,6 +19,37 @@ ListView {
     signal contextRequested(string key, string kind, Item row)
     /// Fotos da grade soltas neste nó (categoria ou álbum).
     signal photosDropped(string key)
+    /// Uma pessoa (person:<id>) solta num grupo (pgroup:<id>, people:named/unnamed).
+    signal personDropped(string personKey, string key)
+
+    // O que voa com o mouse ao arrastar uma pessoa.
+    Item {
+        id: personProxy
+        property string personKey: ""
+        property string label: ""
+        parent: T.Overlay.overlay
+        width: proxyText.implicitWidth + 24
+        height: 26
+        z: 1000
+        visible: Drag.active
+        Drag.keys: ["photoidx/person"]
+        Drag.hotSpot.x: 12
+        Drag.hotSpot.y: height / 2
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusMd
+            color: Theme.card
+            border.width: 1
+            border.color: Theme.brand400
+            Text {
+                id: proxyText
+                anchors.centerIn: parent
+                text: personProxy.label
+                font.pixelSize: Theme.fontSm
+                color: Theme.foreground
+            }
+        }
+    }
 
     clip: true
     model: App.library.tree
@@ -40,6 +73,8 @@ ListView {
         readonly property bool selected: key === list.current
         readonly property bool offline: kind === "offline"
         readonly property bool dropTarget: (key.startsWith("cat:") || key.startsWith("album:")) && kind !== "private-locked"
+        readonly property bool personTarget: kind === "pgroup" || kind === "pbucket"
+        readonly property bool isPerson: key.startsWith("person:")
 
         width: ListView.view.width
         implicitHeight: 28
@@ -68,11 +103,14 @@ ListView {
         DropArea {
             id: drop
             anchors.fill: parent
-            enabled: row.dropTarget
-            keys: ["photoidx/photos"]
+            enabled: row.dropTarget || row.personTarget
+            keys: row.personTarget ? ["photoidx/person"] : ["photoidx/photos"]
             onDropped: (event) => {
                 event.accept(Qt.MoveAction);
-                list.photosDropped(row.key);
+                if (row.personTarget)
+                    list.personDropped(personProxy.personKey, row.key);
+                else
+                    list.photosDropped(row.key);
             }
             // Parado em cima de um nó fechado: abre (para chegar nas de dentro).
             Timer {
@@ -126,6 +164,45 @@ ListView {
                 text: row.offline ? qsTr("offline") : (row.count > 0 ? Number(row.count).toLocaleString(Qt.locale(), "f", 0) : "")
                 font.pixelSize: Theme.fontXs
                 color: row.offline ? Theme.warning : Theme.mutedForeground
+            }
+        }
+
+        // Pessoa: arrastar leva para um grupo. O clique continua escolhendo
+        // o nó (o MouseArea fica por cima só nas linhas de pessoa).
+        MouseArea {
+            id: personMouse
+            anchors.fill: parent
+            enabled: row.isPerson
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+            drag.target: personProxy
+            drag.threshold: 8
+            preventStealing: true
+            onPressed: (event) => {
+                if (event.button !== Qt.LeftButton)
+                    return;
+                const p = personMouse.mapToItem(personProxy.parent, event.x, event.y);
+                personProxy.x = p.x - 12;
+                personProxy.y = p.y - personProxy.height / 2;
+                personProxy.personKey = row.key;
+                personProxy.label = row.label;
+            }
+            onClicked: (event) => {
+                if (event.button === Qt.RightButton)
+                    list.contextRequested(row.key, row.kind, row);
+                else
+                    list.picked(row.key);
+            }
+        }
+        Connections {
+            target: personMouse.drag
+            function onActiveChanged() {
+                if (personMouse.drag.active) {
+                    personProxy.Drag.active = true;
+                } else if (personProxy.Drag.active) {
+                    personProxy.Drag.drop();
+                    personProxy.Drag.active = false;
+                }
             }
         }
 

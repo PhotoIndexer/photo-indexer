@@ -341,12 +341,14 @@ Catalog::ReclusterPlan Catalog::prepareRecluster() const
     // alguma face confirmada pela pessoa.
     QHash<QString, int> fixed;
     QSet<QString> named;
-    QSqlQuery p = m_db.exec(QStringLiteral("SELECT id, name FROM person WHERE name != '' OR id IN "
+    // Num grupo da pessoa conta como com nome: ela já organizou.
+    QSqlQuery p = m_db.exec(QStringLiteral("SELECT id, name != '' OR group_id IS NOT NULL FROM person "
+                                           "WHERE name != '' OR group_id IS NOT NULL OR id IN "
                                            "(SELECT person_id FROM face WHERE assignment = 'user' AND person_id IS NOT NULL)"));
     while (p.next()) {
         fixed.insert(p.value(0).toString(), int(plan.fixedPersons.size()));
         plan.fixedPersons << p.value(0).toString();
-        if (!p.value(1).toString().isEmpty())
+        if (p.value(1).toBool())
             named.insert(p.value(0).toString());
     }
     QHash<QString, std::vector<int>> rejected;
@@ -468,6 +470,62 @@ int Catalog::applyRecluster(const ReclusterPlan &plan, const std::vector<int> &l
 // Pessoas: leitura
 // --------------------------------------------------------------------------- //
 
+QString Catalog::createPersonGroup(const QString &name)
+{
+    const QString clean = name.trimmed();
+    if (clean.isEmpty())
+        throw ActionError(QStringLiteral("group.emptyName"));
+    const QString id = Database::newId();
+    const int position = m_db.scalar(QStringLiteral("SELECT coalesce(max(position), 0) + 1 FROM person_group")).toInt();
+    m_db.exec(QStringLiteral("INSERT INTO person_group(id, name, position, created_at) VALUES(?, ?, ?, ?)"),
+              {id, clean, position, Database::timestamp()});
+    emit treeChanged(QStringLiteral("people"));
+    return id;
+}
+
+void Catalog::renamePersonGroup(const QString &groupId, const QString &name)
+{
+    const QString clean = name.trimmed();
+    if (clean.isEmpty())
+        throw ActionError(QStringLiteral("group.emptyName"));
+    m_db.exec(QStringLiteral("UPDATE person_group SET name = ? WHERE id = ?"), {clean, groupId});
+    emit treeChanged(QStringLiteral("people"));
+}
+
+void Catalog::deletePersonGroup(const QString &groupId)
+{
+    Transaction tx(m_db);
+    m_db.exec(QStringLiteral("UPDATE person SET group_id = NULL WHERE group_id = ?"), {groupId});
+    m_db.exec(QStringLiteral("DELETE FROM person_group WHERE id = ?"), {groupId});
+    tx.commit();
+    emit treeChanged(QStringLiteral("people"));
+    emit peopleChanged();
+}
+
+void Catalog::setPersonGroup(const QString &personId, const QString &groupId)
+{
+    if (!groupId.isEmpty() && !m_db.scalar(QStringLiteral("SELECT 1 FROM person_group WHERE id = ?"), {groupId}).isValid())
+        throw ActionError(QStringLiteral("group.notFound"));
+    m_db.exec(QStringLiteral("UPDATE person SET group_id = ?, updated_at = ? WHERE id = ?"),
+              {groupId.isEmpty() ? QVariant() : QVariant(groupId), Database::timestamp(), personId});
+    emit treeChanged(QStringLiteral("people"));
+    emit peopleChanged();
+}
+
+QVariantList Catalog::personGroups() const
+{
+    QVariantList out;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name FROM person_group ORDER BY position, name COLLATE NOCASE"));
+    while (q.next())
+        out << QVariantMap{{QStringLiteral("id"), q.value(0)}, {QStringLiteral("name"), q.value(1)}};
+    return out;
+}
+
+QString Catalog::personGroupOf(const QString &personId) const
+{
+    return m_db.scalar(QStringLiteral("SELECT coalesce(group_id, '') FROM person WHERE id = ?"), {personId}).toString();
+}
+
 QVariantMap Catalog::photoPeople(const QString &photoId) const
 {
     QVariantMap out;
@@ -505,7 +563,7 @@ QVariantList Catalog::people() const
     // As outras continuam existindo: aparecem na busca por rosto.
     QSqlQuery q = m_db.exec(QStringLiteral(
         "SELECT p.id, p.name, f.crop_path, p.face_count, p.photo_count FROM person p "
-        "LEFT JOIN face f ON f.id = p.cover_face_id WHERE p.name != '' OR (p.face_count > 0 AND p.photo_count >= ?) "
+        "LEFT JOIN face f ON f.id = p.cover_face_id WHERE p.name != '' OR p.group_id IS NOT NULL OR (p.face_count > 0 AND p.photo_count >= ?) "
         "ORDER BY (p.name = ''), p.name COLLATE NOCASE, p.photo_count DESC, p.face_count DESC"),
         {minPersonPhotos()});
     while (q.next())

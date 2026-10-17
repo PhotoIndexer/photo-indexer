@@ -11,6 +11,8 @@
 #include <QImage>
 #include <QSqlQuery>
 
+#include <cmath>
+
 using namespace pix;
 
 namespace {
@@ -208,6 +210,7 @@ void PeopleController::searchByPhoto(const QUrl &file)
     const QString path = file.isLocalFile() ? file.toLocalFile() : file.toString();
     const int serial = ++m_searchSerial;
     m_detecting = true;
+    m_queryPerson.clear();
     m_searchError.clear();
     m_queryFaces.clear();
     m_queryEmbeddings.clear();
@@ -242,6 +245,7 @@ void PeopleController::searchByFace(const QString &faceId)
 {
     ++m_searchSerial;
     m_detecting = false;
+    m_queryPerson.clear();
     m_searchError.clear();
     m_queryFaces.clear();
     m_queryEmbeddings.clear();
@@ -251,6 +255,32 @@ void PeopleController::searchByFace(const QString &faceId)
     if (!e.empty()) {
         m_queryFaces << QVariantMap{{QStringLiteral("index"), 0}, {QStringLiteral("cropUrl"), fileUrl(crop)}, {QStringLiteral("score"), 1.0}};
         m_queryEmbeddings.push_back(e);
+    }
+    m_queryFace = 0;
+    runSearch();
+}
+
+void PeopleController::searchByPerson(const QString &personId)
+{
+    ++m_searchSerial;
+    m_detecting = false;
+    m_searchError.clear();
+    m_queryFaces.clear();
+    m_queryEmbeddings.clear();
+    m_queryPerson = personId;
+    const QVariantMap p = m_catalog->person(personId);
+    m_queryUrl = fileUrl(p.value(QStringLiteral("coverPath")).toString());
+    imaging::Embedding centroid =
+        imaging::fromBlob(m_catalog->db().scalar(QStringLiteral("SELECT centroid FROM person WHERE id = ?"), {personId}).toByteArray());
+    double norm = 0;
+    for (float v : centroid)
+        norm += double(v) * v;
+    if (norm > 0) {
+        for (float &v : centroid)
+            v = float(v / std::sqrt(norm));
+        m_queryEmbeddings.push_back(centroid);
+    } else {
+        m_searchError = QStringLiteral("faces.noneFound");
     }
     m_queryFace = 0;
     runSearch();
@@ -286,6 +316,8 @@ void PeopleController::runSearch(bool refresh)
     QList<QPair<QString, float>> ranked;
     QHash<QString, QPair<float, int>> people;
     for (const FaceIndex::Match &m : matches) {
+        if (!m_queryPerson.isEmpty() && m.entry.personId == m_queryPerson)
+            continue;  // as dela mesma: o que interessa são as outras
         ranked.append({m.entry.photoId, m.similarity});
         if (!m.entry.personId.isEmpty()) {
             auto &p = people[m.entry.personId];

@@ -41,8 +41,11 @@ QtObject {
             return qsTr("“%1” is where %2 keeps its thumbnails and data, so it cannot be indexed.").arg(path).arg(App.brandName);
         case "category.emptyName":
         case "album.emptyName":
+        case "group.emptyName":
         case "filter.emptyName":
             return qsTr("Enter a name.");
+        case "group.notFound":
+            return qsTr("This group no longer exists.");
         case "category.cycle":
             return qsTr("A category cannot go inside itself or one of its subcategories.");
         case "album.cycle":

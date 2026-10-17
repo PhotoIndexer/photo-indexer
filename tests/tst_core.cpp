@@ -471,6 +471,55 @@ private slots:
         QVERIFY(catalog.findCopies(p[0], 1).isEmpty());
     }
 
+    void personGroups()
+    {
+        // Grupos da pessoa na aba Pessoas: "Família" com a Ana; quem não tem
+        // grupo fica em "Com nome"/"Sem nome". O reagrupamento não desfaz.
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
+        const QStringList photos = seedPhotos(catalog, 3, m_photos.path() + QStringLiteral("/groups"));
+        catalog.applyFaces(faces(photos[0], {vec({1, 0.01f})}));
+        catalog.applyFaces(faces(photos[1], {vec({0, 1})}));
+        catalog.applyFaces(faces(photos[2], {vec({0, 0, 1})}));
+        auto personOf = [&](const QString &photo) {
+            return catalog.db().scalar(QStringLiteral("SELECT person_id FROM face WHERE photo_id = ?"), {photo}).toString();
+        };
+        const QString ana = personOf(photos[0]), bob = personOf(photos[1]), kid = personOf(photos[2]);
+        catalog.renamePerson(ana, QStringLiteral("Ana"));
+        catalog.renamePerson(bob, QStringLiteral("Bob"));
+        const QString family = catalog.createPersonGroup(QStringLiteral("Família"));
+        catalog.setPersonGroup(ana, family);
+        catalog.setPersonGroup(kid, family);  // sem nome, no grupo
+        QCOMPARE(catalog.personGroupOf(ana), family);
+        QHash<QString, QString> parentOf;
+        for (const QVariant &v : catalog.tree(QStringLiteral("people"))) {
+            const QVariantMap n = v.toMap();
+            parentOf.insert(n.value(QStringLiteral("key")).toString(), n.value(QStringLiteral("parent")).toString());
+        }
+        QCOMPARE(parentOf.value(QStringLiteral("person:") + ana), QStringLiteral("pgroup:") + family);
+        QCOMPARE(parentOf.value(QStringLiteral("person:") + kid), QStringLiteral("pgroup:") + family);
+        QCOMPARE(parentOf.value(QStringLiteral("person:") + bob), QStringLiteral("people:named"));
+        GridQuery q;
+        q.node = QStringLiteral("pgroup:") + family;
+        QCOMPARE(catalog.photos(q).size(), 2);
+        q.node = QStringLiteral("people:named");
+        QCOMPARE(catalog.photos(q).size(), 1);
+        // Mesmo com o mínimo de fotos alto, quem está num grupo aparece.
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 50);
+        bool kidListed = false;
+        for (const QVariant &v : catalog.people())
+            kidListed |= v.toMap().value(QStringLiteral("id")).toString() == kid;
+        QVERIFY(kidListed);
+        // Reagrupar mantém a pessoa sem nome do grupo.
+        catalog.reclusterPeople();
+        QCOMPARE(personOf(photos[2]), kid);
+        // Apagar o grupo solta as pessoas.
+        catalog.deletePersonGroup(family);
+        QCOMPARE(catalog.personGroupOf(ana), QString());
+        QVERIFY_THROWS_EXCEPTION(ActionError, catalog.createPersonGroup(QStringLiteral("  ")));
+    }
+
     void photoPeopleAndFacesFirst()
     {
         // O menu da grade e o visualizador: as pessoas da foto e o estado da
@@ -520,18 +569,17 @@ private slots:
     void facesUnreadableRequeued()
     {
         // schema/0006.sql: o "image unreadable" das faces (disco fora) volta
-        // para a fila; os outros erros ficam.
-        const QString file = m_home.filePath(QStringLiteral("requeue.sqlite3"));
-        {
-            Catalog old;
-            old.open(file);
-            const QStringList photos = seedPhotos(old, 2, m_photos.path() + QStringLiteral("/requeue"));
-            old.db().exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = 'Faces: image unreadable' WHERE id = ?"), {photos[0]});
-            old.db().exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = 'Faces: internal error: x' WHERE id = ?"), {photos[1]});
-            old.db().exec(QStringLiteral("PRAGMA user_version = 5"));
-        }
+        // para a fila; os outros erros ficam. (O passo roda sozinho: voltar o
+        // user_version refaria também os passos seguintes.)
         Catalog reopened;
-        reopened.open(file);
+        reopened.open(QString());
+        const QStringList photos = seedPhotos(reopened, 2, m_photos.path() + QStringLiteral("/requeue"));
+        reopened.db().exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = 'Faces: image unreadable' WHERE id = ?"), {photos[0]});
+        reopened.db().exec(QStringLiteral("UPDATE photo SET faces_state = 'error', error = 'Faces: internal error: x' WHERE id = ?"), {photos[1]});
+        QFile step(QStringLiteral(":/photoidx/schema/0006.sql"));
+        QVERIFY(step.open(QIODevice::ReadOnly));
+        const QString sql = QString::fromUtf8(step.readAll());
+        reopened.db().exec(sql.mid(sql.indexOf(QLatin1String("UPDATE"))).trimmed().chopped(1));
         QCOMPARE(reopened.db().scalar(QStringLiteral("SELECT count(*) FROM photo WHERE faces_state = 'pending' AND error = ''")).toInt(), 1);
         QCOMPARE(reopened.db().scalar(QStringLiteral("SELECT count(*) FROM photo WHERE faces_state = 'error'")).toInt(), 1);
     }

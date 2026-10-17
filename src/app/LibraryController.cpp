@@ -183,6 +183,40 @@ void LibraryController::findFacesNow(const QStringList &photoIds)
     m_pipeline->findFacesNow(orSelection(photoIds));
 }
 
+QString LibraryController::createPersonGroup(const QString &name)
+{
+    QString id;
+    act([&]() { id = m_catalog->createPersonGroup(name); });
+    return id;
+}
+
+void LibraryController::renamePersonGroup(const QString &groupId, const QString &name)
+{
+    act([&]() { m_catalog->renamePersonGroup(groupId, name); });
+}
+
+void LibraryController::deletePersonGroup(const QString &groupId)
+{
+    act([&]() { m_catalog->deletePersonGroup(groupId); });
+    if (m_node == QStringLiteral("pgroup:") + groupId)
+        selectNode(QStringLiteral("all"));
+}
+
+void LibraryController::setPersonGroup(const QString &personId, const QString &groupId)
+{
+    act([&]() { m_catalog->setPersonGroup(personId, groupId); });
+}
+
+QVariantList LibraryController::personGroups() const
+{
+    return m_catalog->personGroups();
+}
+
+QString LibraryController::personGroupOf(const QString &personId) const
+{
+    return m_catalog->personGroupOf(personId);
+}
+
 void LibraryController::clearCopies()
 {
     if (m_copiesOf.isEmpty())

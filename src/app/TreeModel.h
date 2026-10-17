@@ -54,5 +54,6 @@ private:
     QVariantList m_nodes;
     QList<int> m_visible;           ///< índices em m_nodes
     QSet<QString> m_expanded;
+    QSet<QString> m_known;      ///< chaves já vistas (o "open" só vale na primeira vez)
     bool m_seeded = false;
 };

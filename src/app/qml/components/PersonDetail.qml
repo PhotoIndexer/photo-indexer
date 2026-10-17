@@ -141,6 +141,17 @@ Item {
                     onClicked: mergeMenu.popup(mergeButton, 0, mergeButton.height + 4)
                 }
                 Button {
+                    visible: !detail.unassignedOpen && App.people.facesAvailable
+                    size: "sm"
+                    variant: "outline"
+                    iconName: "scan-face"
+                    text: qsTr("Find similar faces")
+                    onClicked: {
+                        App.people.searchByPerson(App.people.person.id);
+                        App.page = "faceSearch";
+                    }
+                }
+                Button {
                     visible: !detail.unassignedOpen
                     size: "sm"
                     variant: "outline"

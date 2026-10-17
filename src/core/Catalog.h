@@ -172,6 +172,18 @@ public:
     /// As pessoas de uma foto e o estado da etapa de faces dela:
     /// {facesState, faces, people: [{id, label}]} (sem nome = "Person N" no QML).
     QVariantMap photoPeople(const QString &photoId) const;
+
+    // Grupos de pessoas (schema/0007.sql): os da pessoa; quem não tem grupo
+    // fica em "Com nome"/"Sem nome" na árvore. Pessoa num grupo é fixa no
+    // reagrupamento, como uma com nome.
+    QString createPersonGroup(const QString &name);
+    void renamePersonGroup(const QString &groupId, const QString &name);
+    void deletePersonGroup(const QString &groupId);
+    /// ``groupId`` vazio: tira do grupo.
+    void setPersonGroup(const QString &personId, const QString &groupId);
+    /// [{id, name}] em ordem.
+    QVariantList personGroups() const;
+    QString personGroupOf(const QString &personId) const;
     /// Pendentes de uma etapa ("index" | "categorize" | "faces").
     int pendingCount(const QString &stage) const;
     /// O universo de cada etapa ("index", "categorize", "faces", "privacy"),

@@ -53,6 +53,17 @@ void TreeModel::setNodes(const QVariantList &nodes)
         }
         m_seeded = !m_nodes.isEmpty();
     }
+    // Nó que pede para nascer aberto ("open": grupos de pessoas, "Com
+    // nome"): aberto da primeira vez que aparece; depois, como a pessoa deixou.
+    for (const QVariant &v : m_nodes) {
+        const QVariantMap n = v.toMap();
+        const QString key = n.value(QStringLiteral("key")).toString();
+        if (!m_known.contains(key)) {
+            m_known.insert(key);
+            if (n.value(QStringLiteral("open")).toBool())
+                m_expanded.insert(key);
+        }
+    }
     rebuild();
 }
 

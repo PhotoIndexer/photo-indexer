@@ -53,7 +53,9 @@ Item {
                 }
                 Text {
                     Layout.fillWidth: true
-                    text: qsTr("Search by face")
+                    text: App.people.queryPersonId !== "" ? qsTr("Faces similar to %1").arg(App.people.queryPersonLabel)
+                                                          : qsTr("Search by face")
+                    elide: Text.ElideRight
                     font.pixelSize: Theme.fontLg
                     font.weight: Font.DemiBold
                     color: Theme.foreground
@@ -206,6 +208,26 @@ Item {
                                     font.pixelSize: Theme.fontXs
                                     color: Theme.mutedForeground
                                 }
+                            }
+                            // Busca a partir de uma pessoa: juntar o candidato
+                            // nela sem sair da lista.
+                            IconButton {
+                                visible: App.people.queryPersonId !== ""
+                                diameter: 28
+                                iconSize: 14
+                                iconName: "merge"
+                                tooltip: qsTr("Merge into %1").arg(App.people.queryPersonLabel)
+                                onClicked: Dialogs.confirm({
+                                    title: qsTr("Merge people?"),
+                                    description: qsTr("All faces of <b>%1</b> go to <b>%2</b>.")
+                                        .arg(Messages.escapeHtml(who.modelData.label)).arg(Messages.escapeHtml(App.people.queryPersonLabel)),
+                                    variant: "warning",
+                                    confirmLabel: qsTr("Merge")
+                                }, () => {
+                                    if (page.personOpen && App.people.personId === who.modelData.id)
+                                        page.showPerson = false;
+                                    App.people.merge(App.people.queryPersonId, who.modelData.id);
+                                })
                             }
                         }
                     }

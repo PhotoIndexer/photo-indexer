@@ -28,7 +28,7 @@
 //   cat:<id>                  categoria e as de dentro dela
 //   album:<id>                álbum e os de dentro dele
 //   country:BR  state:BR|São Paulo  city:<place id>  place:none
-//   person:<id>  faces:any
+//   person:<id>  faces:any  pgroup:<id>  people:named  people:unnamed
 //
 // Foto privada (photo.private = 1) só aparece nos nós de álbum privado e só
 // com o cofre aberto; em todo o resto, nem nas contagens.
@@ -325,20 +325,59 @@ QVariantList Catalog::tree(const QString &tab) const
                                                          "AND face_count > 0")).toInt();
         out << node(QStringLiteral("faces:any"), QString(), QCoreApplication::translate("Catalog", "Photos with faces"), withFaces, 0,
                     QStringLiteral("scan-face"), {}, QStringLiteral("special"));
-        // As mesmas da tela Pessoas (people()): com nome, ou sem nome a partir
-        // de people/minPhotos fotos.
-        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, photo_count FROM person WHERE name != '' "
-                                               "OR (face_count > 0 AND photo_count >= ?) "
+        // As mesmas da tela Pessoas (people()): com nome, num grupo, ou sem
+        // nome a partir de people/minPhotos fotos. A numeração das sem nome
+        // ("Pessoa 3") é a da lista inteira, não muda com o grupo.
+        struct Person
+        {
+            QString id, label, group;
+            int photos;
+            bool named;
+        };
+        std::vector<Person> people;
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, photo_count, coalesce(group_id, '') FROM person "
+                                               "WHERE name != '' OR group_id IS NOT NULL OR (face_count > 0 AND photo_count >= ?) "
                                                "ORDER BY (name = ''), name COLLATE NOCASE, photo_count DESC, face_count DESC"),
                                 {minPersonPhotos()});
         int unnamed = 0;
         while (q.next()) {
-            QString label = q.value(1).toString();
-            if (label.isEmpty())
-                label = QCoreApplication::translate("Catalog", "Person %1").arg(++unnamed);
-            out << node(QStringLiteral("person:") + q.value(0).toString(), QString(), label, q.value(2).toInt(), 0,
-                        QStringLiteral("user"), {}, q.value(1).toString().isEmpty() ? QStringLiteral("unnamed") : QStringLiteral("named"));
+            const QString name = q.value(1).toString();
+            people.push_back({q.value(0).toString(),
+                              name.isEmpty() ? QCoreApplication::translate("Catalog", "Person %1").arg(++unnamed) : name,
+                              q.value(3).toString(), q.value(2).toInt(), !name.isEmpty()});
         }
+        // Fotos de cada ramo (as de qualquer pessoa dele, sem repetir).
+        QHash<QString, int> groupPhotos;
+        QSqlQuery gp = m_db.exec(QStringLiteral(
+            "SELECT coalesce(pe.group_id, CASE WHEN pe.name != '' THEN 'named' ELSE 'unnamed' END), count(DISTINCT f.photo_id) "
+            "FROM face f JOIN person pe ON pe.id = f.person_id JOIN photo p ON p.id = f.photo_id "
+            "WHERE p.state != 'missing' AND p.private = 0 AND (pe.name != '' OR pe.group_id IS NOT NULL OR pe.photo_count >= ?) "
+            "GROUP BY 1"),
+            {minPersonPhotos()});
+        while (gp.next())
+            groupPhotos.insert(gp.value(0).toString(), gp.value(1).toInt());
+        auto branch = [&](const QString &key, const QString &label, const QString &icon, const QString &kind,
+                          const QString &groupId, bool named, bool open) {
+            QVariantMap n = node(key, QString(), label,
+                                 groupPhotos.value(groupId.isEmpty() ? (named ? QStringLiteral("named") : QStringLiteral("unnamed")) : groupId),
+                                 0, icon, {}, kind);
+            n.insert(QStringLiteral("open"), open);
+            out << n;
+            for (const Person &p : people)
+                if (p.group == groupId && (!groupId.isEmpty() || p.named == named))
+                    out << node(QStringLiteral("person:") + p.id, key, p.label, p.photos, 1, QStringLiteral("user"), {},
+                                p.named ? QStringLiteral("named") : QStringLiteral("unnamed"));
+        };
+        for (const QVariant &g : personGroups()) {
+            const QVariantMap m = g.toMap();
+            const QString id = m.value(QStringLiteral("id")).toString();
+            branch(QStringLiteral("pgroup:") + id, m.value(QStringLiteral("name")).toString(), QStringLiteral("users"),
+                   QStringLiteral("pgroup"), id, true, true);
+        }
+        branch(QStringLiteral("people:named"), QCoreApplication::translate("Catalog", "Named people"), QStringLiteral("user-check"),
+               QStringLiteral("pbucket"), QString(), true, true);
+        branch(QStringLiteral("people:unnamed"), QCoreApplication::translate("Catalog", "Unnamed people"), QStringLiteral("user"),
+               QStringLiteral("pbucket"), QString(), false, false);
     }
     markParents(out);
     return out;
@@ -411,6 +450,16 @@ QString Catalog::nodeFilter(const QString &key, QVariantList &params) const
     } else if (type == QLatin1String("person")) {
         cond = QStringLiteral("p.id IN (SELECT photo_id FROM face WHERE person_id = ?)");
         params << value;
+    } else if (type == QLatin1String("pgroup")) {
+        cond = QStringLiteral("p.id IN (SELECT f.photo_id FROM face f JOIN person pe ON pe.id = f.person_id WHERE pe.group_id = ?)");
+        params << value;
+    } else if (key == QLatin1String("people:named")) {
+        cond = QStringLiteral("p.id IN (SELECT f.photo_id FROM face f JOIN person pe ON pe.id = f.person_id "
+                              "WHERE pe.name != '' AND pe.group_id IS NULL)");
+    } else if (key == QLatin1String("people:unnamed")) {
+        cond = QStringLiteral("p.id IN (SELECT f.photo_id FROM face f JOIN person pe ON pe.id = f.person_id "
+                              "WHERE pe.name = '' AND pe.group_id IS NULL AND pe.photo_count >= ?)");
+        params << minPersonPhotos();
     } else if (key == QLatin1String("faces:any")) {
         cond = QStringLiteral("p.face_count > 0");
     } else {

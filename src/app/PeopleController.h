@@ -49,6 +49,10 @@ class PeopleController : public QObject
     Q_PROPERTY(PhotoGridModel *results READ results CONSTANT)
     Q_PROPERTY(QString searchError READ searchError NOTIFY searchChanged)
     Q_PROPERTY(bool facesAvailable READ facesAvailable CONSTANT)
+    /// Busca a partir de uma pessoa (searchByPerson): quem ela é, para o
+    /// "juntar com" rápido de cada candidato. Vazio nas outras buscas.
+    Q_PROPERTY(QString queryPersonId READ queryPersonId NOTIFY searchChanged)
+    Q_PROPERTY(QString queryPersonLabel READ queryPersonLabel NOTIFY searchChanged)
 
 public:
     PeopleController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
@@ -93,6 +97,11 @@ public:
     Q_INVOKABLE void searchByPhoto(const QUrl &file);
     /// Busca a partir de uma face já catalogada (o rosto de uma foto).
     Q_INVOKABLE void searchByFace(const QString &faceId);
+    /// "Procurar rostos parecidos": o rosto médio da pessoa contra todas as
+    /// faces; as dela ficam de fora (o que sobra são candidatos a juntar).
+    Q_INVOKABLE void searchByPerson(const QString &personId);
+    QString queryPersonId() const { return m_queryPerson; }
+    QString queryPersonLabel() const { return m_queryPerson.isEmpty() ? QString() : labelOf(m_queryPerson); }
 
 signals:
     void peopleChanged();
@@ -122,6 +131,7 @@ private:
 
     bool m_detecting = false;
     QString m_queryUrl;
+    QString m_queryPerson;      ///< searchByPerson
     QVariantList m_queryFaces;
     std::vector<std::vector<float>> m_queryEmbeddings;
     int m_queryFace = 0;

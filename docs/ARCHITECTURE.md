@@ -127,6 +127,14 @@ regra antiga (`faces/clusterRule`). Correções da pessoa: `assignFaces` (falso
 negativo), `rejectFaces` (falso positivo — gravado em `face_rejection`, o
 agrupamento nunca devolve). A tela Pessoas mostra primeiro as com nome e
 esconde as com menos de 20 fotos (`people/minPhotos`), salvo na busca por foto.
+
+Grupos de pessoas (`person_group`, `schema/0007.sql`): no painel lateral (aba
+Pessoas) os grupos da pessoa ("Família", "Time") vêm primeiro, depois "Com
+nome" e "Sem nome" com quem não tem grupo. Arrastar uma pessoa para um grupo
+(ou o menu dela) a põe lá; quem está num grupo é fixo no reagrupamento.
+"Procurar rostos parecidos" (pessoa no painel ou aberta) busca o rosto médio
+dela contra todas as faces — sem as dela — e abre a busca por rosto, com
+"Juntar em <nome>" em cada candidato.
 A busca por foto detecta os
 rostos da imagem enviada e compara com todas as faces (`FaceIndex`, busca
 exata em memória).

@@ -121,7 +121,10 @@ int main(int argc, char *argv[])
     parser.addOptions({sizeOption, openOption, faceOption, ruleOption, personOption, passwordOption, makePrivateOption,
                        privateAlbumOption});
     parser.addPositionalArgument(QStringLiteral("folders"), QStringLiteral("Folders to index."), QStringLiteral("[folder...]"));
-    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption});
+    const QCommandLineOption tabOption(QStringLiteral("tab"),
+                                       QStringLiteral("Side panel tab of the library (folders, dates, categories, albums, places, people)."),
+                                       QStringLiteral("tab"));
+    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption, tabOption});
     // O Finder às vezes passa -psn_0_12345: ignorado.
     QStringList args = QCoreApplication::arguments();
     args.erase(std::remove_if(args.begin(), args.end(), [](const QString &a) { return a.startsWith(QLatin1String("-psn_")); }),
@@ -157,6 +160,8 @@ int main(int argc, char *argv[])
     AppController controller(nullptr);
     if (parser.isSet(pageOption))
         controller.setPage(parser.value(pageOption));
+    if (parser.isSet(tabOption))
+        controller.library()->setTab(parser.value(tabOption));
     // Pastas da linha de comando entram já (o teste de captura conta com elas).
     QStringList files;
     for (const QString &path : paths) {

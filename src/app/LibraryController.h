@@ -104,6 +104,15 @@ public:
     Q_INVOKABLE QVariantMap photoPeople(const QString &photoId) const;
     /// Fotos (vazio = a seleção) furam a fila da etapa de faces.
     Q_INVOKABLE void findFacesNow(const QStringList &photoIds);
+    /// Grupos de pessoas (aba Pessoas do painel).
+    Q_INVOKABLE QString createPersonGroup(const QString &name);
+    Q_INVOKABLE void renamePersonGroup(const QString &groupId, const QString &name);
+    Q_INVOKABLE void deletePersonGroup(const QString &groupId);
+    /// ``groupId`` vazio: tira do grupo.
+    Q_INVOKABLE void setPersonGroup(const QString &personId, const QString &groupId);
+    /// [{id, name}] — lido ao abrir o menu (tabela pequena).
+    Q_INVOKABLE QVariantList personGroups() const;
+    Q_INVOKABLE QString personGroupOf(const QString &personId) const;
     Q_INVOKABLE void refreshTree();
 
     // Filtro personalizado

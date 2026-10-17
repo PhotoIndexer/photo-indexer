@@ -179,6 +179,14 @@
         <source>Private</source>
         <translation>Privado</translation>
     </message>
+    <message>
+        <source>Named people</source>
+        <translation>Pessoas com nome</translation>
+    </message>
+    <message>
+        <source>Unnamed people</source>
+        <translation>Pessoas sem nome</translation>
+    </message>
 </context>
 <context>
     <name>Category</name>
@@ -882,6 +890,26 @@
     <message>
         <source>Back to the photos found</source>
         <translation>Voltar às fotos encontradas</translation>
+    </message>
+    <message>
+        <source>Faces similar to %1</source>
+        <translation>Rostos parecidos com %1</translation>
+    </message>
+    <message>
+        <source>Merge into %1</source>
+        <translation>Juntar em %1</translation>
+    </message>
+    <message>
+        <source>Merge people?</source>
+        <translation>Juntar as pessoas?</translation>
+    </message>
+    <message>
+        <source>All faces of &lt;b&gt;%1&lt;/b&gt; go to &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Todas as faces de &lt;b&gt;%1&lt;/b&gt; vão para &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Merge</source>
+        <translation>Juntar</translation>
     </message>
 </context>
 <context>
@@ -1591,6 +1619,58 @@
     <message>
         <source>Find copies in other places</source>
         <translation>Procurar cópias em outros lugares</translation>
+    </message>
+    <message>
+        <source>New group of people</source>
+        <translation>Novo grupo de pessoas</translation>
+    </message>
+    <message>
+        <source>New group</source>
+        <translation>Novo grupo</translation>
+    </message>
+    <message>
+        <source>Group name</source>
+        <translation>Nome do grupo</translation>
+    </message>
+    <message>
+        <source>For example: Family, Friends, Basketball team. Drag people onto the group, or right-click a person.</source>
+        <translation>Por exemplo: Família, Amigos, Time de basquete. Arraste pessoas para o grupo, ou clique com o botão direito numa pessoa.</translation>
+    </message>
+    <message>
+        <source>Move to group</source>
+        <translation>Mover para o grupo</translation>
+    </message>
+    <message>
+        <source>No other groups</source>
+        <translation>Nenhum outro grupo</translation>
+    </message>
+    <message>
+        <source>Rename group</source>
+        <translation>Renomear grupo</translation>
+    </message>
+    <message>
+        <source>Delete group…</source>
+        <translation>Excluir grupo…</translation>
+    </message>
+    <message>
+        <source>Delete group?</source>
+        <translation>Excluir grupo?</translation>
+    </message>
+    <message>
+        <source>Delete the group &lt;b&gt;%1&lt;/b&gt;? The people in it stay, back in “Named people” or “Unnamed people”.</source>
+        <translation>Excluir o grupo &lt;b&gt;%1&lt;/b&gt;? As pessoas dele continuam, de volta em “Pessoas com nome” ou “Pessoas sem nome”.</translation>
+    </message>
+    <message>
+        <source>New group with this person…</source>
+        <translation>Novo grupo com esta pessoa…</translation>
+    </message>
+    <message>
+        <source>Remove from group</source>
+        <translation>Tirar do grupo</translation>
+    </message>
+    <message>
+        <source>Find similar faces</source>
+        <translation>Procurar rostos parecidos</translation>
     </message>
 </context>
 <context>
@@ -2398,6 +2478,10 @@
         <source>Two people are merged automatically when their faces are, on average, at least this similar to each other — and never if they appear together in a photo.</source>
         <translation>Duas pessoas são juntadas automaticamente quando seus rostos são, em média, pelo menos tão parecidos assim — e nunca se aparecem juntas numa foto.</translation>
     </message>
+    <message>
+        <source>This group no longer exists.</source>
+        <translation>Este grupo não existe mais.</translation>
+    </message>
 </context>
 <context>
     <name>Modal</name>
@@ -2740,6 +2824,10 @@
     <message>
         <source>Open photo</source>
         <translation>Abrir a foto</translation>
+    </message>
+    <message>
+        <source>Find similar faces</source>
+        <translation>Procurar rostos parecidos</translation>
     </message>
 </context>
 <context>

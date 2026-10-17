@@ -160,6 +160,17 @@ Item {
                     onClicked: page.newAlbumRequested("")
                 }
                 IconButton {
+                    visible: App.library.tab === "people"
+                    diameter: 26
+                    iconSize: 14
+                    iconName: "plus"
+                    tooltip: qsTr("New group of people")
+                    onClicked: page.names.ask({ title: qsTr("New group"), label: qsTr("Group name"),
+                                                help: qsTr("For example: Family, Friends, Basketball team. Drag people onto the group, or right-click a person."),
+                                                confirmLabel: qsTr("Create") },
+                                              (name) => App.library.createPersonGroup(name))
+                }
+                IconButton {
                     visible: App.library.tab === "categories"
                     diameter: 26
                     iconSize: 14
@@ -242,6 +253,9 @@ Item {
                         App.library.selectNode(key);
                 }
                 onPhotosDropped: (key) => page.dropOnNode(key)
+                // Pessoa solta num grupo; em "Com nome"/"Sem nome", sai do grupo.
+                onPersonDropped: (personKey, key) => App.library.setPersonGroup(personKey.substring(7),
+                                                                                key.startsWith("pgroup:") ? key.substring(7) : "")
                 onContextRequested: (key, kind, row) => {
                     nodeMenu.key = key;
                     nodeMenu.kind = kind;
@@ -288,6 +302,15 @@ Item {
         onMoved: (v) => page.panelWidth = v
     }
 
+    // Pessoa no painel: mover para um grupo (entra no nodeMenu só para pessoas).
+    ChoiceMenu {
+        id: groupMenu
+        title: qsTr("Move to group")
+        choices: nodeMenu.groups.filter((g) => g.id !== nodeMenu.personGroup)
+        emptyText: qsTr("No other groups")
+        onPicked: (groupId) => App.library.setPersonGroup(nodeMenu.id, groupId)
+    }
+
     // Menu do nó (botão direito), conforme o tipo.
     AppMenu {
         id: nodeMenu
@@ -298,6 +321,33 @@ Item {
         readonly property string type: key.split(":")[0]
         readonly property string id: key.substring(key.indexOf(":") + 1)
         readonly property bool privateRoot: kind === "private-locked" || kind === "private-open"
+        /// Pessoa: o grupo dela e os grupos que existem (lidos ao abrir).
+        property string personGroup: ""
+        property var groups: []
+        property bool groupMenuIn: false
+        onAboutToShow: {
+            // O submenu "Mover para grupo" só existe no menu de uma pessoa
+            // (submenu não some com ``visible``): entra e sai daqui.
+            let at = -1;
+            for (let i = 0; i < count; ++i)
+                if (itemAt(i) === newGroupItem)
+                    at = i;
+            if (type === "person") {
+                personGroup = App.library.personGroupOf(id);
+                groups = App.library.personGroups();
+                if (!groupMenuIn && at >= 0) {
+                    insertMenu(at, groupMenu);
+                    groupMenuIn = true;
+                }
+            } else if (groupMenuIn) {
+                for (let i = 0; i < count; ++i)
+                    if (itemAt(i) && itemAt(i).subMenu === groupMenu) {
+                        takeMenu(i);
+                        break;
+                    }
+                groupMenuIn = false;
+            }
+        }
 
         AppMenuItem {
             text: qsTr("Show photos")
@@ -389,6 +439,52 @@ Item {
                 variant: "danger",
                 confirmLabel: qsTr("Delete")
             }, () => App.library.deleteCategory(nodeMenu.id))
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "pgroup"
+            height: visible ? implicitHeight : 0
+            text: qsTr("Rename…")
+            onTriggered: page.names.ask({ title: qsTr("Rename group"), label: qsTr("Group name"), text: nodeMenu.label },
+                                        (name) => App.library.renamePersonGroup(nodeMenu.id, name))
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "pgroup"
+            height: visible ? implicitHeight : 0
+            text: qsTr("Delete group…")
+            onTriggered: Dialogs.confirm({
+                title: qsTr("Delete group?"),
+                description: qsTr("Delete the group <b>%1</b>? The people in it stay, back in “Named people” or “Unnamed people”.")
+                    .arg(Messages.escapeHtml(nodeMenu.label)),
+                variant: "danger",
+                confirmLabel: qsTr("Delete")
+            }, () => App.library.deletePersonGroup(nodeMenu.id))
+        }
+        AppMenuItem {
+            id: newGroupItem
+            visible: nodeMenu.type === "person"
+            height: visible ? implicitHeight : 0
+            text: qsTr("New group with this person…")
+            onTriggered: page.names.ask({ title: qsTr("New group"), label: qsTr("Group name"), confirmLabel: qsTr("Create") },
+                                        (name) => {
+                                            const groupId = App.library.createPersonGroup(name);
+                                            if (groupId)
+                                                App.library.setPersonGroup(nodeMenu.id, groupId);
+                                        })
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "person" && nodeMenu.personGroup !== ""
+            height: visible ? implicitHeight : 0
+            text: qsTr("Remove from group")
+            onTriggered: App.library.setPersonGroup(nodeMenu.id, "")
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "person" && App.people.facesAvailable
+            height: visible ? implicitHeight : 0
+            text: qsTr("Find similar faces")
+            onTriggered: {
+                App.people.searchByPerson(nodeMenu.id);
+                App.page = "faceSearch";
+            }
         }
         AppMenuItem {
             visible: nodeMenu.type === "person"

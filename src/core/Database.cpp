@@ -17,7 +17,7 @@ namespace {
 
 // Passos do esquema (src/core/schema). Acrescente o próximo; nunca edite um
 // já publicado.
-constexpr int kSchemaSteps = 6;
+constexpr int kSchemaSteps = 7;
 
 /// Comandos de um passo: linhas acumuladas até uma que termina em ';'
 /// (comentários "--" e linhas vazias fora).
