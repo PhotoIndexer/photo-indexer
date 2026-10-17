@@ -20,12 +20,24 @@
 #include <QLoggingCategory>
 #include <QProcess>
 #include <QSettings>
+#include <QStorageInfo>
 
 Q_LOGGING_CATEGORY(lcApp, "photoidx.app")
 
 using namespace pix;
 
 namespace {
+
+/// Pontos de montagem prontos agora, em ordem (para comparar entre olhadas).
+QStringList mountedRoots()
+{
+    QStringList roots;
+    for (const QStorageInfo &v : QStorageInfo::mountedVolumes())
+        if (v.isValid() && v.isReady())
+            roots << v.rootPath();
+    roots.sort();
+    return roots;
+}
 
 AppController *g_instance = nullptr;
 
@@ -73,6 +85,12 @@ AppController::AppController(QObject *parent)
     // liga as etapas e revarre as pastas — o que mudou com o app fechado entra.
     m_catalog->refreshDisks();
     m_pipeline->startAll();
+    // Disco conectado ou desconectado com o app aberto: a lista de volumes
+    // montados é barata de ler (QStorageInfo, igual nos três SOs).
+    m_volumes = mountedRoots();
+    m_volumeWatch.setInterval(3000);
+    connect(&m_volumeWatch, &QTimer::timeout, this, &AppController::checkVolumes);
+    m_volumeWatch.start();
     if (m_catalog->setting(QStringLiteral("scan/onStartup"), true).toBool())
         m_pipeline->scan();
 }
@@ -230,6 +248,32 @@ void AppController::rescanFolder(const QString &folderId)
     m_pipeline->scan(folderId.isEmpty() ? QStringList() : QStringList{folderId});
 }
 
+void AppController::checkVolumes()
+{
+    const QStringList now = mountedRoots();
+    if (now == m_volumes)
+        return;
+    m_volumes = now;
+    QStringList back, gone;
+    if (m_catalog->refreshDisks(&back, &gone) == 0)
+        return;
+    QHash<QString, QString> labels;
+    for (const QVariant &d : m_catalog->disks())
+        labels.insert(d.toMap().value(QStringLiteral("id")).toString(), d.toMap().value(QStringLiteral("label")).toString());
+    // O que voltou: revarre (o que mudou com ele desconectado entra) e a
+    // fila parada dele anda sozinha (as etapas só pegam discos online).
+    QStringList folders;
+    for (const QString &disk : back) {
+        folders += m_catalog->folderIdsOnDisk(disk);
+        emit notice(QStringLiteral("disk.online"), {{QStringLiteral("label"), labels.value(disk)}});
+    }
+    for (const QString &disk : gone)
+        emit notice(QStringLiteral("disk.offline"), {{QStringLiteral("label"), labels.value(disk)}});
+    if (!folders.isEmpty())
+        m_pipeline->scan(folders);
+    emit foldersChanged();
+}
+
 void AppController::refreshDisks()
 {
     m_catalog->refreshDisks();
@@ -356,6 +400,11 @@ QString AppController::formatDateTime(const QString &wallClock) const
     // A data do catálogo é "de relógio" (sem fuso): mostra como está.
     const QDateTime dt = QDateTime::fromString(wallClock.left(19), QStringLiteral("yyyy-MM-ddTHH:mm:ss"));
     return dt.isValid() ? QLocale().toString(dt, QLocale::ShortFormat) : QString();
+}
+
+int AppController::keyboardModifiers() const
+{
+    return int(QGuiApplication::queryKeyboardModifiers());
 }
 
 QString AppController::fileUrl(const QString &path) const

@@ -2,10 +2,12 @@
 #include "core/Pipeline.h"
 
 #include "core/Catalog.h"
+#include "core/Classifier.h"
 #include "core/Crypto.h"
 #include "core/Paths.h"
 #include "core/Places.h"
 #include "core/Privacy.h"
+#include "core/Taxonomy.h"
 #include "imaging/Formats.h"
 #include "imaging/Hashes.h"
 #include "imaging/ImageIO.h"
@@ -24,6 +26,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 Q_LOGGING_CATEGORY(lcPipeline, "photoidx.pipeline")
 
@@ -195,8 +198,7 @@ IndexResult runIndex(const IndexJob &job)
 }
 
 CategorizeResult runCategorize(const CategorizeJob &job, imaging::ClipModel &clip,
-                               const std::shared_ptr<const QList<CategoryPrompt>> &prompts, float minProbability,
-                               int maxCategories)
+                               const std::shared_ptr<const QList<CategoryPrompt>> &prompts, const ClassifierParams &params)
 {
     CategorizeResult r;
     r.photoId = job.photoId;
@@ -218,37 +220,24 @@ CategorizeResult runCategorize(const CategorizeJob &job, imaging::ClipModel &cli
     r.embedding = image;
     if (!prompts || prompts->isEmpty())
         return r;
-    // Cosseno de cada categoria = o da melhor frase dela; probabilidade =
-    // softmax com a escala do CLIP (100), como no zero-shot do artigo.
-    QHash<QString, float> best;
+    // Cosseno de cada categoria = o da melhor frase dela; a regra que decide
+    // (limiar, "nenhuma", irmãs, o pai na dúvida) é a do core/Classifier.h.
+    QHash<QString, CategoryScore> best;
+    float background = std::numeric_limits<float>::quiet_NaN();
     for (const CategoryPrompt &p : *prompts) {
         const float s = imaging::dot(image, p.text);
+        if (p.categoryId.isEmpty()) {
+            if (std::isnan(background) || s > background)
+                background = s;
+            continue;
+        }
         auto it = best.find(p.categoryId);
-        if (it == best.end() || s > *it)
-            best.insert(p.categoryId, s);
+        if (it == best.end())
+            best.insert(p.categoryId, {p.categoryId, p.parentId, s});
+        else if (s > it->cosine)
+            it->cosine = s;
     }
-    float maxLogit = -1e9f;
-    for (float s : best)
-        maxLogit = std::max(maxLogit, 100.0f * s);
-    double total = 0.0;
-    QList<QPair<QString, float>> probs;
-    for (auto it = best.constBegin(); it != best.constEnd(); ++it) {
-        const double e = std::exp(100.0 * it.value() - maxLogit);
-        total += e;
-        probs.append({it.key(), float(e)});
-    }
-    for (auto &p : probs)
-        p.second = float(p.second / total);
-    std::sort(probs.begin(), probs.end(), [](const auto &a, const auto &b) { return a.second > b.second; });
-    for (const auto &p : probs) {
-        if (p.second < minProbability || r.categories.size() >= maxCategories)
-            break;
-        r.categories.append(p);
-    }
-    // Com ~140 categorias a probabilidade se espalha: sem nenhuma acima do
-    // limiar, fica o melhor palpite — se ele tiver ao menos 1/3 do limiar.
-    if (r.categories.isEmpty() && !probs.isEmpty() && probs.first().second >= minProbability / 3)
-        r.categories.append(probs.first());
+    r.categories = pickCategories(best.values(), background, params);
     return r;
 }
 
@@ -418,6 +407,8 @@ QVariantList Pipeline::status() const
                 for (const QString &k : {QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces"),
                                          QStringLiteral("privacy")})
                     m_pendingCache.insert(k, m_catalog->pendingCount(k));
+                // O total no mesmo instante que os pendentes: a fração não pula.
+                m_totalCache = m_catalog->stageTotals();
                 m_pendingTimer.restart();
             }
             pending = m_pendingCache.value(key);
@@ -438,7 +429,8 @@ QVariantList Pipeline::status() const
                            {QStringLiteral("done"), s.done},      {QStringLiteral("failed"), s.failed},
                            {QStringLiteral("pending"), pending},  {QStringLiteral("inFlight"), s.inFlight},
                            {QStringLiteral("threads"), s.threads}, {QStringLiteral("current"), s.current},
-                           {QStringLiteral("rate"), recent},      {QStringLiteral("detail"), detail}};
+                           {QStringLiteral("rate"), recent},      {QStringLiteral("detail"), detail},
+                           {QStringLiteral("total"), m_totalCache.value(key, -1)}};
     }
     return out;
 }
@@ -810,14 +802,18 @@ void Pipeline::preparePrompts()
         auto prompts = std::make_shared<QList<CategoryPrompt>>();
         QHash<QString, imaging::Embedding> computed = cache;
         try {
-            for (const auto &[categoryId, texts] : categories)
-                for (const QString &text : texts) {
-                    auto it = computed.find(text);
-                    if (it == computed.end())
-                        it = computed.insert(text, clip->encodeText(text));
-                    if (!it->empty())
-                        prompts->append({categoryId, *it});
-                }
+            auto add = [&](const QString &categoryId, const QString &parentId, const QString &text) {
+                auto it = computed.find(text);
+                if (it == computed.end())
+                    it = computed.insert(text, clip->encodeText(text));
+                if (!it->empty())
+                    prompts->append({categoryId, parentId, *it});
+            };
+            for (const Catalog::Classifiable &c : categories)
+                for (const QString &text : c.prompts)
+                    add(c.id, c.parentId, text);
+            for (const QString &text : backgroundPrompts())
+                add(QString(), QString(), text);
         } catch (const std::exception &e) {
             qCWarning(lcPipeline) << "Category prompts failed:" << e.what();
         }
@@ -842,18 +838,21 @@ void Pipeline::dispatchCategorize(const CategorizeJob &job)
     QPointer<Pipeline> self(this);
     const auto prompts = m_prompts;
     imaging::ClipModel *clip = m_clip.get();
-    const float minProbability = m_catalog->setting(QStringLiteral("ai/minProbability"), 0.15).toFloat();
-    const int maxCategories = m_catalog->setting(QStringLiteral("ai/maxCategories"), 3).toInt();
+    ClassifierParams params;
+    params.minProbability = m_catalog->setting(QStringLiteral("ai/minProbability"), params.minProbability).toFloat();
+    params.maxCategories = m_catalog->setting(QStringLiteral("ai/maxCategories"), params.maxCategories).toInt();
+    params.parentProbability = m_catalog->setting(QStringLiteral("ai/parentProbability"), params.parentProbability).toFloat();
+    params.siblingMargin = m_catalog->setting(QStringLiteral("ai/siblingMargin"), params.siblingMargin).toFloat();
     const auto gen = s.generation;
     const int myGen = gen->load();
     s.busy.insert(job.photoId);
     ++s.inFlight;
-    runInPool(*s.pool, [self, job, prompts, clip, minProbability, maxCategories, gen, myGen]() {
+    runInPool(*s.pool, [self, job, prompts, clip, params, gen, myGen]() {
         CategorizeResult r;
         const bool skip = gen->load() != myGen;
         if (!skip)
             r = guarded<CategorizeResult>(job.photoId, [&] {
-                return runCategorize(job, *clip, prompts, minProbability, maxCategories);
+                return runCategorize(job, *clip, prompts, params);
             });
         QMetaObject::invokeMethod(
             self.data(),

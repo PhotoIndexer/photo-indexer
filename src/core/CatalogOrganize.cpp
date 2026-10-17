@@ -120,6 +120,47 @@ void Catalog::removePhotosFromCategory(const QStringList &photoIds, const QStrin
     emit photosChanged();
 }
 
+void Catalog::movePhotosToCategory(const QStringList &photoIds, const QString &categoryId, const QString &fromCategoryId)
+{
+    // As categorias de onde a foto sai: a de origem e as de dentro dela.
+    QStringList from;
+    if (!fromCategoryId.isEmpty()) {
+        QSqlQuery q = m_db.exec(QStringLiteral("WITH RECURSIVE sub(id) AS (SELECT ? UNION ALL SELECT c.id FROM category c "
+                                               "JOIN sub ON c.parent_id = sub.id) SELECT id FROM sub"),
+                                {fromCategoryId});
+        while (q.next())
+            from << q.value(0).toString();
+        from.removeAll(categoryId);  // mover para dentro da própria: não tira a de destino
+    }
+    const QString placeholders = QStringList(from.size(), QStringLiteral("?")).join(u',');
+    Transaction tx(m_db);
+    for (const QString &id : photoIds) {
+        if (fromCategoryId.isEmpty()) {
+            m_db.exec(QStringLiteral("UPDATE photo_category SET source = 'rejected' WHERE photo_id = ? AND source = 'ai' "
+                                     "AND category_id != ?"),
+                      {id, categoryId});
+        } else if (!from.isEmpty()) {
+            QVariantList params{id};
+            for (const QString &c : from)
+                params << c;
+            m_db.exec(QStringLiteral("DELETE FROM photo_category WHERE photo_id = ? AND source = 'user' AND category_id IN (%1)")
+                          .arg(placeholders),
+                      params);
+            m_db.exec(QStringLiteral("UPDATE photo_category SET source = 'rejected' WHERE photo_id = ? AND source IN ('ai', 'rule') "
+                                     "AND category_id IN (%1)")
+                          .arg(placeholders),
+                      params);
+        }
+        m_db.exec(QStringLiteral("INSERT INTO photo_category(photo_id, category_id, score, source) VALUES(?, ?, 1, 'user') "
+                                 "ON CONFLICT(photo_id, category_id) DO UPDATE SET source = 'user', score = 1"),
+                  {id, categoryId});
+        applyRuleCategories(id);
+    }
+    tx.commit();
+    emit photosChanged();
+    emit treeChanged(QStringLiteral("categories"));
+}
+
 QVariantList Catalog::categoryChoices() const
 {
     QVariantList out;

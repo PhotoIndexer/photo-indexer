@@ -101,6 +101,11 @@ public:
     Q_INVOKABLE void makePublic(const QStringList &photoIds);
     Q_INVOKABLE void removeFromAlbum(const QStringList &photoIds, const QString &albumId);
     Q_INVOKABLE void addToCategory(const QStringList &photoIds, const QString &categoryId);
+    /// Corrigir a IA: a foto vai para a categoria e sai da do nó atual (ou,
+    /// fora de uma categoria, das que a IA pôs).
+    Q_INVOKABLE void moveToCategory(const QStringList &photoIds, const QString &categoryId);
+    /// Para o álbum; vindo de outro álbum (o nó atual), sai dele.
+    Q_INVOKABLE void moveToAlbum(const QStringList &photoIds, const QString &albumId);
     Q_INVOKABLE void removeFromCategory(const QStringList &photoIds, const QString &categoryId);
     Q_INVOKABLE QString createAlbum(const QString &parentId, const QString &name);
     Q_INVOKABLE void renameAlbum(const QString &albumId, const QString &name);

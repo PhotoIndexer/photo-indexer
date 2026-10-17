@@ -4,6 +4,7 @@
 // privadas (criptografia, cofre, cifrar/decifrar os arquivos de verdade).
 
 #include "core/Catalog.h"
+#include "core/Classifier.h"
 #include "core/Crypto.h"
 #include "core/Disks.h"
 #include "core/HashTree.h"
@@ -18,10 +19,13 @@
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
+#include <QMap>
 #include <QSignalSpy>
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <limits>
 
 using namespace pix;
 
@@ -144,8 +148,23 @@ private slots:
         QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT count(*) FROM category WHERE parent_id IS NULL")).toInt(), 16);
         QVERIFY(!catalog.classifiableCategories().isEmpty());
         // As de regra não vão para o CLIP.
-        for (const auto &[id, prompts] : catalog.classifiableCategories())
-            QVERIFY(!prompts.isEmpty());
+        for (const Catalog::Classifiable &c : catalog.classifiableCategories())
+            QVERIFY(!c.prompts.isEmpty());
+        // Ao abrir, a frase de uma versão anterior vira a atual; a que a
+        // pessoa escreveu fica.
+        const QString file = m_home.filePath(QStringLiteral("prompts.sqlite3"));
+        {
+            Catalog old;
+            old.open(file);
+            old.db().exec(QStringLiteral("UPDATE category SET prompt = 'people playing basketball' WHERE builtin_key = 'sports.basketball'"));
+            old.db().exec(QStringLiteral("UPDATE category SET prompt = 'minha frase' WHERE builtin_key = 'sports.soccer'"));
+        }
+        Catalog reopened;
+        reopened.open(file);
+        QVERIFY(reopened.db().scalar(QStringLiteral("SELECT prompt FROM category WHERE builtin_key = 'sports.basketball'"))
+                    .toString().contains(QLatin1String("hoop")));
+        QCOMPARE(reopened.db().scalar(QStringLiteral("SELECT prompt FROM category WHERE builtin_key = 'sports.soccer'")).toString(),
+                 QStringLiteral("minha frase"));
         QCOMPARE(QFileInfo(AppPaths::thumbnailPath(QStringLiteral("abc"), QDate(2024, 5, 3))).absolutePath(),
                  QDir(m_home.path()).filePath(QStringLiteral("thumbnail/2024/05")));
     }
@@ -467,6 +486,122 @@ private slots:
         while (plan.next())
             detail += plan.value(3).toString() + u' ';
         QVERIFY2(detail.contains(QLatin1String("photo_queue_index")), qPrintable(detail));
+    }
+
+    void classifierRule()
+    {
+        // Cossenos do CLIP: 0,01 a mais = e¹ (~2,7×) na probabilidade.
+        const ClassifierParams params;
+        auto pick = [&](QList<CategoryScore> scores, float background = std::numeric_limits<float>::quiet_NaN()) {
+            QStringList ids;
+            for (const auto &[id, p] : pickCategories(scores, background, params))
+                ids << id;
+            return ids;
+        };
+        // Vencedora clara.
+        QCOMPARE(pick({{"basketball", "sports", 0.30f}, {"volleyball", "sports", 0.28f}, {"beach", "nature", 0.24f}}),
+                 QStringList{"basketball"});
+        // A "nenhuma" vence: sem categoria (em vez de um palpite).
+        QCOMPARE(pick({{"basketball", "sports", 0.25f}, {"beach", "nature", 0.24f}}, 0.29f), QStringList());
+        // Empate entre irmãs (basquete × vôlei): o grupo.
+        QCOMPARE(pick({{"basketball", "sports", 0.280f}, {"volleyball", "sports", 0.278f}, {"beach", "nature", 0.20f}}),
+                 QStringList{"sports"});
+        // Fraca sozinha, mas o grupo inteiro é forte: o grupo.
+        QCOMPARE(pick({{"a", "event", 0.270f}, {"b", "event", 0.262f}, {"c", "event", 0.262f}, {"d", "event", 0.262f},
+                       {"x", "nature", 0.20f}}),
+                 QStringList{"event"});
+        // Dois grupos diferentes acima do limiar: os dois; nunca duas irmãs.
+        QCOMPARE(pick({{"basketball", "sports", 0.300f}, {"group", "people", 0.299f}, {"volleyball", "sports", 0.20f}}),
+                 (QStringList{"basketball", "group"}));
+        // Categorias na raiz (sem pai), cada uma abaixo do limiar: não há
+        // grupo para cair.
+        QCOMPARE(pick({{"mine", "", 0.25f}, {"other", "", 0.249f}, {"third", "", 0.248f}}), QStringList());
+        // Nada abaixo do limiar entra (não há mais o "melhor palpite").
+        QList<CategoryScore> flat;
+        for (int i = 0; i < 20; ++i)
+            flat.append({QString::number(i), QStringLiteral("g%1").arg(i), 0.25f});
+        QCOMPARE(pick(flat), QStringList());
+    }
+
+    void moveToCategory()
+    {
+        Catalog catalog;
+        catalog.open(QString());
+        const QStringList photos = seedPhotos(catalog, 2, m_photos.path() + QStringLiteral("/move"));
+        auto cat = [&](const char *key) {
+            return catalog.db().scalar(QStringLiteral("SELECT id FROM category WHERE builtin_key = ?"), {QString::fromLatin1(key)}).toString();
+        };
+        const QString volley = cat("sports.volleyball"), soccer = cat("sports.soccer"), basket = cat("sports.basketball"),
+                      sports = cat("sports"), group = cat("people.group"), mine = catalog.createCategory(QString(), QStringLiteral("Minha"));
+        // A IA pôs vôlei e futebol; a pessoa pôs "Minha" e "Grupo".
+        CategorizeResult r;
+        r.photoId = photos[0];
+        r.ok = true;
+        r.categories = {{volley, 0.6f}, {soccer, 0.3f}};
+        catalog.applyCategorize(r);
+        catalog.addPhotosToCategory({photos[0]}, mine);
+        catalog.addPhotosToCategory({photos[0]}, group);
+        auto sources = [&](const QString &photo) {
+            QMap<QString, QString> out;
+            QSqlQuery q = catalog.db().exec(QStringLiteral("SELECT category_id, source FROM photo_category WHERE photo_id = ?"), {photo});
+            while (q.next())
+                out.insert(q.value(0).toString(), q.value(1).toString());
+            return out;
+        };
+        // Visto dentro de "Esportes": sai de Esportes e das de dentro, vai
+        // para basquete; as outras da pessoa ficam.
+        catalog.movePhotosToCategory({photos[0]}, basket, sports);
+        auto s0 = sources(photos[0]);
+        QCOMPARE(s0.value(basket), QStringLiteral("user"));
+        QCOMPARE(s0.value(volley), QStringLiteral("rejected"));
+        QCOMPARE(s0.value(soccer), QStringLiteral("rejected"));
+        QCOMPARE(s0.value(mine), QStringLiteral("user"));
+        QCOMPARE(s0.value(group), QStringLiteral("user"));
+        // A IA não devolve o vôlei rejeitado.
+        catalog.applyCategorize(r);
+        QCOMPARE(sources(photos[0]).value(volley), QStringLiteral("rejected"));
+        GridQuery q;
+        q.node = QStringLiteral("cat:") + volley;
+        QCOMPARE(catalog.photos(q).size(), 0);
+        q.node = QStringLiteral("cat:") + basket;
+        QCOMPARE(catalog.photos(q).size(), 1);
+        // Fora de uma categoria: sai de todas as que a IA pôs.
+        CategorizeResult r1;
+        r1.photoId = photos[1];
+        r1.ok = true;
+        r1.categories = {{volley, 0.7f}, {group, 0.5f}};
+        catalog.applyCategorize(r1);
+        catalog.movePhotosToCategory({photos[1]}, basket);
+        auto s1 = sources(photos[1]);
+        QCOMPARE(s1.value(basket), QStringLiteral("user"));
+        QCOMPARE(s1.value(volley), QStringLiteral("rejected"));
+        QCOMPARE(s1.value(group), QStringLiteral("rejected"));
+    }
+
+    void diskComesBackOnline()
+    {
+        // Disco que estava desconectado ao abrir e foi montado depois: o
+        // refresh o marca online e diz qual voltou (o app revarre as pastas).
+        Catalog catalog;
+        catalog.open(QString());
+        const QString dir = m_photos.path() + QStringLiteral("/back");
+        QDir().mkpath(dir);
+        const QString folderId = catalog.addFolder(dir);
+        const QString diskId = catalog.db().scalar(QStringLiteral("SELECT disk_id FROM folder WHERE id = ?"), {folderId}).toString();
+        catalog.db().exec(QStringLiteral("UPDATE disk SET online = 0 WHERE id = ?"), {diskId});
+        QSignalSpy changed(&catalog, &Catalog::disksChanged);
+        QStringList back, gone;
+        QVERIFY(catalog.refreshDisks(&back, &gone) >= 1);
+        QCOMPARE(back, QStringList{diskId});
+        QVERIFY(gone.isEmpty());
+        QCOMPARE(changed.size(), 1);
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT online FROM disk WHERE id = ?"), {diskId}).toInt(), 1);
+        QCOMPARE(catalog.folderIdsOnDisk(diskId), QStringList{folderId});
+        // Nada mudou: nem aviso, nem sinal.
+        back.clear();
+        QCOMPARE(catalog.refreshDisks(&back), 0);
+        QVERIFY(back.isEmpty());
+        QCOMPARE(changed.size(), 1);
     }
 
     void cryptoFormat()

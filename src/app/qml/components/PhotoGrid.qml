@@ -10,6 +10,8 @@ import PhotoIDX
 //
 //   Clique: seleciona (Ctrl liga/desliga, Shift estende)   Duplo clique/Enter: abre
 //   Ctrl + roda do mouse: tamanho das miniaturas            Botão direito: menu
+//   Arrastar (``dragEnabled``): as selecionadas vão para uma categoria ou um
+//   álbum do painel lateral (TreeList, chave "photoidx/photos")
 GridView {
     id: grid
 
@@ -18,6 +20,8 @@ GridView {
     property int thumbSize: App.library.thumbSize
     /// Mostra a similaridade (busca por IA/rosto) no canto.
     property bool showScore: false
+    /// Arrastar as fotos selecionadas para o painel lateral (só a biblioteca).
+    property bool dragEnabled: false
 
     signal opened(string photoId)
     signal contextRequested(int index, Item cell)
@@ -65,6 +69,47 @@ GridView {
     WheelHandler {
         acceptedModifiers: Qt.ControlModifier
         onWheel: (event) => App.library.thumbSize = App.library.thumbSize + (event.angleDelta.y > 0 ? 20 : -20)
+    }
+
+    // O que segue o ponteiro enquanto arrasta: a miniatura de onde saiu e
+    // quantas fotos vão. Na camada de cima da janela (passa por cima do
+    // painel lateral).
+    Item {
+        id: dragProxy
+        property string source: ""
+        property int count: 0
+        parent: T.Overlay.overlay
+        width: 88
+        height: 88
+        z: 1000
+        visible: Drag.active
+        Drag.keys: ["photoidx/photos"]
+        Drag.hotSpot.x: width / 2
+        Drag.hotSpot.y: height / 2
+
+        Rectangle {
+            anchors.fill: parent
+            radius: Theme.radiusMd
+            color: Theme.card
+            border.width: 2
+            border.color: Theme.brand400
+            opacity: 0.95
+            Image {
+                anchors.fill: parent
+                anchors.margins: 4
+                source: dragProxy.source
+                sourceSize: Qt.size(160, 160)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                cache: !dragProxy.source.startsWith("image://private")
+            }
+        }
+        Badge {
+            x: parent.width - width / 2 - 4
+            y: -height / 2 + 4
+            text: dragProxy.count
+            variant: "brand"
+        }
     }
 
     delegate: Item {
@@ -169,7 +214,20 @@ GridView {
             anchors.fill: parent
             hoverEnabled: true
             acceptedButtons: Qt.LeftButton | Qt.RightButton
-            cursorShape: Qt.PointingHandCursor
+            cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+            // Arrastar com o botão esquerdo leva a seleção; a grade não rola
+            // pelo arrasto do mouse (a roda e a barra rolam).
+            drag.target: grid.dragEnabled ? dragProxy : null
+            drag.threshold: 8
+            preventStealing: grid.dragEnabled
+            onPressed: (event) => {
+                if (!grid.dragEnabled || event.button !== Qt.LeftButton)
+                    return;
+                const p = mouse.mapToItem(dragProxy.parent, event.x, event.y);
+                dragProxy.x = p.x - dragProxy.width / 2;
+                dragProxy.y = p.y - dragProxy.height / 2;
+                dragProxy.source = cell.thumbUrl;
+            }
             onClicked: (event) => {
                 grid.forceActiveFocus();
                 grid.currentIndex = cell.index;
@@ -187,9 +245,25 @@ GridView {
             }
         }
 
+        Connections {
+            target: mouse.drag
+            function onActiveChanged() {
+                if (mouse.drag.active) {
+                    // Arrastou uma que não estava selecionada: vai só ela.
+                    if (!cell.selected)
+                        grid.photos.click(cell.index, 0);
+                    dragProxy.count = grid.photos.selectedCount;
+                    dragProxy.Drag.active = true;
+                } else if (dragProxy.Drag.active) {
+                    dragProxy.Drag.drop();
+                    dragProxy.Drag.active = false;
+                }
+            }
+        }
+
         Tip {
             text: cell.name
-            visible: mouse.containsMouse && grid.cellWidth < 120
+            visible: mouse.containsMouse && grid.cellWidth < 120 && !mouse.drag.active
         }
     }
 }

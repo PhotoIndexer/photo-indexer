@@ -84,7 +84,13 @@ frases que descrevem cada categoria e recebe as mais prováveis. São 16
 categorias (Pessoas, Paisagem & Natureza, Cidade & Arquitetura, Festa &
 Evento, Esportes, Veículos, Animais, Comida & Bebida, Viagem, Trabalho &
 Educação, Objetos, Arte & Cultura, Saúde, Tecnologia, Abstrato, Outros) e
-mais de 130 subcategorias. Uma foto pode estar em várias.
+mais de 130 subcategorias. Uma foto pode estar em até duas, de grupos
+diferentes.
+
+- A IA prefere **errar para o geral a errar o específico**: na dúvida entre
+  categorias parecidas (basquete ou vôlei? batizado ou formatura?), a foto vai
+  para o grupo (**Esportes**, **Festa & Evento**); se nada descreve a foto, ela
+  fica em **Sem categoria**, sem palpite. Os limiares ficam em **Tarefas**.
 
 - Crie, renomeie, aninhe e apague categorias (botão direito na aba
   **Categorias**). Em **Frases da IA…** você ensina, em inglês, o que a IA deve

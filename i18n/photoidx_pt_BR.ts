@@ -778,6 +778,10 @@
         <source>Screenshot / Document</source>
         <translation>Captura de tela / Documento</translation>
     </message>
+    <message>
+        <source>Logo / Icon / Graphic</source>
+        <translation>Logo / Ícone / Gráfico</translation>
+    </message>
 </context>
 <context>
     <name>ChoiceMenu</name>
@@ -1513,6 +1517,22 @@
         <source>Make private…</source>
         <translation>Tornar privada…</translation>
     </message>
+    <message>
+        <source>Move to…</source>
+        <translation>Mover para…</translation>
+    </message>
+    <message>
+        <source>Take the selected photos out of “%1” and put them in another category. Tip: you can also drag them onto a category in the side panel.</source>
+        <translation>Tira as fotos selecionadas de “%1” e põe em outra categoria. Dica: você também pode arrastá-las para uma categoria no painel lateral.</translation>
+    </message>
+    <message>
+        <source>Replace the AI&apos;s categories of the selected photos with another one. Tip: you can also drag them onto a category in the side panel.</source>
+        <translation>Troca as categorias que a IA deu às fotos selecionadas por outra. Dica: você também pode arrastá-las para uma categoria no painel lateral.</translation>
+    </message>
+    <message>
+        <source>Move to category</source>
+        <translation>Mover para a categoria</translation>
+    </message>
 </context>
 <context>
     <name>Main</name>
@@ -2181,14 +2201,6 @@
         <translation>Juntar só com confiança de detecção de</translation>
     </message>
     <message>
-        <source>How sure the AI must be to put a photo in a category. Higher: fewer, more precise categories.</source>
-        <translation>Quão segura a IA precisa estar para pôr uma foto numa categoria. Mais alto: menos categorias, mais precisas.</translation>
-    </message>
-    <message>
-        <source>At most this many categories per photo, the most likely first.</source>
-        <translation>No máximo esta quantidade de categorias por foto, as mais prováveis primeiro.</translation>
-    </message>
-    <message>
         <source>Photos below this sharpness go to “Blurry / Low quality”.</source>
         <translation>Fotos abaixo desta nitidez vão para “Imagem borrada / Baixa qualidade”.</translation>
     </message>
@@ -2275,6 +2287,38 @@
     <message>
         <source>Locked</source>
         <translation>Trancado</translation>
+    </message>
+    <message>
+        <source>Use the main group when unsure</source>
+        <translation>Usar o grupo na dúvida</translation>
+    </message>
+    <message>
+        <source>Unsure between similar categories from</source>
+        <translation>Dúvida entre categorias parecidas a partir de</translation>
+    </message>
+    <message>
+        <source>How sure the AI must be to put a photo in a category. Higher: fewer, more precise categories. Photos that match nothing stay uncategorized.</source>
+        <translation>Quanta certeza a IA precisa ter para pôr a foto numa categoria. Maior: menos categorias, mais precisas. Fotos que não combinam com nenhuma ficam sem categoria.</translation>
+    </message>
+    <message>
+        <source>At most this many categories per photo, the most likely first, never two from the same group.</source>
+        <translation>No máximo esta quantidade de categorias por foto, a mais provável primeiro, nunca duas do mesmo grupo.</translation>
+    </message>
+    <message>
+        <source>When the AI cannot tell similar categories apart (basketball or volleyball?), the photo goes to the group (Sports) if the group is at least this likely.</source>
+        <translation>Quando a IA não consegue separar categorias parecidas (basquete ou vôlei?), a foto vai para o grupo (Esportes) se o grupo tiver ao menos esta probabilidade.</translation>
+    </message>
+    <message>
+        <source>Two categories of the same group count as a tie when the second has at least this fraction of the first&apos;s confidence. Lower: more photos go to the group.</source>
+        <translation>Duas categorias do mesmo grupo contam como empate quando a segunda tem ao menos esta fração da confiança da primeira. Menor: mais fotos vão para o grupo.</translation>
+    </message>
+    <message>
+        <source>“%1” is connected again. Looking for new and changed photos…</source>
+        <translation>“%1” foi conectado de novo. Procurando fotos novas e alteradas…</translation>
+    </message>
+    <message>
+        <source>“%1” was disconnected. Its photos stay browsable through the thumbnails.</source>
+        <translation>“%1” foi desconectado. As fotos dele continuam navegáveis pelas miniaturas.</translation>
     </message>
 </context>
 <context>

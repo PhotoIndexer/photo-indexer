@@ -5,7 +5,8 @@ import PhotoIDX
 
 // A árvore de uma aba do painel lateral (App.library.tree): uma linha por nó
 // visível, recuada pela profundidade. Clique escolhe o nó (a grade mostra as
-// fotos dele); a seta abre/fecha; o botão direito pede o menu do nó.
+// fotos dele); a seta abre/fecha; o botão direito pede o menu do nó. Fotos
+// arrastadas da grade (PhotoGrid) podem cair numa categoria ou num álbum.
 ListView {
     id: list
 
@@ -14,6 +15,8 @@ ListView {
 
     signal picked(string key)
     signal contextRequested(string key, string kind, Item row)
+    /// Fotos da grade soltas neste nó (categoria ou álbum).
+    signal photosDropped(string key)
 
     clip: true
     model: App.library.tree
@@ -36,6 +39,7 @@ ListView {
 
         readonly property bool selected: key === list.current
         readonly property bool offline: kind === "offline"
+        readonly property bool dropTarget: (key.startsWith("cat:") || key.startsWith("album:")) && kind !== "private-locked"
 
         width: ListView.view.width
         implicitHeight: 28
@@ -56,7 +60,26 @@ ListView {
             radius: Theme.radiusMd
             x: 4
             width: parent.width - 8
-            color: row.selected ? Theme.brandSoft : (row.hovered ? Theme.muted : "transparent")
+            color: drop.containsDrag ? Theme.brandSoft : row.selected ? Theme.brandSoft : (row.hovered ? Theme.muted : "transparent")
+            border.width: drop.containsDrag ? 1 : 0
+            border.color: Theme.brand400
+        }
+
+        DropArea {
+            id: drop
+            anchors.fill: parent
+            enabled: row.dropTarget
+            keys: ["photoidx/photos"]
+            onDropped: (event) => {
+                event.accept(Qt.MoveAction);
+                list.photosDropped(row.key);
+            }
+            // Parado em cima de um nó fechado: abre (para chegar nas de dentro).
+            Timer {
+                interval: 700
+                running: drop.containsDrag && row.hasChildren && !row.expanded
+                onTriggered: App.library.tree.toggle(row.key)
+            }
         }
 
         contentItem: Row {

@@ -120,8 +120,11 @@ public:
     ///   model, mountPoint, totalBytes, online, folderCount, photoCount}]
     QVariantList disks() const;
     /// Reconhece os discos montados agora: online/offline e, se um voltou em
-    /// outro ponto de montagem, refaz os caminhos. Devolve quantos mudaram.
-    int refreshDisks();
+    /// outro ponto de montagem, refaz os caminhos. Devolve quantos mudaram;
+    /// em ``cameOnline``/``wentOffline``, os ids dos que voltaram/saíram.
+    int refreshDisks(QStringList *cameOnline = nullptr, QStringList *wentOffline = nullptr);
+    /// As pastas indexadas de um disco.
+    QStringList folderIdsOnDisk(const QString &diskId) const;
 
     // ------------------------------------------------------------------ //
     // Searcher -> catálogo
@@ -142,6 +145,9 @@ public:
     QList<FaceJob> nextFaceJobs(int limit, const QSet<QString> &busy) const;
     /// Pendentes de uma etapa ("index" | "categorize" | "faces").
     int pendingCount(const QString &stage) const;
+    /// O universo de cada etapa ("index", "categorize", "faces", "privacy"),
+    /// para a fração feita: uma passada na tabela.
+    QHash<QString, int> stageTotals() const;
     /// Volta à fila: ``scope`` "errors" (só as que falharam) ou "all".
     int requeue(const QString &stage, const QString &scope);
 
@@ -153,8 +159,14 @@ public:
     // Categorizer (CatalogAi.cpp)
     // ------------------------------------------------------------------ //
 
-    /// Categorias que a IA pode atribuir: (id, frases do CLIP).
-    QList<QPair<QString, QStringList>> classifiableCategories() const;
+    /// Categorias que a IA pode atribuir: {id, pai, frases do CLIP}.
+    struct Classifiable
+    {
+        QString id;
+        QString parentId;
+        QStringList prompts;
+    };
+    QList<Classifiable> classifiableCategories() const;
     void applyCategorize(const CategorizeResult &result);
     /// Fotos ordenadas pela similaridade com um embedding de texto do CLIP.
     QList<QPair<QString, float>> rankByEmbedding(const imaging::Embedding &text, float minScore, int limit);
@@ -247,6 +259,11 @@ public:
     void setCategoryPrompt(const QString &categoryId, const QString &prompt);
     void addPhotosToCategory(const QStringList &photoIds, const QString &categoryId);
     void removePhotosFromCategory(const QStringList &photoIds, const QString &categoryId);
+    /// Corrigir a IA: a foto vai para ``categoryId`` (posta pela pessoa) e sai
+    /// de ``fromCategoryId`` e das de dentro dela; sem ``fromCategoryId``, sai
+    /// de todas as que a IA pôs. As que a pessoa pôs em outras ficam. O que
+    /// sai como da IA vira "rejeitada": a IA não põe de volta.
+    void movePhotosToCategory(const QStringList &photoIds, const QString &categoryId, const QString &fromCategoryId = {});
     /// [{id, parentId, name, depth}] para escolher categoria (menus).
     QVariantList categoryChoices() const;
     QString categoryName(const QString &categoryId) const;
@@ -301,6 +318,8 @@ signals:
     /// Mudou a estrutura de uma aba ("categories", "albums", "people", "folders"...).
     void treeChanged(const QString &tab);
     void peopleChanged();
+    /// Um disco entrou ou saiu (online/offline, outro ponto de montagem).
+    void disksChanged();
     /// O cofre abriu/fechou ou a fila de privadas mudou.
     void privacyChanged();
 

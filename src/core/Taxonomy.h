@@ -11,6 +11,7 @@
 
 #include <QList>
 #include <QString>
+#include <QStringList>
 
 namespace pix {
 
@@ -36,5 +37,13 @@ QString builtinCategoryName(const QString &key);
 
 /// Frases do CLIP de um ``prompt`` gravado ('|'); sem frase, "a photo of <nome>".
 QStringList clipPrompts(const QString &prompt, const QString &name);
+
+/// Frases de "nenhuma categoria" (core/Classifier.h): quando vencem, a foto
+/// fica sem categoria.
+const QStringList &backgroundPrompts();
+
+/// As frases que uma embutida já teve em versões anteriores ('|' como no
+/// banco): a que ainda estiver gravada é atualizada no seedCategories.
+QStringList previousPrompts(const QString &key);
 
 } // namespace pix

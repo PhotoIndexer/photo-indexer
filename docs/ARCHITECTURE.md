@@ -41,7 +41,7 @@ nada; o banco é só da thread principal.
 |---|---|---|
 | **Searcher** | desce pelas pastas indexadas (uma por thread), pula ocultas, `@eaDir`, lixeiras e a pasta de dados do app; arquivo novo ou alterado (tamanho/data) → pendente; o que sumiu → `missing` | — |
 | **Indexer** | `imaging::inspect`: EXIF completo, data de criação (EXIF; sem EXIF, a do arquivo), pixels orientados, `picture_hash`, hash perceptual, nitidez, miniatura (480 px) em `thumbnail/YYYY/MM/<uuid>.jpg`, GPS → lugar | `state` |
-| **Categorizer** | CLIP: embedding da miniatura (guardado para a busca) e zero-shot contra as frases das categorias (softmax com escala 100; até 3 acima de 15%, ou o melhor palpite); regras: borrada (nitidez), duplicata (hashes), sem categoria | `ai_state` |
+| **Categorizer** | CLIP: embedding da miniatura (guardado para a busca) e zero-shot contra as frases das categorias (`core/Classifier`: softmax com escala 100 junto de frases de "nenhuma"; até 2 de grupos diferentes acima de 45%; na dúvida entre irmãs, o grupo pai); regras: borrada (nitidez), duplicata (hashes), sem categoria | `ai_state` |
 | **Faces** | SCRFD + ArcFace na imagem a 1920 px; recorte de cada rosto em `faces/YYYY/MM/<uuid>.jpg`; agrupamento em pessoas | `faces_state` |
 | **Privacy** | fotos privadas: cifra o original em `<nome>.photoidxe` (mesma pasta) e a miniatura em `.pidx`, decifra as que voltam a ser públicas, recifra com a chave nova; só com o cofre aberto | `private_state` |
 
@@ -83,7 +83,25 @@ para o CLIP; a pessoa cria, renomeia, aninha e apaga as dela (o nome vira a
 frase, ou ela define frases próprias). Foto ↔ categoria é N:N com origem:
 `ai`, `user`, `rule` e `rejected` (a pessoa tirou: a IA não põe de volta).
 Reclassificar é barato: o embedding de cada foto fica guardado e só a
-comparação é refeita. Sem nenhuma categoria acima do limiar (15%), fica o melhor palpite, se tiver ao menos 5%.
+comparação é refeita.
+
+A regra (`core/Classifier`) foi calibrada com 100 fotos de um catálogo real
+rotuladas à mão (de 24 para 64 inteiramente certas; precisão de 0,33 para
+0,86), reclassificando offline pelos embeddings guardados:
+
+- frases de **"nenhuma"** ("a photo", "a blank image"…) entram na softmax;
+  quando vencem, a foto fica sem categoria — não há mais "melhor palpite";
+- limiar de **45%** e no máximo 2 categorias, **nunca duas irmãs**;
+- **na dúvida entre irmãs** (a segunda com ≥ 30% da primeira), ou com a
+  melhor fraca sozinha mas o grupo forte (≥ 50%), vai o **pai**: o CLIP
+  int8 confunde basquete, vôlei e futsal numa quadra (cossenos a ~0,01), mas
+  acerta "Esportes";
+- frases que descrevem o que distingue cada esporte/evento, e a categoria
+  "Logo / Ícone / Gráfico" (ícones e logos iam para "exame médico").
+
+Os quatro números são ajustes na tela de Tarefas (`ai/minProbability`,
+`ai/maxCategories`, `ai/parentProbability`, `ai/siblingMargin`). Frase
+embutida que a pessoa não mudou é atualizada ao abrir (`previousPrompts`).
 
 ### Pessoas
 

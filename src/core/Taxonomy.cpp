@@ -2,6 +2,7 @@
 #include "core/Taxonomy.h"
 
 #include <QCoreApplication>
+#include <QHash>
 
 namespace pix {
 
@@ -53,12 +54,12 @@ const QList<BuiltinCategory> kCategories = {
     BuiltinCategory{"event.wedding", "event", QT_TRANSLATE_NOOP("Category", "Wedding"), "a wedding ceremony with a bride and groom"},
     BuiltinCategory{"event.engagement", "event", QT_TRANSLATE_NOOP("Category", "Engagement"), "an engagement photo with a ring"},
     BuiltinCategory{"event.babyshower", "event", QT_TRANSLATE_NOOP("Category", "Baby shower / Gender reveal"), "a baby shower party|a gender reveal party"},
-    BuiltinCategory{"event.baptism", "event", QT_TRANSLATE_NOOP("Category", "Baptism"), "a baptism ceremony in a church"},
-    BuiltinCategory{"event.graduation", "event", QT_TRANSLATE_NOOP("Category", "Graduation"), "a graduation ceremony with caps and gowns"},
-    BuiltinCategory{"event.debutante", "event", QT_TRANSLATE_NOOP("Category", "Sweet fifteen / Debutante"), "a quinceanera party with a girl in a ball gown"},
+    BuiltinCategory{"event.baptism", "event", QT_TRANSLATE_NOOP("Category", "Baptism"), "a baby being baptized in a church|a baptism ceremony at a church font"},
+    BuiltinCategory{"event.graduation", "event", QT_TRANSLATE_NOOP("Category", "Graduation"), "a graduation ceremony with caps and gowns|students receiving diplomas at a graduation ceremony|children at a school graduation ceremony"},
+    BuiltinCategory{"event.debutante", "event", QT_TRANSLATE_NOOP("Category", "Sweet fifteen / Debutante"), "a quinceanera party with a girl in a ball gown|a debutante ball with a girl in a long gown"},
     BuiltinCategory{"event.barbecue", "event", QT_TRANSLATE_NOOP("Category", "Barbecue party"), "people at a barbecue party"},
-    BuiltinCategory{"event.junefestival", "event", QT_TRANSLATE_NOOP("Category", "June festival"), "a brazilian festa junina with colorful flags and bonfire"},
-    BuiltinCategory{"event.christmas", "event", QT_TRANSLATE_NOOP("Category", "Christmas"), "a christmas celebration with a christmas tree"},
+    BuiltinCategory{"event.junefestival", "event", QT_TRANSLATE_NOOP("Category", "June festival"), "a brazilian festa junina with colorful flags and a bonfire|people in country costumes at a june festival"},
+    BuiltinCategory{"event.christmas", "event", QT_TRANSLATE_NOOP("Category", "Christmas"), "a christmas tree with decorations|a christmas celebration with santa claus"},
     BuiltinCategory{"event.newyear", "event", QT_TRANSLATE_NOOP("Category", "New Year's Eve"), "new year's eve fireworks celebration"},
     BuiltinCategory{"event.carnival", "event", QT_TRANSLATE_NOOP("Category", "Carnival"), "a carnival parade with costumes"},
     BuiltinCategory{"event.easter", "event", QT_TRANSLATE_NOOP("Category", "Easter"), "easter eggs and an easter celebration"},
@@ -72,26 +73,26 @@ const QList<BuiltinCategory> kCategories = {
 
     // 5. Esportes
     BuiltinCategory{"sports", nullptr, QT_TRANSLATE_NOOP("Category", "Sports"), ""},
-    BuiltinCategory{"sports.soccer", "sports", QT_TRANSLATE_NOOP("Category", "Soccer (field, society, futsal)"), "people playing soccer|a football match"},
-    BuiltinCategory{"sports.basketball", "sports", QT_TRANSLATE_NOOP("Category", "Basketball"), "people playing basketball"},
-    BuiltinCategory{"sports.volleyball", "sports", QT_TRANSLATE_NOOP("Category", "Volleyball (court, beach)"), "people playing volleyball|a beach volleyball game"},
-    BuiltinCategory{"sports.tennis", "sports", QT_TRANSLATE_NOOP("Category", "Tennis / Beach tennis / Padel"), "people playing tennis|a padel match"},
+    BuiltinCategory{"sports.soccer", "sports", QT_TRANSLATE_NOOP("Category", "Soccer (field, society, futsal)"), "people playing soccer on a grass field|a football match with a goal and a net|a player kicking a soccer ball|a futsal match with small goals"},
+    BuiltinCategory{"sports.basketball", "sports", QT_TRANSLATE_NOOP("Category", "Basketball"), "people playing basketball|a basketball game on an indoor court|a player dribbling a basketball|a basketball player shooting at the hoop"},
+    BuiltinCategory{"sports.volleyball", "sports", QT_TRANSLATE_NOOP("Category", "Volleyball (court, beach)"), "people playing volleyball over a net|a volleyball player spiking the ball over the net|a beach volleyball game on sand"},
+    BuiltinCategory{"sports.tennis", "sports", QT_TRANSLATE_NOOP("Category", "Tennis / Beach tennis / Padel"), "people playing tennis with rackets|a tennis player hitting a ball with a racket|a padel match with rackets"},
     BuiltinCategory{"sports.cycling", "sports", QT_TRANSLATE_NOOP("Category", "Cycling / Mountain bike"), "a cyclist riding a bicycle in a race|mountain biking on a trail"},
-    BuiltinCategory{"sports.running", "sports", QT_TRANSLATE_NOOP("Category", "Running / Athletics"), "runners in a race|an athletics competition on a track"},
-    BuiltinCategory{"sports.swimming", "sports", QT_TRANSLATE_NOOP("Category", "Swimming"), "a swimmer in a swimming pool"},
+    BuiltinCategory{"sports.running", "sports", QT_TRANSLATE_NOOP("Category", "Running / Athletics"), "runners in a road race wearing race numbers|an athletics competition on a running track"},
+    BuiltinCategory{"sports.swimming", "sports", QT_TRANSLATE_NOOP("Category", "Swimming"), "a swimmer in a swimming pool|people swimming in the water"},
     BuiltinCategory{"sports.surf", "sports", QT_TRANSLATE_NOOP("Category", "Surfing / Bodyboarding"), "a surfer riding a wave"},
-    BuiltinCategory{"sports.skate", "sports", QT_TRANSLATE_NOOP("Category", "Skateboarding"), "a skateboarder doing a trick"},
+    BuiltinCategory{"sports.skate", "sports", QT_TRANSLATE_NOOP("Category", "Skateboarding"), "a skateboarder doing a trick on a skateboard|a person riding a skateboard"},
     BuiltinCategory{"sports.martialarts", "sports", QT_TRANSLATE_NOOP("Category", "Martial arts (jiu-jitsu, judo, boxing, MMA)"), "a martial arts fight|a boxing match|jiu-jitsu fighters"},
     BuiltinCategory{"sports.gym", "sports", QT_TRANSLATE_NOOP("Category", "Gym / Weightlifting / Crossfit"), "a person lifting weights at the gym"},
     BuiltinCategory{"sports.yoga", "sports", QT_TRANSLATE_NOOP("Category", "Yoga / Pilates"), "a person doing yoga"},
-    BuiltinCategory{"sports.gymnastics", "sports", QT_TRANSLATE_NOOP("Category", "Gymnastics"), "a gymnast performing"},
+    BuiltinCategory{"sports.gymnastics", "sports", QT_TRANSLATE_NOOP("Category", "Gymnastics"), "a gymnast performing on gymnastics apparatus|a gymnast on a balance beam"},
     BuiltinCategory{"sports.motorsport", "sports", QT_TRANSLATE_NOOP("Category", "Motorsport"), "a car race on a track|a motorcycle race"},
     BuiltinCategory{"sports.winter", "sports", QT_TRANSLATE_NOOP("Category", "Winter sports (skiing, snowboarding)"), "a person skiing|a snowboarder on a snowy slope"},
     BuiltinCategory{"sports.water", "sports", QT_TRANSLATE_NOOP("Category", "Water sports (sailing, kayaking, stand-up paddle)"), "a sailboat regatta|a person kayaking|stand up paddle boarding"},
     BuiltinCategory{"sports.climbing", "sports", QT_TRANSLATE_NOOP("Category", "Climbing / Hiking / Mountaineering"), "a rock climber on a cliff|hikers on a mountain trail"},
     BuiltinCategory{"sports.golf", "sports", QT_TRANSLATE_NOOP("Category", "Golf"), "a person playing golf"},
     BuiltinCategory{"sports.equestrian", "sports", QT_TRANSLATE_NOOP("Category", "Equestrian"), "a rider on a horse at an equestrian event"},
-    BuiltinCategory{"sports.esports", "sports", QT_TRANSLATE_NOOP("Category", "eSports"), "gamers playing video games at an esports tournament"},
+    BuiltinCategory{"sports.esports", "sports", QT_TRANSLATE_NOOP("Category", "eSports"), "gamers playing video games at an esports tournament|people playing video games on computers"},
 
     // 6. Veículos & Transporte
     BuiltinCategory{"vehicles", nullptr, QT_TRANSLATE_NOOP("Category", "Vehicles & Transport"), ""},
@@ -100,7 +101,7 @@ const QList<BuiltinCategory> kCategories = {
     BuiltinCategory{"vehicles.truck", "vehicles", QT_TRANSLATE_NOOP("Category", "Truck / Bus"), "a photo of a truck|a photo of a bus"},
     BuiltinCategory{"vehicles.bicycle", "vehicles", QT_TRANSLATE_NOOP("Category", "Bicycle"), "a photo of a bicycle"},
     BuiltinCategory{"vehicles.aircraft", "vehicles", QT_TRANSLATE_NOOP("Category", "Airplane / Helicopter"), "a photo of an airplane|a photo of a helicopter"},
-    BuiltinCategory{"vehicles.boat", "vehicles", QT_TRANSLATE_NOOP("Category", "Boat / Ship"), "a photo of a boat|a photo of a ship"},
+    BuiltinCategory{"vehicles.boat", "vehicles", QT_TRANSLATE_NOOP("Category", "Boat / Ship"), "a boat on the water|a ship at sea"},
     BuiltinCategory{"vehicles.train", "vehicles", QT_TRANSLATE_NOOP("Category", "Train / Subway"), "a photo of a train|a subway train in a station"},
     BuiltinCategory{"vehicles.classic", "vehicles", QT_TRANSLATE_NOOP("Category", "Vintage / Classic vehicle"), "a vintage classic car"},
 
@@ -112,7 +113,7 @@ const QList<BuiltinCategory> kCategories = {
     BuiltinCategory{"animals.fish", "animals", QT_TRANSLATE_NOOP("Category", "Fish / Marine life"), "a photo of fish|underwater marine life"},
     BuiltinCategory{"animals.farm", "animals", QT_TRANSLATE_NOOP("Category", "Farm animal"), "a photo of farm animals like cows, horses or chickens"},
     BuiltinCategory{"animals.wild", "animals", QT_TRANSLATE_NOOP("Category", "Wild animal"), "a photo of a wild animal in nature"},
-    BuiltinCategory{"animals.insect", "animals", QT_TRANSLATE_NOOP("Category", "Insect"), "a close-up photo of an insect"},
+    BuiltinCategory{"animals.insect", "animals", QT_TRANSLATE_NOOP("Category", "Insect"), "a close-up photo of an insect|a butterfly|a bee on a flower"},
     BuiltinCategory{"animals.reptile", "animals", QT_TRANSLATE_NOOP("Category", "Reptile / Amphibian"), "a photo of a reptile|a photo of a frog"},
 
     // 8. Comida & Bebida
@@ -138,7 +139,7 @@ const QList<BuiltinCategory> kCategories = {
     BuiltinCategory{"work", nullptr, QT_TRANSLATE_NOOP("Category", "Work & Education"), ""},
     BuiltinCategory{"work.office", "work", QT_TRANSLATE_NOOP("Category", "Office"), "an office with desks and computers"},
     BuiltinCategory{"work.meeting", "work", QT_TRANSLATE_NOOP("Category", "Meeting"), "people in a business meeting"},
-    BuiltinCategory{"work.school", "work", QT_TRANSLATE_NOOP("Category", "School / Classroom"), "a school classroom with students"},
+    BuiltinCategory{"work.school", "work", QT_TRANSLATE_NOOP("Category", "School / Classroom"), "students in a school classroom|a teacher in front of a classroom"},
     BuiltinCategory{"work.university", "work", QT_TRANSLATE_NOOP("Category", "University"), "a university campus|a university lecture hall"},
     BuiltinCategory{"work.profession", "work", QT_TRANSLATE_NOOP("Category", "Profession (doctor, chef, worker...)"), "a doctor at work|a chef cooking in a kitchen|a worker at work"},
     BuiltinCategory{"work.tools", "work", QT_TRANSLATE_NOOP("Category", "Tools / Equipment"), "tools and equipment"},
@@ -151,13 +152,13 @@ const QList<BuiltinCategory> kCategories = {
     BuiltinCategory{"objects.jewelry", "objects", QT_TRANSLATE_NOOP("Category", "Jewelry / Watch"), "jewelry|a wristwatch"},
     BuiltinCategory{"objects.toy", "objects", QT_TRANSLATE_NOOP("Category", "Toy"), "a toy"},
     BuiltinCategory{"objects.book", "objects", QT_TRANSLATE_NOOP("Category", "Book"), "a book|books on a shelf"},
-    BuiltinCategory{"objects.product", "objects", QT_TRANSLATE_NOOP("Category", "Product (e-commerce / catalog)"), "a product photo on a white background"},
+    BuiltinCategory{"objects.product", "objects", QT_TRANSLATE_NOOP("Category", "Product (e-commerce / catalog)"), "a product photo on a white background|a packshot of a product for an online store"},
     BuiltinCategory{"objects.instrument", "objects", QT_TRANSLATE_NOOP("Category", "Musical instrument"), "a musical instrument such as a guitar or piano"},
 
     // 12. Arte & Cultura
     BuiltinCategory{"art", nullptr, QT_TRANSLATE_NOOP("Category", "Art & Culture"), ""},
     BuiltinCategory{"art.museum", "art", QT_TRANSLATE_NOOP("Category", "Museum / Exhibition"), "an art museum exhibition"},
-    BuiltinCategory{"art.theater", "art", QT_TRANSLATE_NOOP("Category", "Theater / Dance"), "a theater play on stage|a dance performance"},
+    BuiltinCategory{"art.theater", "art", QT_TRANSLATE_NOOP("Category", "Theater / Dance"), "a theater play on a stage with lights|a dance performance on stage"},
     BuiltinCategory{"art.graffiti", "art", QT_TRANSLATE_NOOP("Category", "Graffiti / Street art"), "graffiti street art on a wall"},
     BuiltinCategory{"art.sculpture", "art", QT_TRANSLATE_NOOP("Category", "Sculpture"), "a sculpture|a statue"},
     BuiltinCategory{"art.cinema", "art", QT_TRANSLATE_NOOP("Category", "Cinema / Fine-art photography"), "a movie theater|a fine art photograph"},
@@ -165,12 +166,12 @@ const QList<BuiltinCategory> kCategories = {
     // 13. Saúde & Bem-estar
     BuiltinCategory{"health", nullptr, QT_TRANSLATE_NOOP("Category", "Health & Wellness"), ""},
     BuiltinCategory{"health.hospital", "health", QT_TRANSLATE_NOOP("Category", "Hospital / Clinic"), "a hospital room|a medical clinic"},
-    BuiltinCategory{"health.exam", "health", QT_TRANSLATE_NOOP("Category", "Medical exam / X-ray"), "an x-ray image|a medical scan"},
-    BuiltinCategory{"health.beauty", "health", QT_TRANSLATE_NOOP("Category", "Spa / Beauty (hair, makeup, nails)"), "a beauty salon|makeup being applied|manicured nails"},
+    BuiltinCategory{"health.exam", "health", QT_TRANSLATE_NOOP("Category", "Medical exam / X-ray"), "an x-ray image|a medical scan|an mri scan of a body"},
+    BuiltinCategory{"health.beauty", "health", QT_TRANSLATE_NOOP("Category", "Spa / Beauty (hair, makeup, nails)"), "a beauty salon|makeup being applied to a face|manicured nails at a nail salon|a hairdresser cutting hair"},
 
     // 14. Tecnologia & Ciência
     BuiltinCategory{"tech", nullptr, QT_TRANSLATE_NOOP("Category", "Technology & Science"), ""},
-    BuiltinCategory{"tech.code", "tech", QT_TRANSLATE_NOOP("Category", "Code / Programming"), "a screenshot of programming code"},
+    BuiltinCategory{"tech.code", "tech", QT_TRANSLATE_NOOP("Category", "Code / Programming"), "a screenshot of programming code in a code editor|source code on a dark screen"},
     BuiltinCategory{"tech.hardware", "tech", QT_TRANSLATE_NOOP("Category", "Hardware / Circuits"), "an electronic circuit board"},
     BuiltinCategory{"tech.lab", "tech", QT_TRANSLATE_NOOP("Category", "Laboratory"), "a science laboratory"},
     BuiltinCategory{"tech.space", "tech", QT_TRANSLATE_NOOP("Category", "Space / Astronomy"), "a telescope image of planets and galaxies"},
@@ -188,9 +189,12 @@ const QList<BuiltinCategory> kCategories = {
     BuiltinCategory{"other.blurry", "other", QT_TRANSLATE_NOOP("Category", "Blurry / Low quality"), ""},
     BuiltinCategory{"other.duplicate", "other", QT_TRANSLATE_NOOP("Category", "Duplicate"), ""},
     BuiltinCategory{"other.sensitive", "other", QT_TRANSLATE_NOOP("Category", "Sensitive content (NSFW / violence)"), "an explicit nude photo|a violent bloody scene"},
+    // Logotipos, ícones e figuras de site/programa (comuns em pastas de
+    // trabalho): sem ela o CLIP os chamava de "exame médico" ou "inseto".
+    BuiltinCategory{"other.graphic", "other", QT_TRANSLATE_NOOP("Category", "Logo / Icon / Graphic"), "a logo|an icon|a simple graphic on a white background|a clip art illustration"},
     // Documentos e capturas de tela não estão na lista sugerida, mas sem eles
     // o CLIP empurra prints e notas fiscais para "Código" ou "Produto".
-    BuiltinCategory{"other.screenshot", "other", QT_TRANSLATE_NOOP("Category", "Screenshot / Document"), "a screenshot of a phone or computer screen|a photo of a document or receipt"},
+    BuiltinCategory{"other.screenshot", "other", QT_TRANSLATE_NOOP("Category", "Screenshot / Document"), "a screenshot of a phone or computer screen|a screenshot of a software window|a screenshot of a website|a photo of a document or receipt"},
 };
 
 } // namespace
@@ -217,6 +221,47 @@ QStringList clipPrompts(const QString &prompt, const QString &name)
     if (out.isEmpty() && !name.trimmed().isEmpty())
         out << QStringLiteral("a photo of %1").arg(name.trimmed().toLower());
     return out;
+}
+
+const QStringList &backgroundPrompts()
+{
+    // Genéricas de propósito: só vencem quando nenhuma categoria descreve a
+    // foto melhor que "uma imagem qualquer".
+    static const QStringList prompts{QStringLiteral("a photo"), QStringLiteral("an image"), QStringLiteral("a picture of something"),
+                                     QStringLiteral("a blank image"), QStringLiteral("a white background")};
+    return prompts;
+}
+
+QStringList previousPrompts(const QString &key)
+{
+    // As frases que cada embutida já teve (versões anteriores do app). Se o
+    // banco ainda guarda uma delas, a pessoa não a mudou: troca pela atual.
+    static const QHash<QString, QStringList> previous{
+        {QStringLiteral("sports.basketball"), {QStringLiteral("people playing basketball")}},
+        {QStringLiteral("sports.soccer"), {QStringLiteral("people playing soccer|a football match")}},
+        {QStringLiteral("sports.volleyball"), {QStringLiteral("people playing volleyball|a beach volleyball game")}},
+        {QStringLiteral("sports.tennis"), {QStringLiteral("people playing tennis|a padel match")}},
+        {QStringLiteral("sports.running"), {QStringLiteral("runners in a race|an athletics competition on a track")}},
+        {QStringLiteral("sports.swimming"), {QStringLiteral("a swimmer in a swimming pool")}},
+        {QStringLiteral("sports.skate"), {QStringLiteral("a skateboarder doing a trick")}},
+        {QStringLiteral("sports.gymnastics"), {QStringLiteral("a gymnast performing")}},
+        {QStringLiteral("sports.esports"), {QStringLiteral("gamers playing video games at an esports tournament")}},
+        {QStringLiteral("event.graduation"), {QStringLiteral("a graduation ceremony with caps and gowns")}},
+        {QStringLiteral("event.baptism"), {QStringLiteral("a baptism ceremony in a church")}},
+        {QStringLiteral("event.debutante"), {QStringLiteral("a quinceanera party with a girl in a ball gown")}},
+        {QStringLiteral("event.christmas"), {QStringLiteral("a christmas celebration with a christmas tree")}},
+        {QStringLiteral("event.junefestival"), {QStringLiteral("a brazilian festa junina with colorful flags and bonfire")}},
+        {QStringLiteral("health.beauty"), {QStringLiteral("a beauty salon|makeup being applied|manicured nails")}},
+        {QStringLiteral("health.exam"), {QStringLiteral("an x-ray image|a medical scan")}},
+        {QStringLiteral("art.theater"), {QStringLiteral("a theater play on stage|a dance performance")}},
+        {QStringLiteral("vehicles.boat"), {QStringLiteral("a photo of a boat|a photo of a ship")}},
+        {QStringLiteral("animals.insect"), {QStringLiteral("a close-up photo of an insect")}},
+        {QStringLiteral("objects.product"), {QStringLiteral("a product photo on a white background")}},
+        {QStringLiteral("work.school"), {QStringLiteral("a school classroom with students")}},
+        {QStringLiteral("other.screenshot"), {QStringLiteral("a screenshot of a phone or computer screen|a photo of a document or receipt")}},
+        {QStringLiteral("tech.code"), {QStringLiteral("a screenshot of programming code")}},
+    };
+    return previous.value(key);
 }
 
 } // namespace pix

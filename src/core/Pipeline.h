@@ -55,7 +55,8 @@ public:
     /// Etapas: "search", "index", "categorize", "faces", "privacy".
     static QStringList stageKeys();
 
-    /// [{key, state, done, failed, pending, inFlight, threads, current, rate, detail}]
+    /// [{key, state, done, failed, pending, inFlight, threads, current, rate, detail, total}]
+    /// ``total`` = universo da etapa no catálogo (-1 no Searcher).
     QVariantList status() const;
     bool busy() const;
 
@@ -157,6 +158,7 @@ private:
 
     // Pendentes por etapa (contagens no banco), guardados por 2 s.
     mutable QHash<QString, int> m_pendingCache;
+    mutable QHash<QString, int> m_totalCache;     ///< universo de cada etapa (mesmo instante)
     mutable QElapsedTimer m_pendingTimer;
 };
 

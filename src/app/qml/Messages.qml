@@ -129,6 +129,10 @@ QtObject {
             return qsTr("%n merge(s) of similar people.", "", Number(p.count || 0));
         case "filter.saved":
             return qsTr("Filter saved.");
+        case "disk.online":
+            return qsTr("“%1” is connected again. Looking for new and changed photos…").arg(p.label || "");
+        case "disk.offline":
+            return qsTr("“%1” was disconnected. Its photos stay browsable through the thumbnails.").arg(p.label || "");
         case "vault.keyCopied":
             return qsTr("Key copied. The clipboard is cleared in 2 minutes — paste it somewhere safe now.");
         case "vault.autoLocked":
@@ -358,6 +362,8 @@ QtObject {
         switch (key) {
         case "minProbability": return qsTr("Minimum category confidence");
         case "maxCategories": return qsTr("Categories per photo (max.)");
+        case "parentProbability": return qsTr("Use the main group when unsure");
+        case "siblingMargin": return qsTr("Unsure between similar categories from");
         case "blurThreshold": return qsTr("Blurry below sharpness");
         case "minPersonScore": return qsTr("Face confidence to join People");
         case "matchSimilarity": return qsTr("Same person from similarity");
@@ -370,8 +376,10 @@ QtObject {
 
     function settingHelp(key) {
         switch (key) {
-        case "minProbability": return qsTr("How sure the AI must be to put a photo in a category. Higher: fewer, more precise categories.");
-        case "maxCategories": return qsTr("At most this many categories per photo, the most likely first.");
+        case "minProbability": return qsTr("How sure the AI must be to put a photo in a category. Higher: fewer, more precise categories. Photos that match nothing stay uncategorized.");
+        case "maxCategories": return qsTr("At most this many categories per photo, the most likely first, never two from the same group.");
+        case "parentProbability": return qsTr("When the AI cannot tell similar categories apart (basketball or volleyball?), the photo goes to the group (Sports) if the group is at least this likely.");
+        case "siblingMargin": return qsTr("Two categories of the same group count as a tie when the second has at least this fraction of the first's confidence. Lower: more photos go to the group.");
         case "blurThreshold": return qsTr("Photos below this sharpness go to “Blurry / Low quality”.");
         case "minPersonScore": return qsTr("Faces detected with less confidence (animals, objects, tiny faces in the background) stay searchable but do not form people.");
         case "matchSimilarity": return qsTr("A new face joins the most similar person from this similarity on (0.45, as in PhotoE).");

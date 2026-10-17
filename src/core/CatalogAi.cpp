@@ -17,13 +17,14 @@ QString Catalog::builtinId(const char *key) const
     return m_builtinIds.value(QString::fromLatin1(key));
 }
 
-QList<QPair<QString, QStringList>> Catalog::classifiableCategories() const
+QList<Catalog::Classifiable> Catalog::classifiableCategories() const
 {
     // Folhas com ``auto`` ligado, menos as de regra (sem categoria, borrada,
     // duplicata): o CLIP só escolhe entre as que descrevem o conteúdo.
     const QSet<QString> rules{builtinId(builtin::kUncategorized), builtinId(builtin::kBlurry), builtinId(builtin::kDuplicate)};
-    QList<QPair<QString, QStringList>> out;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT c.id, c.prompt, c.name FROM category c WHERE c.auto = 1 AND NOT EXISTS "
+    QList<Classifiable> out;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT c.id, c.prompt, c.name, coalesce(c.parent_id, '') FROM category c "
+                                           "WHERE c.auto = 1 AND NOT EXISTS "
                                            "(SELECT 1 FROM category k WHERE k.parent_id = c.id) ORDER BY c.position, c.name"));
     while (q.next()) {
         const QString id = q.value(0).toString();
@@ -31,7 +32,7 @@ QList<QPair<QString, QStringList>> Catalog::classifiableCategories() const
             continue;
         const QStringList prompts = clipPrompts(q.value(1).toString(), q.value(2).toString());
         if (!prompts.isEmpty())
-            out.append({id, prompts});
+            out.append({id, q.value(3).toString(), prompts});
     }
     return out;
 }

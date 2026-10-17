@@ -11,6 +11,7 @@ add_library(photoidx_core STATIC
     FaceIndex.h FaceIndex.cpp
     Taxonomy.h Taxonomy.cpp
     Models.h
+    Classifier.h Classifier.cpp
     Crypto.h Crypto.cpp
     Vault.h Vault.cpp
     Privacy.h Privacy.cpp

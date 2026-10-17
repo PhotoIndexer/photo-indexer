@@ -78,7 +78,8 @@ struct IndexResult
 /// Categorizer: o CLIP olha a miniatura e compara com as categorias.
 struct CategoryPrompt
 {
-    QString categoryId;
+    QString categoryId;         ///< vazio = frase de "nenhuma" (Taxonomy::backgroundPrompts)
+    QString parentId;           ///< a categoria pai (vazio = raiz): na dúvida entre irmãs, ela
     imaging::Embedding text;    ///< embedding da frase
 };
 

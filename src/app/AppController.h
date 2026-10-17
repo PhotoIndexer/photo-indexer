@@ -15,6 +15,7 @@
 #include "ViewerController.h"
 
 #include <QObject>
+#include <QTimer>
 #include <QQmlEngine>
 #include <QUrl>
 #include <QVariantMap>
@@ -118,6 +119,9 @@ public:
     Q_INVOKABLE void openLogsFolder();
     Q_INVOKABLE void openUrl(const QUrl &url);
     Q_INVOKABLE void copyText(const QString &text);
+    /// Teclas modificadoras apertadas agora (Qt.KeyboardModifiers): o soltar
+    /// do arrastar não as traz no evento.
+    Q_INVOKABLE int keyboardModifiers() const;
     /// Atalho no formato da plataforma ("Ctrl+K" -> "⌘K" no macOS).
     Q_INVOKABLE QString shortcutText(const QString &sequence) const;
     Q_INVOKABLE bool sameShortcut(const QString &a, const QString &b) const;
@@ -146,6 +150,10 @@ signals:
     void raiseRequested();
 
 private:
+    /// Os volumes montados mudaram (pendrive, HD externo, compartilhamento
+    /// de rede): reconhece os discos e revarre os que voltaram.
+    void checkVolumes();
+
     std::unique_ptr<pix::Catalog> m_catalog;
     std::unique_ptr<pix::Pipeline> m_pipeline;
     std::unique_ptr<LibraryController> m_library;
@@ -156,4 +164,6 @@ private:
     QString m_page = QStringLiteral("library");
     QString m_catalogError;
     bool m_dark = true;
+    QTimer m_volumeWatch;
+    QStringList m_volumes;          ///< pontos de montagem da última olhada
 };

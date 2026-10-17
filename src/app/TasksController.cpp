@@ -19,8 +19,11 @@ struct Setting
 };
 
 const Setting kSettings[] = {
-    {"minProbability", "ai/minProbability", 0.15},
-    {"maxCategories", "ai/maxCategories", 3},
+    // Padrões do core/Classifier.h (calibrados no catálogo real).
+    {"minProbability", "ai/minProbability", 0.45},
+    {"maxCategories", "ai/maxCategories", 2},
+    {"parentProbability", "ai/parentProbability", 0.5},
+    {"siblingMargin", "ai/siblingMargin", 0.3},
     {"blurThreshold", "ai/blurThreshold", 40},
     {"minPersonScore", "faces/minPersonScore", 0.5},
     {"matchSimilarity", "faces/matchSimilarity", double(imaging::kFaceMatchSimilarity)},

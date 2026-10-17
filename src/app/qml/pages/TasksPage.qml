@@ -171,17 +171,29 @@ Item {
             }
         }
 
-        // Etapas.
+        // Etapas. O modelo é a QUANTIDADE de etapas (fixa): os cartões nascem
+        // uma vez e só os valores mudam. Com a lista inteira como modelo, o
+        // Repeater recriava todos a cada atualização (4x por segundo) e a
+        // barra renascia do zero — piscando.
         Repeater {
-            model: App.tasks.stages
+            model: App.tasks.stages.length
 
             Card {
                 id: stageCard
-                required property var modelData
-                readonly property var s: modelData
-                readonly property int total: s.done + s.failed + s.pending + s.inFlight
+                required property int index
+                readonly property var s: App.tasks.stages[index] || ({})
                 readonly property bool unavailable: s.state === "unavailable"
                 readonly property bool running: s.state === "running" || s.state === "idle"
+                readonly property bool scanning: s.key === "search" && (s.inFlight > 0 || s.pending > 0)
+                /// Fração feita, contra o catálogo (não contra a sessão): só
+                /// anda para a frente. -1 = sem fração (o Searcher não sabe o
+                /// total antes de terminar).
+                readonly property real progress: {
+                    const base = Number(s.total === undefined ? -1 : s.total);
+                    if (base <= 0)
+                        return -1;  // nada a fazer nesta etapa: sem barra
+                    return Math.max(0, Math.min(1, 1 - (Number(s.pending || 0) + Number(s.inFlight || 0)) / base));
+                }
                 Layout.fillWidth: true
                 padding: 18
 
@@ -291,12 +303,31 @@ Item {
                     radius: 3
                     color: Theme.muted
                     visible: !stageCard.unavailable
+                    clip: true
                     Rectangle {
+                        visible: stageCard.progress >= 0
                         height: parent.height
                         radius: 3
                         color: stageCard.s.failed > 0 && stageCard.s.pending === 0 ? Theme.warning : Theme.brand500
-                        width: parent.width * (stageCard.total > 0 ? (stageCard.s.done + stageCard.s.failed) / stageCard.total : 0)
-                        Behavior on width { NumberAnimation { duration: 200 } }
+                        width: parent.width * Math.max(0, stageCard.progress)
+                        Behavior on width { NumberAnimation { duration: 400; easing.type: Easing.OutCubic } }
+                    }
+                    // Searcher varrendo: um trecho que corre (sem total ainda).
+                    Rectangle {
+                        id: sweep
+                        visible: stageCard.scanning
+                        height: parent.height
+                        width: parent.width * 0.25
+                        radius: 3
+                        color: Theme.brand500
+                        NumberAnimation on x {
+                            running: sweep.visible
+                            loops: Animation.Infinite
+                            from: -sweep.width
+                            to: sweep.parent.width
+                            duration: 1400
+                            easing.type: Easing.InOutQuad
+                        }
                     }
                 }
 
@@ -304,17 +335,23 @@ Item {
                     Layout.fillWidth: true
                     spacing: 18
                     visible: !stageCard.unavailable
+                    // Também por quantidade fixa: os números trocam, os itens ficam.
                     Repeater {
-                        model: [
-                            { label: stageCard.s.key === "search" ? qsTr("Folders in queue") : qsTr("Pending"), value: stageCard.s.pending },
-                            { label: qsTr("In progress"), value: stageCard.s.inFlight },
-                            { label: qsTr("Done"), value: stageCard.s.done },
-                            { label: qsTr("Failed"), value: stageCard.s.failed },
-                            { label: qsTr("Per minute"), value: stageCard.s.rate }
-                        ].concat(stageCard.s.key === "search" ? [{ label: qsTr("Images found"), value: Number(stageCard.s.detail || 0) }] : [])
+                        model: stageCard.s.key === "search" ? 6 : 5
                         ColumnLayout {
                             id: num
-                            required property var modelData
+                            required property int index
+                            readonly property var modelData: {
+                                const s = stageCard.s;
+                                switch (index) {
+                                case 0: return { label: s.key === "search" ? qsTr("Folders in queue") : qsTr("Pending"), value: s.pending };
+                                case 1: return { label: qsTr("In progress"), value: s.inFlight };
+                                case 2: return { label: qsTr("Done"), value: s.done };
+                                case 3: return { label: qsTr("Failed"), value: s.failed };
+                                case 4: return { label: qsTr("Per minute"), value: s.rate };
+                                default: return { label: qsTr("Images found"), value: Number(s.detail || 0) };
+                                }
+                            }
                             spacing: 0
                             Text {
                                 text: Number(num.modelData.value || 0).toLocaleString(Qt.locale(), "f", 0)
@@ -408,8 +445,10 @@ Item {
                 rowSpacing: 18
                 Repeater {
                     model: [
-                        { key: "minProbability", from: 0.02, to: 0.8, step: 0.01, decimals: 2 },
-                        { key: "maxCategories", from: 1, to: 8, step: 1, decimals: 0 },
+                        { key: "minProbability", from: 0.1, to: 0.9, step: 0.01, decimals: 2 },
+                        { key: "maxCategories", from: 1, to: 5, step: 1, decimals: 0 },
+                        { key: "parentProbability", from: 0.2, to: 0.95, step: 0.01, decimals: 2 },
+                        { key: "siblingMargin", from: 0.2, to: 1, step: 0.05, decimals: 2 },
                         { key: "blurThreshold", from: 0, to: 300, step: 5, decimals: 0 },
                         { key: "minPersonScore", from: 0.35, to: 0.9, step: 0.01, decimals: 2 },
                         { key: "matchSimilarity", from: 0.25, to: 0.8, step: 0.01, decimals: 2 },

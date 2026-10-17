@@ -57,6 +57,14 @@ LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, QObje
         if (tab == QLatin1String("categories") || tab == QLatin1String("albums"))
             emit choicesChanged();
     });
+    // Disco que entrou ou saiu: a marca de "offline" troca já (a árvore de
+    // fundo, indexando, só se refaz a cada 20 s).
+    connect(catalog, &Catalog::disksChanged, this, [this]() {
+        if (m_tab == QLatin1String("folders"))
+            refreshTree();
+        else
+            scheduleTree(QStringLiteral("folders"));
+    });
     connect(catalog, &Catalog::peopleChanged, this, [this]() {
         scheduleTree(QStringLiteral("people"));
         emit choicesChanged();
@@ -413,6 +421,32 @@ void LibraryController::removeFromAlbum(const QStringList &photoIds, const QStri
 void LibraryController::addToCategory(const QStringList &photoIds, const QString &categoryId)
 {
     act([&]() { m_catalog->addPhotosToCategory(orSelection(photoIds), categoryId); });
+}
+
+void LibraryController::moveToCategory(const QStringList &photoIds, const QString &categoryId)
+{
+    const QString from = m_node.startsWith(QLatin1String("cat:")) ? m_node.mid(4) : QString();
+    if (from == categoryId)
+        return;
+    act([&]() {
+        m_catalog->movePhotosToCategory(orSelection(photoIds), categoryId, from);
+        m_grid.clearSelection();
+    });
+}
+
+void LibraryController::moveToAlbum(const QStringList &photoIds, const QString &albumId)
+{
+    const QString from = m_node.startsWith(QLatin1String("album:")) ? m_node.mid(6) : QString();
+    if (from == albumId)
+        return;
+    act([&]() {
+        const QStringList ids = orSelection(photoIds);
+        m_catalog->addPhotosToAlbum(ids, albumId);
+        // Sair do álbum privado é "tornar pública": só com pedido explícito.
+        if (!from.isEmpty() && !m_catalog->isPrivateAlbum(from))
+            m_catalog->removePhotosFromAlbum(ids, from);
+        m_grid.clearSelection();
+    });
 }
 
 void LibraryController::removeFromCategory(const QStringList &photoIds, const QString &categoryId)

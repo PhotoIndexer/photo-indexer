@@ -26,7 +26,7 @@ class TasksController : public QObject
     /// Total pendente em todas as etapas (o cabeçalho mostra).
     Q_PROPERTY(int pending READ pending NOTIFY changed)
     Q_PROPERTY(QVariantList errors READ errors NOTIFY errorsChanged)
-    /// Ajustes: {minProbability, maxCategories, blurThreshold, minPersonScore, matchSimilarity,
+    /// Ajustes: {minProbability, maxCategories, parentProbability, siblingMargin, blurThreshold, minPersonScore, matchSimilarity,
     /// mergeSimilarity, mergeMinFaces, mergeMinScore}
     Q_PROPERTY(QVariantMap settings READ settings NOTIFY settingsChanged)
     /// Teto de tarefas simultâneas (todas as etapas somadas) e quantas rodam agora.

@@ -62,6 +62,22 @@ Item {
         page.passwords.gate(() => App.library.makePublic([]));
     }
 
+    /// A seleção da grade solta num nó do painel: categoria = mover (corrige
+    /// a IA); álbum = pôr (vindo de outro álbum, sai dele). Com ⌥/Ctrl, só
+    /// acrescenta (não tira de onde está).
+    function dropOnNode(key) {
+        const keep = (App.keyboardModifiers() & (Qt.AltModifier | Qt.ControlModifier | Qt.MetaModifier)) !== 0;
+        const id = key.substring(key.indexOf(":") + 1);
+        if (key.startsWith("cat:")) {
+            keep ? App.library.addToCategory([], id) : App.library.moveToCategory([], id);
+        } else if (key.startsWith("album:")) {
+            if (key === App.privacy.albumNode)
+                page.makeSelectionPrivate();
+            else
+                keep ? App.library.addToAlbum([], id) : App.library.moveToAlbum([], id);
+        }
+    }
+
     // O filtro (Ctrl+Shift+F) e o Esc da grade valem só aqui.
     Shortcut {
         sequences: Keymap.keys("filter")
@@ -102,6 +118,7 @@ Item {
                 Repeater {
                     model: page.tabs
                     IconButton {
+                        id: tabButton
                         required property var modelData
                         Layout.fillWidth: true
                         diameter: 34
@@ -110,6 +127,13 @@ Item {
                         active: App.library.tab === modelData.key
                         tooltip: Messages.tabName(modelData.key)
                         onClicked: App.library.tab = modelData.key
+                        // Arrastando fotos: passar por Categorias/Álbuns abre a aba.
+                        DropArea {
+                            anchors.fill: parent
+                            enabled: tabButton.modelData.key === "categories" || tabButton.modelData.key === "albums"
+                            keys: ["photoidx/photos"]
+                            onEntered: App.library.tab = tabButton.modelData.key
+                        }
                     }
                 }
             }
@@ -215,6 +239,7 @@ Item {
                     else
                         App.library.selectNode(key);
                 }
+                onPhotosDropped: (key) => page.dropOnNode(key)
                 onContextRequested: (key, kind, row) => {
                     nodeMenu.key = key;
                     nodeMenu.kind = kind;
@@ -437,6 +462,24 @@ Item {
                     text: qsTr("Category")
                     onClicked: categoryMenu.popup(categoryButton, 0, categoryButton.height + 4)
                 }
+                // A IA errou: tira da categoria atual (ou das que a IA pôs)
+                // e põe na escolhida. O mesmo que arrastar para o painel.
+                Button {
+                    id: moveButton
+                    visible: App.library.grid.selectedCount > 0
+                    size: "sm"
+                    implicitHeight: 30
+                    variant: "outline"
+                    iconName: "replace"
+                    text: qsTr("Move to…")
+                    onClicked: moveMenu.popup(moveButton, 0, moveButton.height + 4)
+                    Tip {
+                        text: page.nodeType === "cat"
+                            ? qsTr("Take the selected photos out of “%1” and put them in another category. Tip: you can also drag them onto a category in the side panel.").arg(App.library.nodeLabel)
+                            : qsTr("Replace the AI's categories of the selected photos with another one. Tip: you can also drag them onto a category in the side panel.")
+                        visible: moveButton.hovered
+                    }
+                }
                 Button {
                     visible: App.library.grid.selectedCount > 0
                     size: "sm"
@@ -550,6 +593,7 @@ Item {
                 id: grid
                 anchors.fill: parent
                 photos: App.library.grid
+                dragEnabled: true
                 showScore: App.library.aiSearch && App.library.search !== ""
                 visible: App.library.grid.count > 0
                 onOpened: (photoId) => App.openPhoto(photoId)
@@ -624,6 +668,11 @@ Item {
         choices: App.library.categoryChoices
         onPicked: (id) => App.library.addToCategory([], id)
     }
+    ChoiceMenu {
+        id: moveMenu
+        choices: App.library.categoryChoices
+        onPicked: (id) => App.library.moveToCategory([], id)
+    }
 
     AppMenu {
         id: photoMenu
@@ -660,6 +709,11 @@ Item {
             title: qsTr("Add to category")
             choices: App.library.categoryChoices
             onPicked: (id) => App.library.addToCategory([], id)
+        }
+        ChoiceMenu {
+            title: qsTr("Move to category")
+            choices: App.library.categoryChoices
+            onPicked: (id) => App.library.moveToCategory([], id)
         }
         AppMenuItem {
             visible: page.nodeType === "album" && page.nodeId !== App.privacy.albumNode.substring(6)

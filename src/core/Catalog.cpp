@@ -99,7 +99,12 @@ void Catalog::seedCategories()
     for (const BuiltinCategory &c : builtinCategories()) {
         ++position;
         const QString key = QString::fromLatin1(c.key);
-        QString id = m_db.scalar(QStringLiteral("SELECT id FROM category WHERE builtin_key = ?"), {key}).toString();
+        QSqlQuery existing = m_db.exec(QStringLiteral("SELECT id, prompt FROM category WHERE builtin_key = ?"), {key});
+        QString id = existing.next() ? existing.value(0).toString() : QString();
+        // Frase de uma versão anterior, que a pessoa não mudou: vai a atual
+        // (a IA reclassifica pela migração que acompanha a troca).
+        if (!id.isEmpty() && previousPrompts(key).contains(existing.value(1).toString()))
+            m_db.exec(QStringLiteral("UPDATE category SET prompt = ? WHERE id = ?"), {QString::fromLatin1(c.prompts), id});
         if (id.isEmpty()) {
             QVariant parent;
             if (c.parentKey)
@@ -301,7 +306,16 @@ QVariantList Catalog::disks() const
     return out;
 }
 
-int Catalog::refreshDisks()
+QStringList Catalog::folderIdsOnDisk(const QString &diskId) const
+{
+    QStringList out;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM folder WHERE disk_id = ?"), {diskId});
+    while (q.next())
+        out << q.value(0).toString();
+    return out;
+}
+
+int Catalog::refreshDisks(QStringList *cameOnline, QStringList *wentOffline)
 {
     QHash<QString, DiskInfo> mounted;
     for (const DiskInfo &d : mountedDisks())
@@ -328,6 +342,10 @@ int Catalog::refreshDisks()
             if (row.online != reachable) {
                 m_db.exec(QStringLiteral("UPDATE disk SET online = ? WHERE id = ?"), {reachable ? 1 : 0, row.id});
                 ++changed;
+                QStringList *list = reachable ? cameOnline : wentOffline;
+                if (list)
+                    list->append(row.id);
+                qCInfo(lcCatalog) << "Disk" << row.key << (reachable ? "online" : "offline");
             }
             continue;
         }
@@ -354,10 +372,16 @@ int Catalog::refreshDisks()
                   {newMount, Database::timestamp(), row.id});
         if (!row.online || newMount != row.mount)
             ++changed;
+        if (!row.online) {
+            if (cameOnline)
+                cameOnline->append(row.id);
+            qCInfo(lcCatalog) << "Disk" << row.key << "online at" << newMount;
+        }
     }
     if (changed) {
         emit treeChanged(QStringLiteral("folders"));
         emit photosChanged();
+        emit disksChanged();
     }
     return changed;
 }
@@ -547,6 +571,18 @@ int Catalog::pendingCount(const QString &stage) const
                                .arg(QLatin1String(kOnlineFolders)))
             .toInt();
     return 0;
+}
+
+QHash<QString, int> Catalog::stageTotals() const
+{
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT sum(state != 'missing'), sum(state = 'indexed' AND thumb_path != '') "
+                                           "FROM photo WHERE private = 0"));
+    q.next();
+    const int indexed = q.value(1).toInt();
+    return {{QStringLiteral("index"), q.value(0).toInt()},
+            {QStringLiteral("categorize"), indexed},
+            {QStringLiteral("faces"), indexed},
+            {QStringLiteral("privacy"), m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE private = 1")).toInt()}};
 }
 
 int Catalog::requeue(const QString &stage, const QString &scope)
