@@ -12,6 +12,8 @@ Item {
     id: page
 
     required property var names
+    /// PasswordDialog do Main (fotos privadas).
+    required property var passwords
 
     readonly property var d: App.viewer.detail
     property bool showFaces: true
@@ -150,9 +152,33 @@ Item {
             IconButton {
                 diameter: 32
                 iconName: "external-link"
+                // Um .photoidxe só o PhotoIDX abre.
+                visible: !page.d.isPrivate
                 enabled: !page.d.offline
                 tooltip: qsTr("Open with the default app")
                 onClicked: App.openExternally(page.d.path)
+            }
+            IconButton {
+                diameter: 32
+                iconName: page.d.isPrivate ? "lock-open" : "lock"
+                active: !!page.d.isPrivate
+                tooltip: page.d.isPrivate ? qsTr("Make public") : qsTr("Make private…")
+                onClicked: {
+                    if (page.d.isPrivate) {
+                        page.passwords.gate(() => App.viewer.makePublic());
+                        return;
+                    }
+                    Dialogs.confirm({
+                        title: qsTr("Make this photo private?"),
+                        description: qsTr("The original file is encrypted into a <b>.photoidxe</b> file in the same folder and the original is deleted after the copy is checked. The photo disappears from the library and only shows up in the Private album, with the password."),
+                        variant: "warning",
+                        iconName: "lock",
+                        confirmLabel: qsTr("Make private")
+                    }, () => page.passwords.gate(() => {
+                        App.viewer.makePrivate();
+                        page.back();
+                    }));
+                }
             }
         }
         Rectangle {
@@ -335,6 +361,10 @@ Item {
                 InfoRow { label: qsTr("Pixel hash"); value: page.d.pictureHash || ""; selectable: true; mono: true }
                 InfoRow { label: qsTr("Similarity hash"); value: page.d.phash || ""; selectable: true; mono: true }
                 InfoRow { label: qsTr("Sharpness"); value: page.d.sharpness ? Math.round(page.d.sharpness) : "" }
+                // Privada: o arquivo original virou .photoidxe; os dois SHA-256.
+                InfoRow { label: qsTr("Original name"); value: page.d.isPrivate ? (page.d.originalName || "") : "" }
+                InfoRow { label: qsTr("SHA-256 (original)"); value: page.d.isPrivate ? (page.d.fileSha256 || "") : ""; selectable: true; mono: true }
+                InfoRow { label: qsTr("SHA-256 (encrypted)"); value: page.d.isPrivate ? (page.d.encryptedSha256 || "") : ""; selectable: true; mono: true }
             }
 
             // Lugar

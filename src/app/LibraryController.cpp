@@ -348,6 +348,25 @@ void LibraryController::addToAlbum(const QStringList &photoIds, const QString &a
     act([&]() { m_catalog->addPhotosToAlbum(orSelection(photoIds), albumId); });
 }
 
+void LibraryController::makePrivate(const QStringList &photoIds)
+{
+    act([&]() {
+        const int n = m_catalog->makePrivate(orSelection(photoIds));
+        if (n > 0)
+            m_grid.clearSelection();
+    });
+}
+
+void LibraryController::makePublic(const QStringList &photoIds)
+{
+    act([&]() { m_catalog->makePublic(orSelection(photoIds)); });
+}
+
+bool LibraryController::privateNode() const
+{
+    return m_node.startsWith(QLatin1String("album:")) && m_catalog->isPrivateAlbum(m_node.mid(6));
+}
+
 void LibraryController::removeFromAlbum(const QStringList &photoIds, const QString &albumId)
 {
     act([&]() { m_catalog->removePhotosFromAlbum(orSelection(photoIds), albumId); });

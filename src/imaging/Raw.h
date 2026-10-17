@@ -32,5 +32,7 @@ struct RawInfo
 /// ``wantPreview``: decodifica a maior prévia embutida. ``wantHash``:
 /// desempacota o sensor (o passo mais caro) para o hash de pixels.
 RawInfo readRaw(const QString &path, bool wantPreview, bool wantHash);
+/// O mesmo, de um RAW já na memória.
+RawInfo readRawData(const QByteArray &data, bool wantPreview, bool wantHash);
 
 } // namespace pix::imaging

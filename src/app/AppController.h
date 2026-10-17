@@ -10,6 +10,7 @@
 
 #include "LibraryController.h"
 #include "PeopleController.h"
+#include "PrivacyController.h"
 #include "TasksController.h"
 #include "ViewerController.h"
 
@@ -52,6 +53,7 @@ class AppController : public QObject
     Q_PROPERTY(ViewerController *viewer READ viewer CONSTANT)
     Q_PROPERTY(PeopleController *people READ people CONSTANT)
     Q_PROPERTY(TasksController *tasks READ tasks CONSTANT)
+    Q_PROPERTY(PrivacyController *privacy READ privacy CONSTANT)
     Q_PROPERTY(QString logsDir READ logsDir CONSTANT)
     Q_PROPERTY(QString dataDir READ dataDir CONSTANT)
 
@@ -79,6 +81,9 @@ public:
     QVariantList disks() const;
     LibraryController *library() { return m_library.get(); }
     ViewerController *viewer() { return m_viewer.get(); }
+    PrivacyController *privacy() { return m_privacy.get(); }
+    /// O chaveiro da sessão (o provider image://private decifra com ele).
+    std::shared_ptr<const pix::crypto::KeyRing> keyRing() const;
     PeopleController *people() { return m_people.get(); }
     TasksController *tasks() { return m_tasks.get(); }
     QString logsDir() const;
@@ -131,6 +136,7 @@ private:
     std::unique_ptr<ViewerController> m_viewer;
     std::unique_ptr<PeopleController> m_people;
     std::unique_ptr<TasksController> m_tasks;
+    std::unique_ptr<PrivacyController> m_privacy;
     QString m_page = QStringLiteral("library");
     QString m_catalogError;
     bool m_dark = true;

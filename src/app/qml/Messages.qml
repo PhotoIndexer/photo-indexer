@@ -47,6 +47,28 @@ QtObject {
             return qsTr("A category cannot go inside itself or one of its subcategories.");
         case "album.cycle":
             return qsTr("An album cannot go inside itself or one of its sub-albums.");
+        case "album.privateRoot":
+            return qsTr("The Private album cannot be renamed, moved or deleted.");
+        case "album.privateBoundary":
+            return qsTr("An album cannot move into or out of the Private album. To protect photos, make them private.");
+        case "vault.noPassword":
+            return qsTr("Create the password for private photos first.");
+        case "vault.locked":
+            return qsTr("Private photos are locked. Enter the password to continue.");
+        case "vault.wrongPassword":
+            return qsTr("Wrong password.");
+        case "vault.passwordShort":
+            return qsTr("The password needs at least %1 characters.").arg(p.min || 8);
+        case "vault.passwordMismatch":
+            return qsTr("The passwords do not match.");
+        case "vault.passwordExists":
+            return qsTr("A password is already set. Use “Change password”.");
+        case "vault.invalidKey":
+            return qsTr("This is not a valid key. Check it was copied completely (14 groups of 4 characters).");
+        case "vault.wrongKey":
+            return qsTr("This key is valid but is not the key of this catalog.");
+        case "vault.failed":
+            return qsTr("The password could not be saved.");
         case "image.unreadable":
             return qsTr("The image could not be opened.");
         case "faces.unavailable":
@@ -72,6 +94,8 @@ QtObject {
             return qsTr("Categories");
         if (k.startsWith("album."))
             return qsTr("Albums");
+        if (k.startsWith("vault."))
+            return qsTr("Private photos");
         return qsTr("Something went wrong");
     }
 
@@ -105,6 +129,10 @@ QtObject {
             return qsTr("%n merge(s) of similar people.", "", Number(p.count || 0));
         case "filter.saved":
             return qsTr("Filter saved.");
+        case "vault.keyCopied":
+            return qsTr("Key copied. The clipboard is cleared in 2 minutes — paste it somewhere safe now.");
+        case "vault.autoLocked":
+            return qsTr("Private photos were locked after a period without use.");
         }
         return "";
     }
@@ -119,6 +147,7 @@ QtObject {
         case "index": return qsTr("Indexer");
         case "categorize": return qsTr("Categorizer");
         case "faces": return qsTr("Faces");
+        case "privacy": return qsTr("Private photos");
         }
         return String(key || "");
     }
@@ -129,6 +158,7 @@ QtObject {
         case "index": return qsTr("Opens each file: all EXIF tags, thumbnail, pixel hash, similarity hash and location.");
         case "categorize": return qsTr("Local AI (CLIP) puts each photo in categories and prepares the AI search.");
         case "faces": return qsTr("Finds faces, computes each one's biometric signature and groups them into people.");
+        case "privacy": return qsTr("Encrypts the original file and the thumbnail of photos made private (and decrypts the ones made public). Runs only while private photos are unlocked.");
         }
         return "";
     }
@@ -139,6 +169,7 @@ QtObject {
         case "index": return "hash";
         case "categorize": return "sparkles";
         case "faces": return "scan-face";
+        case "privacy": return "lock";
         }
         return "activity";
     }
@@ -149,6 +180,7 @@ QtObject {
         case "idle": return qsTr("Waiting for work");
         case "paused": return qsTr("Paused");
         case "unavailable": return qsTr("Model not installed");
+        case "locked": return qsTr("Locked");
         }
         return String(state || "");
     }

@@ -28,6 +28,7 @@ public:
         SelectedRole,
         ScoreRole,
         StateRole,
+        IsPrivateRole,
     };
 
     explicit PhotoGridModel(QObject *parent = nullptr);

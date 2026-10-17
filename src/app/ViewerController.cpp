@@ -5,9 +5,11 @@
 #include "PhotoGridModel.h"
 
 #include "core/Catalog.h"
+#include "core/Crypto.h"
 #include "imaging/ImageIO.h"
 #include "imaging/Inspect.h"
 
+#include <QFile>
 #include <QFileInfo>
 #include <QImage>
 #include <QUrl>
@@ -56,6 +58,10 @@ void ViewerController::load()
     m_similar = m_catalog->similarPhotos(m_photoId, kSimilarDistance);
     const QString path = m_catalog->photoPath(m_photoId);
     const QString thumb = m_detail.value(QStringLiteral("thumbPath")).toString();
+    const bool isPrivate = m_detail.value(QStringLiteral("private")).toInt() == 1;
+    // "private" é palavra reservada no JS: o QML lê ``isPrivate``.
+    m_detail.insert(QStringLiteral("isPrivate"), isPrivate);
+    const KeySnapshot keys = isPrivate ? m_catalog->keySnapshot() : KeySnapshot();
     // Disco desconectado (ou arquivo que sumiu): a miniatura do cache em
     // ~/.photo_indexer continua aí — mostra ela, avisando.
     const bool offline = !QFileInfo::exists(path);
@@ -63,12 +69,25 @@ void ViewerController::load()
     // A chave muda a cada abertura: o QML não reaproveita a imagem velha se o
     // arquivo mudou no disco.
     const QString key = m_photoId + u'-' + QString::number(++m_serial);
-    ImageRegistry::instance().put(QStringLiteral("view"), key, [path, thumb, offline]() {
+    ImageRegistry::instance().put(QStringLiteral("view"), key, [path, thumb, offline, keys]() {
         QImage image;
-        if (!offline)
+        const bool encrypted = path.endsWith(QStringLiteral(".") + QLatin1String(crypto::kEncryptedExtension));
+        if (!offline && encrypted) {
+            // Decifra na memória: o original em claro nunca vai para o disco.
+            QString name;
+            if (const auto plain = crypto::decryptFile(keys.keys, path, &name))
+                image = imaging::toQImage(imaging::loadDisplayImageData(*plain, name, kViewSide));
+        } else if (!offline) {
             image = imaging::toQImage(imaging::loadDisplayImage(path, kViewSide));
-        if (image.isNull() && !thumb.isEmpty())
+        }
+        if (image.isNull() && thumb.endsWith(QLatin1String(".pidx"))) {
+            QFile f(thumb);
+            if (f.open(QIODevice::ReadOnly))
+                if (const auto plain = crypto::decryptBytes(keys.keys, f.readAll()))
+                    image = QImage::fromData(*plain);
+        } else if (image.isNull() && !thumb.isEmpty()) {
             image = QImage(thumb);
+        }
         return image;
     });
     m_imageUrl = QStringLiteral("image://photo/view/") + key;
@@ -81,6 +100,7 @@ void ViewerController::reload()
     const bool offline = m_detail.value(QStringLiteral("offline")).toBool();
     m_detail = m_catalog->photoDetail(m_photoId);
     m_detail.insert(QStringLiteral("offline"), offline);
+    m_detail.insert(QStringLiteral("isPrivate"), m_detail.value(QStringLiteral("private")).toInt() == 1);
     m_similar = m_catalog->similarPhotos(m_photoId, kSimilarDistance);
     emit photoChanged();
 }
@@ -113,14 +133,38 @@ void ViewerController::removeCategory(const QString &categoryId)
 
 void ViewerController::addAlbum(const QString &albumId)
 {
-    m_catalog->addPhotosToAlbum({m_photoId}, albumId);
+    act([&]() { m_catalog->addPhotosToAlbum({m_photoId}, albumId); });
     reload();
 }
 
 void ViewerController::removeAlbum(const QString &albumId)
 {
-    m_catalog->removePhotosFromAlbum({m_photoId}, albumId);
+    act([&]() { m_catalog->removePhotosFromAlbum({m_photoId}, albumId); });
     reload();
+}
+
+void ViewerController::makePrivate()
+{
+    act([&]() { m_catalog->makePrivate({m_photoId}); });
+    reload();
+}
+
+void ViewerController::makePublic()
+{
+    act([&]() { m_catalog->makePublic({m_photoId}); });
+    reload();
+}
+
+template<typename F>
+void ViewerController::act(F &&fn)
+{
+    try {
+        fn();
+    } catch (const ActionError &e) {
+        emit failed(e.key(), e.params());
+    } catch (const std::exception &e) {
+        emit failed(QStringLiteral("error.generic"), {{QStringLiteral("detail"), QString::fromUtf8(e.what())}});
+    }
 }
 
 void ViewerController::assignFace(const QString &faceId, const QString &personId)

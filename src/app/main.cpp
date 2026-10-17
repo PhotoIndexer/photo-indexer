@@ -73,7 +73,16 @@ int main(int argc, char *argv[])
                                         QStringLiteral("rule"));
     const QCommandLineOption personOption(QStringLiteral("person"), QStringLiteral("Open the Nth person (screenshot)."),
                                           QStringLiteral("n"));
-    parser.addOptions({sizeOption, openOption, faceOption, ruleOption, personOption});
+    const QCommandLineOption passwordOption(QStringLiteral("private-password"),
+                                            QStringLiteral("Create or enter the private photos password (screenshot)."),
+                                            QStringLiteral("password"));
+    const QCommandLineOption makePrivateOption(QStringLiteral("make-private"),
+                                               QStringLiteral("Make the first N photos of the library private (screenshot)."),
+                                               QStringLiteral("n"));
+    const QCommandLineOption privateAlbumOption(QStringLiteral("private-album"),
+                                                QStringLiteral("Show the Private album (screenshot)."));
+    parser.addOptions({sizeOption, openOption, faceOption, ruleOption, personOption, passwordOption, makePrivateOption,
+                       privateAlbumOption});
     parser.addPositionalArgument(QStringLiteral("folders"), QStringLiteral("Folders to index."), QStringLiteral("[folder...]"));
     parser.addOptions({debugOption, screenshotOption, pageOption, waitOption});
     // O Finder às vezes passa -psn_0_12345: ignorado.
@@ -110,6 +119,7 @@ int main(int argc, char *argv[])
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("photo"), new PhotoImageProvider);
     engine.addImageProvider(QStringLiteral("icon"), new IconProvider);
+    engine.addImageProvider(QStringLiteral("private"), new PrivateImageProvider(controller.keyRing()));
     QObject::connect(&controller, &AppController::languageChanged, &engine, &QQmlEngine::retranslate);
     QObject::connect(
         &engine, &QQmlApplicationEngine::objectCreationFailed, &app, []() { QCoreApplication::exit(1); },
@@ -140,6 +150,27 @@ int main(int argc, char *argv[])
                                                              {QStringLiteral("value"), p.value(2)},
                                                              {QStringLiteral("value2"), p.value(3)}});
                 }
+            });
+        }
+        if (parser.isSet(passwordOption)) {
+            QTimer::singleShot(std::max(0, wait - 9000), &controller, [&controller, pw = parser.value(passwordOption)]() {
+                PrivacyController *privacy = controller.privacy();
+                privacy->hasPassword() ? privacy->unlock(pw) : privacy->setPassword(pw, pw);
+            });
+        }
+        if (parser.isSet(makePrivateOption)) {
+            QTimer::singleShot(std::max(0, wait - 7000), &controller, [&controller, n = parser.value(makePrivateOption).toInt()]() {
+                QStringList ids;
+                for (int i = 0; i < n; ++i)
+                    if (const QString id = controller.library()->grid()->idAt(i); !id.isEmpty())
+                        ids << id;
+                controller.library()->makePrivate(ids);
+            });
+        }
+        if (parser.isSet(privateAlbumOption)) {
+            QTimer::singleShot(std::max(0, wait - 3500), &controller, [&controller]() {
+                controller.library()->setTab(QStringLiteral("albums"));
+                controller.library()->selectNode(controller.privacy()->albumNode());
             });
         }
         if (parser.isSet(personOption)) {

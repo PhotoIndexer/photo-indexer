@@ -9,8 +9,10 @@
 #include "imaging/Embedding.h"
 #include "imaging/Exif.h"
 
+#include <QByteArray>
 #include <QDate>
 #include <QDateTime>
+#include <QHash>
 #include <QList>
 #include <QString>
 
@@ -24,9 +26,20 @@ struct FoundFile
     qint64 mtimeMs = 0;
     QDateTime created;          ///< criação do arquivo (birth time; ou a mudança de metadados)
     QDateTime modified;
+    QString keyId;              ///< .photoidxe: hex do id da chave (do cabeçalho)
 };
 
 /// Indexer: abrir o arquivo, catalogar EXIF, gerar a miniatura, hashes e lugar.
+/// Chaves abertas (id -> chave) e a atual, copiadas para um worker.
+struct KeySnapshot
+{
+    QHash<QByteArray, QByteArray> keys;
+    QByteArray currentId;
+
+    bool isOpen() const { return keys.contains(currentId); }
+    QByteArray current() const { return keys.value(currentId); }
+};
+
 struct IndexJob
 {
     QString photoId;
@@ -34,6 +47,8 @@ struct IndexJob
     QString previousThumb;      ///< miniatura antiga (sai se o caminho mudar)
     QDateTime fileCreated;
     QDateTime fileModified;
+    bool isPrivate = false;     ///< miniatura cifrada; ``path`` pode ser um .photoidxe
+    KeySnapshot keys;           ///< só nas privadas
 };
 
 struct IndexResult
@@ -56,6 +71,8 @@ struct IndexResult
     QString perceptualHash;     ///< 16 dígitos hex
     double sharpness = -1.0;
     PlaceMatch place;
+    QString originalName;       ///< .photoidxe: o nome guardado nos metadados
+    QString keyId;              ///< .photoidxe: hex do id da chave que cifrou
 };
 
 /// Categorizer: o CLIP olha a miniatura e compara com as categorias.
@@ -104,6 +121,34 @@ struct FaceResult
     bool ok = false;
     QString error;
     QList<FoundFace> faces;
+};
+
+/// Etapa "privacy": cifrar o original e a miniatura de uma foto que virou
+/// privada, decifrar a que voltou a ser pública, ou recifrar com a chave nova.
+struct PrivacyJob
+{
+    QString photoId;
+    QString op;                 ///< "encrypt" | "decrypt" | "rekey"
+    QString path;               ///< o arquivo agora (original ou .photoidxe)
+    QString thumbPath;          ///< a miniatura agora (.jpg ou .pidx); pode faltar
+    QString fileSha256;         ///< o esperado do original (decrypt confere)
+    KeySnapshot keys;
+};
+
+struct PrivacyResult
+{
+    QString photoId;
+    QString op;
+    bool ok = false;
+    QString error;
+    QString path;               ///< onde o arquivo ficou
+    QString thumbPath;
+    qint64 size = 0;            ///< do arquivo novo (o Searcher não o vê como alterado)
+    qint64 mtimeMs = 0;
+    QString originalName;
+    QString fileSha256;         ///< hex, antes de cifrar
+    QString encryptedSha256;    ///< hex, depois de cifrar
+    QString keyId;              ///< hex
 };
 
 } // namespace pix

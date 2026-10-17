@@ -28,6 +28,14 @@ QVariant parentOrNull(const QString &id)
 
 } // namespace
 
+void Catalog::guardAlbum(const QString &albumId) const
+{
+    if (albumId == privateAlbumId())
+        throw ActionError(QStringLiteral("album.privateRoot"));
+    if (isPrivateAlbum(albumId) && !privateUnlocked())
+        throw ActionError(QStringLiteral("vault.locked"));
+}
+
 // --------------------------------------------------------------------------- //
 // Categorias
 // --------------------------------------------------------------------------- //
@@ -133,16 +141,21 @@ QString Catalog::createAlbum(const QString &parentId, const QString &name)
     const QString clean = name.trimmed();
     if (clean.isEmpty())
         throw ActionError(QStringLiteral("album.emptyName"));
+    // Sub-álbum do privado é privado (e só com o cofre aberto).
+    const bool isPrivate = !parentId.isEmpty() && isPrivateAlbum(parentId);
+    if (isPrivate && !privateUnlocked())
+        throw ActionError(QStringLiteral("vault.locked"));
     const QString id = Database::newId();
     const int position = m_db.scalar(QStringLiteral("SELECT coalesce(max(position), 0) + 1 FROM album")).toInt();
-    m_db.exec(QStringLiteral("INSERT INTO album(id, parent_id, name, position, created_at) VALUES(?, ?, ?, ?, ?)"),
-              {id, parentOrNull(parentId), clean, position, Database::timestamp()});
+    m_db.exec(QStringLiteral("INSERT INTO album(id, parent_id, name, position, created_at, private) VALUES(?, ?, ?, ?, ?, ?)"),
+              {id, parentOrNull(parentId), clean, position, Database::timestamp(), isPrivate ? 1 : 0});
     emit treeChanged(QStringLiteral("albums"));
     return id;
 }
 
 void Catalog::renameAlbum(const QString &albumId, const QString &name)
 {
+    guardAlbum(albumId);
     const QString clean = name.trimmed();
     if (clean.isEmpty())
         throw ActionError(QStringLiteral("album.emptyName"));
@@ -152,6 +165,7 @@ void Catalog::renameAlbum(const QString &albumId, const QString &name)
 
 void Catalog::deleteAlbum(const QString &albumId)
 {
+    guardAlbum(albumId);
     m_db.exec(QStringLiteral("DELETE FROM album WHERE id = ?"), {albumId});
     emit treeChanged(QStringLiteral("albums"));
     emit photosChanged();
@@ -159,19 +173,30 @@ void Catalog::deleteAlbum(const QString &albumId)
 
 void Catalog::moveAlbum(const QString &albumId, const QString &newParentId)
 {
+    guardAlbum(albumId);
     if (!newParentId.isEmpty() && isDescendant(m_db, QStringLiteral("album"), newParentId, albumId))
         throw ActionError(QStringLiteral("album.cycle"));
+    // Um álbum não atravessa a fronteira do privado (as fotos dele não mudam
+    // de visibilidade por arrastar uma pasta).
+    const bool toPrivate = !newParentId.isEmpty() && isPrivateAlbum(newParentId);
+    if (toPrivate != isPrivateAlbum(albumId))
+        throw ActionError(QStringLiteral("album.privateBoundary"));
     m_db.exec(QStringLiteral("UPDATE album SET parent_id = ? WHERE id = ?"), {parentOrNull(newParentId), albumId});
     emit treeChanged(QStringLiteral("albums"));
 }
 
 void Catalog::addPhotosToAlbum(const QStringList &photoIds, const QString &albumId)
 {
+    const bool toPrivate = isPrivateAlbum(albumId);
+    // Pôr num álbum privado = tornar privada (cifra o original e a miniatura).
+    if (toPrivate)
+        makePrivate(photoIds);
     Transaction tx(m_db);
     const QString now = Database::timestamp();
     for (const QString &id : photoIds)
-        m_db.exec(QStringLiteral("INSERT OR IGNORE INTO album_photo(album_id, photo_id, added_at) VALUES(?, ?, ?)"),
-                  {albumId, id, now});
+        m_db.exec(QStringLiteral("INSERT OR IGNORE INTO album_photo(album_id, photo_id, added_at) "
+                                 "SELECT ?, id, ? FROM photo WHERE id = ? AND private = ?"),
+                  {albumId, now, id, toPrivate ? 1 : 0});
     tx.commit();
     emit treeChanged(QStringLiteral("albums"));
     emit photosChanged();
@@ -179,6 +204,11 @@ void Catalog::addPhotosToAlbum(const QStringList &photoIds, const QString &album
 
 void Catalog::removePhotosFromAlbum(const QStringList &photoIds, const QString &albumId)
 {
+    // Tirar do álbum "Private" (a raiz) = voltar a ser pública.
+    if (albumId == privateAlbumId()) {
+        makePublic(photoIds);
+        return;
+    }
     Transaction tx(m_db);
     for (const QString &id : photoIds)
         m_db.exec(QStringLiteral("DELETE FROM album_photo WHERE album_id = ? AND photo_id = ?"), {albumId, id});

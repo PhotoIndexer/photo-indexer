@@ -44,10 +44,17 @@ public:
     Q_INVOKABLE void removeCategory(const QString &categoryId);
     Q_INVOKABLE void addAlbum(const QString &albumId);
     Q_INVOKABLE void removeAlbum(const QString &albumId);
+    /// Esta foto: privada (cifra o original) / pública de novo.
+    Q_INVOKABLE void makePrivate();
+    Q_INVOKABLE void makePublic();
     /// A face é desta pessoa / NÃO é / é de uma pessoa nova com este nome.
     Q_INVOKABLE void assignFace(const QString &faceId, const QString &personId);
     Q_INVOKABLE void rejectFace(const QString &faceId);
     Q_INVOKABLE void newPersonFromFace(const QString &faceId, const QString &name);
+
+private:
+    template<typename F>
+    void act(F &&fn);
 
 signals:
     void photoChanged();

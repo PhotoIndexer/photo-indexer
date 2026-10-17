@@ -9,7 +9,8 @@ permite buscar descrevendo a foto ou mostrando o rosto de alguém.
 
 Funciona como um **aplicativo normal** no Windows, no macOS e no Linux, sem
 internet, sem conta e sem nuvem. **Suas fotos nunca são alteradas**: o app só
-as lê.
+as lê — a única exceção é quando você pede para tornar uma foto
+[privada](#fotos-privadas).
 
 ![Biblioteca com as categorias da IA](./docs/images/categories.jpg)
 
@@ -150,9 +151,36 @@ dele.
 
 ![Pastas e discos](./docs/images/folders.jpg)
 
+## Fotos privadas
+
+Selecione fotos e escolha **Tornar privada**: elas somem de toda a biblioteca
+(pastas, datas, categorias, lugares, busca, pessoas, duplicadas) e só
+aparecem no álbum **Privado**, com a senha.
+
+- **O arquivo original é criptografado** (AES-256-GCM) em `nome.photoidxe`,
+  na mesma pasta, e o original é apagado só depois de a cópia ser decifrada
+  e conferida. O SHA-256 de antes e de depois fica guardado no catálogo.
+- A miniatura também é criptografada; as faces saem de Pessoas.
+- **Tornar pública** devolve o arquivo com o nome e os bytes originais.
+- Abrir uma foto privada pede a senha; o app tranca sozinho depois de um
+  tempo sem uso (ajustável) e sempre que é fechado.
+
+**A chave.** Na instalação o PhotoIDX gera uma chave de criptografia
+aleatória (256 bits), guardada no catálogo protegida pela sua senha
+(PBKDF2-HMAC-SHA512, 600 mil iterações). Na primeira vez o app mostra a chave
+para você **copiar e guardar fora do computador** — é com ela que você
+recupera as fotos se esquecer a senha. A tela **Privadas** mostra, copia e
+troca a chave (as fotos são criptografadas de novo, em segundo plano) e troca
+a senha.
+
+> Sem a chave e sem a senha, ninguém recupera as fotos privadas — nem o
+> PhotoIDX. O catálogo continua sabendo nome, data, câmera, lugar e EXIF das
+> fotos privadas (para a busca dentro do álbum Privado); o que fica
+> criptografado é a imagem.
+
 ## Tarefas
 
-A indexação roda em quatro etapas, cada uma com o seu grupo de threads:
+A indexação roda em etapas, cada uma com o seu grupo de threads:
 
 | Etapa | O que faz |
 |---|---|
@@ -160,11 +188,16 @@ A indexação roda em quatro etapas, cada uma com o seu grupo de threads:
 | **Indexer** | lê o arquivo: todas as tags EXIF, a data, a miniatura, o hash dos pixels, o hash de similaridade e o lugar (GPS) |
 | **Categorizer** | a IA põe a foto em categorias e prepara a busca por IA |
 | **Faces** | acha os rostos, calcula a biometria de cada um e agrupa em pessoas |
+| **Privadas** | criptografa/descriptografa os arquivos das fotos privadas (só com o cofre aberto) |
 
 A tela **Tarefas** mostra o andamento (pendentes, em andamento, concluídas,
 falhas, itens por minuto) e permite pausar, retomar, cancelar, mudar o número
 de threads, refazer uma etapa e ajustar a IA. Fechar o app no meio não perde
 nada.
+
+Para não tomar conta do computador há um **teto de tarefas simultâneas**
+somando todas as etapas (padrão: metade dos núcleos, entre 2 e 8) e um limite
+de memória para abrir imagens grandes (25% da RAM).
 
 ![Tarefas](./docs/images/tasks.jpg)
 
@@ -176,7 +209,8 @@ Suas fotos ficam onde estão. O que o PhotoIDX gera fica em `~/.photo_indexer`
 ```
 ~/.photo_indexer/
     data.sqlite3                    o catálogo
-    thumbnail/YYYY/MM/<uuid>.jpg    as miniaturas (uuid = id da foto)
+    thumbnail/YYYY/MM/<uuid>.jpg    as miniaturas (uuid = id da foto;
+                                    .pidx = criptografada, foto privada)
     faces/YYYY/MM/<uuid>.jpg        os recortes dos rostos
     logs/                           o log do app
 ```

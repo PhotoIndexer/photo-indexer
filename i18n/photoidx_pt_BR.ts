@@ -98,6 +98,10 @@
         <source>Quit</source>
         <translation>Sair</translation>
     </message>
+    <message>
+        <source>Private</source>
+        <translation>Privado</translation>
+    </message>
 </context>
 <context>
     <name>AppHeader</name>
@@ -170,6 +174,10 @@
     <message>
         <source>Person %1</source>
         <translation>Pessoa %1</translation>
+    </message>
+    <message>
+        <source>Private</source>
+        <translation>Privado</translation>
     </message>
 </context>
 <context>
@@ -1183,6 +1191,10 @@
         <source>Light or dark theme</source>
         <translation>Tema claro ou escuro</translation>
     </message>
+    <message>
+        <source>Private photos</source>
+        <translation>Fotos privadas</translation>
+    </message>
 </context>
 <context>
     <name>LibraryController</name>
@@ -1441,6 +1453,65 @@
     <message>
         <source>New album with the selection…</source>
         <translation>Novo álbum com a seleção…</translation>
+    </message>
+    <message numerus="yes">
+        <source>Make %n photo(s) private?</source>
+        <translation>
+            <numerusform>Tornar %n foto privada?</numerusform>
+            <numerusform>Tornar %n fotos privadas?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The original file is encrypted into a &lt;b&gt;.photoidxe&lt;/b&gt; file in the same folder and the original is deleted after the copy is checked. The photos disappear from the library and only show up in the Private album, with the password.</source>
+        <translation>O arquivo original é criptografado num arquivo &lt;b&gt;.photoidxe&lt;/b&gt; na mesma pasta e o original é apagado depois de a cópia ser conferida. As fotos somem da biblioteca e só aparecem no álbum Privado, com a senha.</translation>
+    </message>
+    <message>
+        <source>Other programs cannot open .photoidxe files. To get the normal file back, make the photo public.</source>
+        <translation>Outros programas não abrem arquivos .photoidxe. Para ter o arquivo normal de volta, torne a foto pública.</translation>
+    </message>
+    <message>
+        <source>Make private</source>
+        <translation>Tornar privada</translation>
+    </message>
+    <message>
+        <source>Lock private photos</source>
+        <translation>Trancar fotos privadas</translation>
+    </message>
+    <message>
+        <source>Unlock private photos…</source>
+        <translation>Destrancar fotos privadas…</translation>
+    </message>
+    <message>
+        <source>Privacy settings…</source>
+        <translation>Ajustes de privacidade…</translation>
+    </message>
+    <message>
+        <source>Make public</source>
+        <translation>Tornar pública</translation>
+    </message>
+    <message>
+        <source>Private photos are locked</source>
+        <translation>As fotos privadas estão trancadas</translation>
+    </message>
+    <message>
+        <source>No private photos yet</source>
+        <translation>Nenhuma foto privada ainda</translation>
+    </message>
+    <message>
+        <source>Enter the password to see the Private album and its sub-albums.</source>
+        <translation>Digite a senha para ver o álbum Privado e os sub-álbuns dele.</translation>
+    </message>
+    <message>
+        <source>Select photos in the library and choose “Make private”. Their files are encrypted and they only show up here.</source>
+        <translation>Selecione fotos na biblioteca e escolha “Tornar privada”. Os arquivos são criptografados e elas só aparecem aqui.</translation>
+    </message>
+    <message>
+        <source>Unlock</source>
+        <translation>Destrancar</translation>
+    </message>
+    <message>
+        <source>Make private…</source>
+        <translation>Tornar privada…</translation>
     </message>
 </context>
 <context>
@@ -2117,6 +2188,70 @@
         <source>Confidence: only people whose faces were detected with at least this average confidence.</source>
         <translation>Confiabilidade: só pessoas cujas faces foram detectadas com pelo menos esta confiança média.</translation>
     </message>
+    <message>
+        <source>The Private album cannot be renamed, moved or deleted.</source>
+        <translation>O álbum Privado não pode ser renomeado, movido nem apagado.</translation>
+    </message>
+    <message>
+        <source>An album cannot move into or out of the Private album. To protect photos, make them private.</source>
+        <translation>Um álbum não pode entrar no álbum Privado nem sair dele. Para proteger fotos, torne-as privadas.</translation>
+    </message>
+    <message>
+        <source>Create the password for private photos first.</source>
+        <translation>Crie antes a senha das fotos privadas.</translation>
+    </message>
+    <message>
+        <source>Private photos are locked. Enter the password to continue.</source>
+        <translation>As fotos privadas estão trancadas. Digite a senha para continuar.</translation>
+    </message>
+    <message>
+        <source>Wrong password.</source>
+        <translation>Senha errada.</translation>
+    </message>
+    <message>
+        <source>The password needs at least %1 characters.</source>
+        <translation>A senha precisa ter pelo menos %1 caracteres.</translation>
+    </message>
+    <message>
+        <source>The passwords do not match.</source>
+        <translation>As senhas não conferem.</translation>
+    </message>
+    <message>
+        <source>A password is already set. Use “Change password”.</source>
+        <translation>Já existe uma senha. Use “Trocar senha”.</translation>
+    </message>
+    <message>
+        <source>This is not a valid key. Check it was copied completely (14 groups of 4 characters).</source>
+        <translation>Esta não é uma chave válida. Confira se ela foi copiada inteira (14 grupos de 4 caracteres).</translation>
+    </message>
+    <message>
+        <source>This key is valid but is not the key of this catalog.</source>
+        <translation>Esta chave é válida, mas não é a chave deste catálogo.</translation>
+    </message>
+    <message>
+        <source>The password could not be saved.</source>
+        <translation>Não foi possível salvar a senha.</translation>
+    </message>
+    <message>
+        <source>Private photos</source>
+        <translation>Fotos privadas</translation>
+    </message>
+    <message>
+        <source>Key copied. The clipboard is cleared in 2 minutes — paste it somewhere safe now.</source>
+        <translation>Chave copiada. A área de transferência é limpa em 2 minutos — cole-a num lugar seguro agora.</translation>
+    </message>
+    <message>
+        <source>Private photos were locked after a period without use.</source>
+        <translation>As fotos privadas foram trancadas depois de um tempo sem uso.</translation>
+    </message>
+    <message>
+        <source>Encrypts the original file and the thumbnail of photos made private (and decrypts the ones made public). Runs only while private photos are unlocked.</source>
+        <translation>Criptografa o arquivo original e a miniatura das fotos que viraram privadas (e descriptografa as que voltaram a ser públicas). Só roda com as fotos privadas destrancadas.</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>Trancado</translation>
+    </message>
 </context>
 <context>
     <name>Modal</name>
@@ -2134,6 +2269,97 @@
     <message>
         <source>Cancel</source>
         <translation>Cancelar</translation>
+    </message>
+</context>
+<context>
+    <name>PasswordDialog</name>
+    <message>
+        <source>Protect private photos</source>
+        <translation>Proteger fotos privadas</translation>
+    </message>
+    <message>
+        <source>Unlock private photos</source>
+        <translation>Destrancar fotos privadas</translation>
+    </message>
+    <message>
+        <source>Recover with your key</source>
+        <translation>Recuperar com a sua chave</translation>
+    </message>
+    <message>
+        <source>Change password</source>
+        <translation>Trocar senha</translation>
+    </message>
+    <message>
+        <source>Private photos are encrypted with the key below. It was created for this computer when %1 was installed.</source>
+        <translation>As fotos privadas são criptografadas com a chave abaixo. Ela foi criada para este computador quando o %1 foi instalado.</translation>
+    </message>
+    <message>
+        <source>Enter the password to see and manage private photos.</source>
+        <translation>Digite a senha para ver e gerenciar as fotos privadas.</translation>
+    </message>
+    <message>
+        <source>Paste the encryption key you saved and choose a new password.</source>
+        <translation>Cole a chave de criptografia que você guardou e escolha uma senha nova.</translation>
+    </message>
+    <message>
+        <source>The key does not change, only the password that protects it.</source>
+        <translation>A chave não muda, só a senha que a protege.</translation>
+    </message>
+    <message>
+        <source>Encryption key</source>
+        <translation>Chave de criptografia</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Copiar</translation>
+    </message>
+    <message>
+        <source>Store this key somewhere safe, outside this computer (a password manager or printed). It is the only way back to your private photos if you forget the password or this computer fails — without the key and the password, the encrypted photos cannot be recovered by anyone.</source>
+        <translation>Guarde esta chave num lugar seguro, fora deste computador (num gerenciador de senhas ou impressa). Ela é o único caminho de volta às suas fotos privadas se você esquecer a senha ou este computador falhar — sem a chave e sem a senha, ninguém consegue recuperar as fotos criptografadas.</translation>
+    </message>
+    <message>
+        <source>I saved the key in a safe place</source>
+        <translation>Guardei a chave num lugar seguro</translation>
+    </message>
+    <message>
+        <source>Current password</source>
+        <translation>Senha atual</translation>
+    </message>
+    <message>
+        <source>Password</source>
+        <translation>Senha</translation>
+    </message>
+    <message>
+        <source>New password</source>
+        <translation>Senha nova</translation>
+    </message>
+    <message>
+        <source>Repeat the password</source>
+        <translation>Repita a senha</translation>
+    </message>
+    <message>
+        <source>At least %1 characters. Longer is better: a sentence you remember works well.</source>
+        <translation>Pelo menos %1 caracteres. Quanto mais longa, melhor: uma frase de que você se lembre funciona bem.</translation>
+    </message>
+    <message>
+        <source>Forgot the password? Use your encryption key</source>
+        <translation>Esqueceu a senha? Use a sua chave de criptografia</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
+        <source>Create password</source>
+        <translation>Criar senha</translation>
+    </message>
+    <message>
+        <source>Unlock</source>
+        <translation>Destrancar</translation>
+    </message>
+    <message>
+        <source>Recover</source>
+        <translation>Recuperar</translation>
     </message>
 </context>
 <context>
@@ -2328,6 +2554,193 @@
     <message>
         <source>Merge</source>
         <translation>Juntar</translation>
+    </message>
+</context>
+<context>
+    <name>PrivacyPage</name>
+    <message>
+        <source>Generate a new key?</source>
+        <translation>Gerar uma chave nova?</translation>
+    </message>
+    <message>
+        <source>Every private photo is encrypted again with the new key (originals and thumbnails), in the background, while private photos are unlocked. When it finishes, the current key &lt;b&gt;stops working&lt;/b&gt;: save the new one.</source>
+        <translation>Todas as fotos privadas são criptografadas de novo com a chave nova (originais e miniaturas), em segundo plano, com as fotos privadas destrancadas. Quando terminar, a chave atual &lt;b&gt;deixa de funcionar&lt;/b&gt;: guarde a nova.</translation>
+    </message>
+    <message>
+        <source>Photos on disks that are not connected now are re-encrypted when the disk comes back; until then the old key is kept.</source>
+        <translation>As fotos de discos desconectados agora são criptografadas de novo quando o disco voltar; até lá a chave antiga fica guardada.</translation>
+    </message>
+    <message>
+        <source>Generate new key</source>
+        <translation>Gerar chave nova</translation>
+    </message>
+    <message>
+        <source>Your new encryption key</source>
+        <translation>Sua chave de criptografia nova</translation>
+    </message>
+    <message>
+        <source>Store it somewhere safe, outside this computer. The old key no longer opens the photos once they are re-encrypted.</source>
+        <translation>Guarde-a num lugar seguro, fora deste computador. A chave antiga não abre mais as fotos depois que elas forem criptografadas de novo.</translation>
+    </message>
+    <message>
+        <source>Copy key</source>
+        <translation>Copiar chave</translation>
+    </message>
+    <message>
+        <source>Done</source>
+        <translation>Concluídas</translation>
+    </message>
+    <message>
+        <source>Private photos</source>
+        <translation>Fotos privadas</translation>
+    </message>
+    <message>
+        <source>A private photo disappears from the whole library and only shows up in the Private album, with the password. Its original file is encrypted (AES-256-GCM) into a .photoidxe file in the same folder, and its thumbnail is encrypted too.</source>
+        <translation>Uma foto privada some de toda a biblioteca e só aparece no álbum Privado, com a senha. O arquivo original é criptografado (AES-256-GCM) num arquivo .photoidxe na mesma pasta, e a miniatura também é criptografada.</translation>
+    </message>
+    <message>
+        <source>Not set up yet</source>
+        <translation>Ainda não configurado</translation>
+    </message>
+    <message>
+        <source>Unlocked</source>
+        <translation>Destrancado</translation>
+    </message>
+    <message>
+        <source>Locked</source>
+        <translation>Trancado</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n private photo(s)</source>
+        <translation>
+            <numerusform>%n foto privada</numerusform>
+            <numerusform>%n fotos privadas</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n waiting to be encrypted or decrypted</source>
+        <translation>
+            <numerusform>%n esperando para ser criptografada ou descriptografada</numerusform>
+            <numerusform>%n esperando para ser criptografadas ou descriptografadas</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n with errors (see Tasks)</source>
+        <translation>
+            <numerusform>%n com erro (veja Tarefas)</numerusform>
+            <numerusform>%n com erros (veja Tarefas)</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Open the Private album</source>
+        <translation>Abrir o álbum Privado</translation>
+    </message>
+    <message>
+        <source>Create password</source>
+        <translation>Criar senha</translation>
+    </message>
+    <message>
+        <source>Lock now</source>
+        <translation>Trancar agora</translation>
+    </message>
+    <message>
+        <source>Unlock</source>
+        <translation>Destrancar</translation>
+    </message>
+    <message>
+        <source>Encryption key</source>
+        <translation>Chave de criptografia</translation>
+    </message>
+    <message>
+        <source>id %1</source>
+        <translation>id %1</translation>
+    </message>
+    <message>
+        <source>Created when %1 was installed, kept in the catalog protected by your password. With it you get your private photos back if you forget the password or move to another computer. Keep a copy outside this computer.</source>
+        <translation>Criada quando o %1 foi instalado, guardada no catálogo protegida pela sua senha. Com ela você recupera as fotos privadas se esquecer a senha ou mudar de computador. Guarde uma cópia fora deste computador.</translation>
+    </message>
+    <message>
+        <source>Unlock private photos to see the key.</source>
+        <translation>Destranque as fotos privadas para ver a chave.</translation>
+    </message>
+    <message>
+        <source>Hide</source>
+        <translation>Ocultar</translation>
+    </message>
+    <message>
+        <source>Show</source>
+        <translation>Mostrar</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Copiar</translation>
+    </message>
+    <message>
+        <source>Generate new key…</source>
+        <translation>Gerar chave nova…</translation>
+    </message>
+    <message>
+        <source>Password</source>
+        <translation>Senha</translation>
+    </message>
+    <message>
+        <source>Protects the key in the catalog. Changing it does not re-encrypt any photo.</source>
+        <translation>Protege a chave no catálogo. Trocá-la não criptografa nenhuma foto de novo.</translation>
+    </message>
+    <message>
+        <source>Change password…</source>
+        <translation>Trocar senha…</translation>
+    </message>
+    <message>
+        <source>Forgot it…</source>
+        <translation>Esqueci…</translation>
+    </message>
+    <message>
+        <source>Lock automatically</source>
+        <translation>Trancar automaticamente</translation>
+    </message>
+    <message>
+        <source>After this time without using the app. Closing the app always locks.</source>
+        <translation>Depois deste tempo sem usar o app. Fechar o app sempre tranca.</translation>
+    </message>
+    <message>
+        <source>Never</source>
+        <translation>Nunca</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minuto</numerusform>
+            <numerusform>%n minutos</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>What is protected</source>
+        <translation>O que fica protegido</translation>
+    </message>
+    <message>
+        <source>The original file: encrypted into &lt;b&gt;name.photoidxe&lt;/b&gt; in the same folder; the original is deleted only after the encrypted copy is checked (SHA-256 before and after are stored).</source>
+        <translation>O arquivo original: criptografado em &lt;b&gt;nome.photoidxe&lt;/b&gt; na mesma pasta; o original só é apagado depois de a cópia criptografada ser conferida (o SHA-256 de antes e de depois fica guardado).</translation>
+    </message>
+    <message>
+        <source>The thumbnail in %1: encrypted.</source>
+        <translation>A miniatura em %1: criptografada.</translation>
+    </message>
+    <message>
+        <source>Faces leave People and face search (they are detected again if the photo is made public).</source>
+        <translation>As faces saem de Pessoas e da busca por rosto (são detectadas de novo se a foto voltar a ser pública).</translation>
+    </message>
+    <message>
+        <source>Hidden from folders, dates, categories, places, search and duplicates.</source>
+        <translation>Escondida de pastas, datas, categorias, lugares, busca e duplicadas.</translation>
+    </message>
+    <message>
+        <source>Not encrypted: the catalog still knows the file name, date, camera, location and EXIF of private photos, so they can be searched inside the Private album.</source>
+        <translation>Não criptografado: o catálogo ainda sabe o nome do arquivo, a data, a câmera, o local e o EXIF das fotos privadas, para que elas possam ser buscadas dentro do álbum Privado.</translation>
+    </message>
+    <message>
+        <source>Opening a .photoidxe file needs %1 and the key; other programs cannot read it. To get the normal file back, make the photo public.</source>
+        <translation>Abrir um arquivo .photoidxe exige o %1 e a chave; outros programas não o leem. Para ter o arquivo normal de volta, torne a foto pública.</translation>
     </message>
 </context>
 <context>
@@ -2855,6 +3268,38 @@
     <message>
         <source>Remove</source>
         <translation>Tirar</translation>
+    </message>
+    <message>
+        <source>Make public</source>
+        <translation>Tornar pública</translation>
+    </message>
+    <message>
+        <source>Make private…</source>
+        <translation>Tornar privada…</translation>
+    </message>
+    <message>
+        <source>Make this photo private?</source>
+        <translation>Tornar esta foto privada?</translation>
+    </message>
+    <message>
+        <source>The original file is encrypted into a &lt;b&gt;.photoidxe&lt;/b&gt; file in the same folder and the original is deleted after the copy is checked. The photo disappears from the library and only shows up in the Private album, with the password.</source>
+        <translation>O arquivo original é criptografado num arquivo &lt;b&gt;.photoidxe&lt;/b&gt; na mesma pasta e o original é apagado depois de a cópia ser conferida. A foto some da biblioteca e só aparece no álbum Privado, com a senha.</translation>
+    </message>
+    <message>
+        <source>Make private</source>
+        <translation>Tornar privada</translation>
+    </message>
+    <message>
+        <source>Original name</source>
+        <translation>Nome original</translation>
+    </message>
+    <message>
+        <source>SHA-256 (original)</source>
+        <translation>SHA-256 (original)</translation>
+    </message>
+    <message>
+        <source>SHA-256 (encrypted)</source>
+        <translation>SHA-256 (criptografado)</translation>
     </message>
 </context>
 </TS>

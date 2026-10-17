@@ -11,11 +11,15 @@ add_library(photoidx_core STATIC
     FaceIndex.h FaceIndex.cpp
     Taxonomy.h Taxonomy.cpp
     Models.h
+    Crypto.h Crypto.cpp
+    Vault.h Vault.cpp
+    Privacy.h Privacy.cpp
     Catalog.h Catalog.cpp CatalogAi.cpp CatalogPeople.cpp CatalogQuery.cpp CatalogOrganize.cpp CatalogFilter.cpp
+    CatalogPrivate.cpp
     Pipeline.h Pipeline.cpp
 )
 target_include_directories(photoidx_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-target_link_libraries(photoidx_core PUBLIC photoidx_imaging Qt6::Core Qt6::Sql Qt6::Concurrent)
+target_link_libraries(photoidx_core PUBLIC photoidx_imaging Qt6::Core Qt6::Sql Qt6::Concurrent PRIVATE mbedcrypto)
 if(APPLE)
     # UUID e tipo do volume (Disks.cpp).
     target_link_libraries(photoidx_core PRIVATE "-framework DiskArbitration" "-framework CoreFoundation")

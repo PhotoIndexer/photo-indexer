@@ -112,7 +112,7 @@ QList<QPair<QString, float>> Catalog::rankByEmbedding(const imaging::Embedding &
         m_embeddingIds.clear();
         m_embeddings.clear();
         QSqlQuery q = m_db.exec(QStringLiteral("SELECT e.photo_id, e.vector FROM photo_embedding e "
-                                               "JOIN photo p ON p.id = e.photo_id WHERE p.state != 'missing'"));
+                                               "JOIN photo p ON p.id = e.photo_id WHERE p.state != 'missing' AND p.private = 0"));
         while (q.next()) {
             const imaging::Embedding v = imaging::fromBlob(q.value(1).toByteArray());
             if (v.size() != text.size())

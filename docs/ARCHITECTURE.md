@@ -15,6 +15,7 @@ servidor. As convenções obrigatórias estão no [`CLAUDE.md`](../CLAUDE.md).
 | CLIP ViT-B/32 (int8) | Xenova/clip-vit-base-patch32 | categorias e busca por IA |
 | insightface buffalo_sc | v0.7 | faces (o mesmo do ../photoe) |
 | GeoNames cities1000 | gerado por `packaging/geonames.py` | GPS → cidade/estado/país, offline |
+| Mbed TLS (só mbedcrypto, estático) | 3.6.4 | AES-256-GCM e PBKDF2-HMAC-SHA512 das fotos privadas |
 
 ## Camadas
 
@@ -24,8 +25,9 @@ src/imaging   sem banco e sem interface
      │          Inspect (o trabalho do Indexer), Clip, Faces, Onnx, Embedding
 src/core      o catálogo e as etapas
      │          Database (+schema/), Catalog*.cpp, Pipeline, Disks, Places,
-     │          HashTree (BK-tree), FaceIndex, Taxonomy, Paths
-src/app       main, controllers (App, library, viewer, people, tasks),
+     │          HashTree (BK-tree), FaceIndex, Taxonomy, Paths,
+     │          Crypto (formato .photoidxe), Vault (chaveiro), Privacy
+src/app       main, controllers (App, library, viewer, people, tasks, privacy),
               PhotoGridModel, TreeModel, image providers, qml/
 ```
 
@@ -41,6 +43,32 @@ nada; o banco é só da thread principal.
 | **Indexer** | `imaging::inspect`: EXIF completo, data de criação (EXIF; sem EXIF, a do arquivo), pixels orientados, `picture_hash`, hash perceptual, nitidez, miniatura (480 px) em `thumbnail/YYYY/MM/<uuid>.jpg`, GPS → lugar | `state` |
 | **Categorizer** | CLIP: embedding da miniatura (guardado para a busca) e zero-shot contra as frases das categorias (softmax com escala 100; até 3 acima de 15%, ou o melhor palpite); regras: borrada (nitidez), duplicata (hashes), sem categoria | `ai_state` |
 | **Faces** | SCRFD + ArcFace na imagem a 1920 px; recorte de cada rosto em `faces/YYYY/MM/<uuid>.jpg`; agrupamento em pessoas | `faces_state` |
+| **Privacy** | fotos privadas: cifra o original em `<nome>.photoidxe` (mesma pasta) e a miniatura em `.pidx`, decifra as que voltam a ser públicas, recifra com a chave nova; só com o cofre aberto | `private_state` |
+
+Acima das threads de cada etapa há um **teto global** (`tasks/max`), repartido
+em rodízio; a decodificação completa reserva memória no
+`imaging::MemoryBudget`; exceção num worker vira o erro da foto (`guarded()`).
+
+### Fotos privadas
+
+- **Chave:** 256 bits aleatórios, gerada no primeiro `Catalog::open`. Em claro
+  (`setting vault/plain`) só até a pessoa definir a senha; depois, o chaveiro
+  (a chave atual e, durante uma troca, as antigas) fica cifrado com
+  AES-256-GCM sob a chave derivada da senha (PBKDF2-HMAC-SHA512, 600 mil
+  iterações, sal de 16 bytes) em `vault/wrapped`. `vault/currentId` (id
+  público da chave) confere a chave digitada na recuperação.
+- **Formato `.photoidxe`** (`core/Crypto.h`): cabeçalho de 40 bytes (magia,
+  bloco, id da chave, prefixo do nonce, tamanho) e registros AES-256-GCM de
+  1 MiB; registro 0 = metadados (nome original); a AAD amarra cada bloco ao
+  cabeçalho, à posição e ao "último" — corte, troca ou bit alterado não passam.
+- **Cifrar:** `QSaveFile` (temporário + rename), decifra de novo e compara o
+  SHA-256, só então apaga o original; queda no meio é retomada
+  (`core/Privacy.cpp`). `file_sha256`/`encrypted_sha256` ficam na foto.
+- **Visibilidade:** `photo.private = 1` some de todos os nós, contagens,
+  busca, IA, pessoas e duplicadas; só os nós de álbum privado a mostram, e só
+  com o chaveiro aberto (`KeyRing`, na memória da sessão). O original e a
+  miniatura são decifrados na memória (`image://private`, visualizador,
+  Indexer) — nunca em claro no disco.
 
 ### Categorias
 

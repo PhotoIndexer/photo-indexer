@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "PhotoGridModel.h"
 
-#include <QUrl>
+#include "ImageProviders.h"
 
 PhotoGridModel::PhotoGridModel(QObject *parent)
     : QAbstractListModel(parent)
@@ -21,7 +21,8 @@ QVariant PhotoGridModel::data(const QModelIndex &index, int role) const
     switch (role) {
     case PhotoIdRole: return r.id;
     case NameRole: return r.name;
-    case ThumbUrlRole: return r.thumbPath.isEmpty() ? QString() : QUrl::fromLocalFile(r.thumbPath).toString();
+    case ThumbUrlRole: return thumbnailUrl(r.thumbPath);
+    case IsPrivateRole: return r.isPrivate;
     case AspectRole: return r.width > 0 && r.height > 0 ? double(r.width) / r.height : 1.5;
     case IsRawRole: return r.isRaw;
     case TakenAtRole: return r.takenAt;
@@ -36,7 +37,8 @@ QHash<int, QByteArray> PhotoGridModel::roleNames() const
 {
     return {{PhotoIdRole, "photoId"},   {NameRole, "name"},         {ThumbUrlRole, "thumbUrl"},
             {AspectRole, "aspect"},     {IsRawRole, "isRaw"},       {TakenAtRole, "takenAt"},
-            {SelectedRole, "selected"}, {ScoreRole, "score"},       {StateRole, "state"}};
+            {SelectedRole, "selected"}, {ScoreRole, "score"},       {StateRole, "state"},
+            {IsPrivateRole, "isPrivate"}};
 }
 
 void PhotoGridModel::setRows(const QList<pix::GridRow> &rows)

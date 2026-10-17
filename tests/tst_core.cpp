@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: BSD-2-Clause
 // Catálogo: esquema, categorias, discos, lugares, árvore de hashes, pessoas e
-// o pipeline inteiro (Searcher -> Indexer) numa pasta temporária.
+// o pipeline inteiro (Searcher -> Indexer) numa pasta temporária; fotos
+// privadas (criptografia, cofre, cifrar/decifrar os arquivos de verdade).
 
 #include "core/Catalog.h"
+#include "core/Crypto.h"
 #include "core/Disks.h"
 #include "core/HashTree.h"
 #include "core/Paths.h"
 #include "core/Pipeline.h"
 #include "core/Places.h"
+#include "core/Privacy.h"
 #include "core/Taxonomy.h"
+#include "core/Vault.h"
 
+#include <QBuffer>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
 #include <QSignalSpy>
@@ -53,6 +59,37 @@ FaceResult faces(const QString &photoId, const QList<imaging::Embedding> &embedd
     return r;
 }
 
+QByteArray sha(const QByteArray &bytes)
+{
+    return QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex();
+}
+
+QByteArray readAll(const QString &path)
+{
+    QFile f(path);
+    return f.open(QIODevice::ReadOnly) ? f.readAll() : QByteArray();
+}
+
+void writeFile(const QString &path, const QByteArray &bytes)
+{
+    QDir().mkpath(QFileInfo(path).absolutePath());
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(bytes);
+}
+
+/// Roda um lote da etapa "privacy" e grava os resultados.
+int runPrivacyJobs(Catalog &catalog)
+{
+    int ok = 0;
+    for (const PrivacyJob &job : catalog.nextPrivacyJobs(100, {})) {
+        const PrivacyResult r = runPrivacy(job);
+        catalog.applyPrivacy(r);
+        ok += r.ok ? 1 : 0;
+    }
+    return ok;
+}
+
 } // namespace
 
 class TestCore : public QObject
@@ -69,8 +106,16 @@ private:
         QDir().mkpath(folder);
         const QString folderId = catalog.addFolder(folder);
         QList<FoundFile> files;
-        for (int i = 0; i < n; ++i)
-            files.append({folder + QStringLiteral("/p%1.jpg").arg(i), 100 + i, 1000 + i, QDateTime(), QDateTime()});
+        for (int i = 0; i < n; ++i) {
+            // O ingest ignora o que já não está no disco: o arquivo existe.
+            FoundFile f;
+            f.path = folder + QStringLiteral("/p%1.jpg").arg(i);
+            f.size = 100 + i;
+            f.mtimeMs = 1000 + i;
+            QFile touch(f.path);
+            touch.open(QIODevice::WriteOnly);
+            files.append(f);
+        }
         catalog.ingest(folderId, files);
         QStringList ids;
         QSqlQuery q = catalog.db().exec(QStringLiteral("SELECT id FROM photo ORDER BY path"));
@@ -389,6 +434,225 @@ private slots:
         QCOMPARE(scanned.last().at(1).toInt(), 1);
         QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT count(*) FROM photo")).toInt(), 1);
         QCOMPARE(catalog.stats().value(QStringLiteral("missing")).toInt(), 0);
+    }
+
+    void cryptoFormat()
+    {
+        const QByteArray key = crypto::randomBytes(crypto::kKeyBytes);
+        const QHash<QByteArray, QByteArray> keys{{crypto::keyId(key), key}};
+        // Vazio, pequeno e com vários blocos (o bloco é 1 MiB).
+        for (const qsizetype size : {qsizetype(0), qsizetype(5), qsizetype(3 * 1024 * 1024 + 17)}) {
+            const QByteArray plain = crypto::randomBytes(int(size));
+            const QByteArray sealed = crypto::encryptBytes(key, plain, QStringLiteral("IMG_0001.CR3"));
+            QVERIFY(crypto::isEncrypted(sealed));
+            QString name;
+            const auto back = crypto::decryptBytes(keys, sealed, &name);
+            QVERIFY(back);
+            QCOMPARE(*back, plain);
+            QCOMPARE(name, QStringLiteral("IMG_0001.CR3"));
+            if (size == 0)
+                continue;
+            // Um bit trocado em qualquer lugar, ou o fim cortado: não abre.
+            QByteArray tampered = sealed;
+            tampered[tampered.size() / 2] = char(tampered[tampered.size() / 2] ^ 1);
+            QVERIFY(!crypto::decryptBytes(keys, tampered));
+            QVERIFY(!crypto::decryptBytes(keys, sealed.left(sealed.size() - 20)));
+            QVERIFY(!crypto::decryptBytes(keys, sealed + "x"));
+        }
+        // Outra chave: não abre (e o erro diz que é a chave).
+        const QByteArray other = crypto::randomBytes(crypto::kKeyBytes);
+        QByteArray sealed = crypto::encryptBytes(key, "abc", {});
+        QBuffer in(&sealed);
+        in.open(QIODevice::ReadOnly);
+        const crypto::StreamResult r = crypto::decryptStream({{crypto::keyId(other), other}}, in, nullptr);
+        QVERIFY(!r.ok);
+        QCOMPARE(r.error, QStringLiteral("crypto.wrongKey"));
+        // A chave para guardar: ida e volta, tolerante a caixa e espaços; um
+        // caractere errado é recusado pela verificação.
+        const QString text = crypto::formatKey(key);
+        QCOMPARE(text.size(), 14 * 4 + 13);
+        QCOMPARE(crypto::parseKey(text), key);
+        QCOMPARE(crypto::parseKey(text.toLower().replace(u'-', u' ')), key);
+        QString typo = text;
+        typo[0] = typo[0] == u'A' ? u'B' : u'A';
+        QVERIFY(crypto::parseKey(typo).isEmpty());
+        // PBKDF2-HMAC-SHA512, vetor conhecido (RFC 6070 adaptado ao SHA-512).
+        QCOMPARE(crypto::deriveKey(QStringLiteral("password"), "salt", 1).toHex(),
+                 QByteArray("867f70cf1ade02cff3752599a3a53dc4af34c7a669815ae5d513554e1c8cf252"));
+    }
+
+    void vaultPasswordAndRecovery()
+    {
+        Catalog catalog;
+        catalog.open(QString());
+        // A chave nasce com o catálogo, em claro (sem senha ainda).
+        vault::Record record = catalog.vaultRecord();
+        QVERIFY(!record.plain.isEmpty());
+        QVERIFY(!catalog.hasVaultPassword());
+        const auto ring = catalog.currentRing();
+        QVERIFY(ring);
+        const QByteArray key = ring->current();
+        QCOMPARE(key.size(), crypto::kKeyBytes);
+        QCOMPARE(catalog.vaultRecord().currentId, crypto::keyId(key));
+        // Sem senha não dá para tornar privada.
+        bool threw = false;
+        try {
+            catalog.makePrivate({QStringLiteral("x")});
+        } catch (const ActionError &e) {
+            threw = e.key() == QLatin1String("vault.noPassword");
+        }
+        QVERIFY(threw);
+        // Senha definida: o chaveiro em claro some do banco.
+        QByteArray kek;
+        catalog.storeVault(vault::protect(*ring, QStringLiteral("s3nha forte"), 1000, &kek));
+        record = catalog.vaultRecord();
+        QVERIFY(catalog.hasVaultPassword());
+        QVERIFY(record.plain.isEmpty());
+        QVERIFY(!catalog.db().scalar(QStringLiteral("SELECT value FROM setting WHERE key = 'vault/wrapped'")).toString()
+                     .contains(QString::fromLatin1(key.toBase64())));
+        QVERIFY(!catalog.currentRing());  // trancado
+        // Senha errada não abre; a certa devolve a mesma chave.
+        QVERIFY(!vault::unwrap(record, vault::passwordKey(record, QStringLiteral("errada"))));
+        const auto opened = vault::unwrap(record, vault::passwordKey(record, QStringLiteral("s3nha forte")));
+        QVERIFY(opened);
+        QCOMPARE(opened->current(), key);
+        // Esqueceu a senha: a chave guardada confere pelo id e recebe senha nova.
+        const QByteArray typed = crypto::parseKey(crypto::formatKey(key));
+        QCOMPARE(crypto::keyId(typed), record.currentId);
+        catalog.storeVault(vault::protect(vault::ringWith(typed), QStringLiteral("nova"), 1000));
+        record = catalog.vaultRecord();
+        QCOMPARE(vault::unwrap(record, vault::passwordKey(record, QStringLiteral("nova")))->current(), key);
+    }
+
+    void privatePhotoLifecycle()
+    {
+        Catalog catalog;
+        catalog.open(QString());
+        const QString folder = m_photos.path() + QStringLiteral("/private");
+        const QStringList ids = seedPhotos(catalog, 2, folder);
+        QCOMPARE(ids.size(), 2);
+        const QString id = ids[0];
+        const QString original = folder + QStringLiteral("/p0.jpg");
+        const QByteArray originalBytes = crypto::randomBytes(150000);
+        writeFile(original, originalBytes);
+        // Indexada, com miniatura.
+        const QString thumb = AppPaths::thumbnailPath(id, QDate(2024, 5, 3));
+        const QByteArray thumbBytes = "\xFF\xD8\xFF fake jpeg thumbnail";
+        writeFile(thumb, thumbBytes);
+        catalog.db().exec(QStringLiteral("UPDATE photo SET state = 'indexed', thumb_path = ?, year = 2024, month = 5, day = 3, "
+                                         "faces_state = 'done', size = ? WHERE id = ?"),
+                          {thumb, originalBytes.size(), id});
+        catalog.applyFaces(faces(id, {vec({1, 0.2f})}));
+        QCOMPARE(catalog.people().size(), 1);
+
+        // Senha e cofre aberto.
+        QByteArray kek;
+        const vault::Ring ring = *catalog.currentRing();
+        catalog.storeVault(vault::protect(ring, QStringLiteral("pw"), 1000, &kek));
+        catalog.openVault(ring, kek);
+        QVERIFY(catalog.privateUnlocked());
+
+        auto count = [&](const QString &node) {
+            GridQuery q;
+            q.node = node;
+            return catalog.photos(q).size();
+        };
+        const QString privateNode = QStringLiteral("album:") + catalog.privateAlbumId();
+        QCOMPARE(count(QStringLiteral("all")), 2);
+
+        // Tornar privada: some de tudo na hora, aparece no álbum privado, as
+        // faces saem das pessoas.
+        QCOMPARE(catalog.makePrivate({id}), 1);
+        QCOMPARE(count(QStringLiteral("all")), 1);
+        QCOMPARE(count(QStringLiteral("year:2024")), 0);
+        QCOMPARE(count(privateNode), 1);
+        QCOMPARE(catalog.people().size(), 0);
+
+        // A etapa "privacy" cifra: .photoidxe no mesmo lugar, original apagado.
+        QCOMPARE(runPrivacyJobs(catalog), 1);
+        const QString encrypted = folder + QStringLiteral("/p0.photoidxe");
+        QVERIFY(!QFileInfo::exists(original));
+        QVERIFY(QFileInfo::exists(encrypted));
+        QSqlQuery row = catalog.db().exec(QStringLiteral("SELECT path, file_sha256, encrypted_sha256, thumb_path, private_state, "
+                                                         "original_name, size FROM photo WHERE id = ?"),
+                                          {id});
+        QVERIFY(row.next());
+        QCOMPARE(row.value(0).toString(), encrypted);
+        QCOMPARE(row.value(1).toByteArray(), sha(originalBytes));            // hash antes
+        QCOMPARE(row.value(2).toByteArray(), sha(readAll(encrypted)));       // hash depois
+        QCOMPARE(row.value(4).toString(), QStringLiteral("done"));
+        QCOMPARE(row.value(5).toString(), QStringLiteral("p0.jpg"));
+        QCOMPARE(row.value(6).toLongLong(), QFileInfo(encrypted).size());
+        // Miniatura cifrada (.pidx); a .jpg sumiu.
+        const QString encryptedThumb = row.value(3).toString();
+        QVERIFY(encryptedThumb.endsWith(QLatin1String(".pidx")));
+        QVERIFY(!QFileInfo::exists(thumb));
+        QVERIFY(!readAll(encryptedThumb).contains("fake jpeg"));
+        QCOMPARE(*crypto::decryptBytes(catalog.keySnapshot().keys, readAll(encryptedThumb)), thumbBytes);
+        QVERIFY(!readAll(encrypted).contains(originalBytes.left(64)));
+
+        // Trancado: nem o álbum privado mostra, nem o detalhe, nem a contagem.
+        catalog.lockVault();
+        QVERIFY(!catalog.privateUnlocked());
+        QCOMPARE(count(privateNode), 0);
+        QVERIFY(catalog.photoDetail(id).isEmpty());
+        bool hiddenCount = false;
+        for (const QVariant &n : catalog.tree(QStringLiteral("albums")))
+            if (n.toMap().value(QStringLiteral("key")) == privateNode)
+                hiddenCount = n.toMap().value(QStringLiteral("count")).toInt() < 0;
+        QVERIFY(hiddenCount);
+        QVERIFY(catalog.nextPrivacyJobs(10, {}).isEmpty());
+
+        // Abre de novo e troca a chave: a foto é recifrada; a chave velha sai.
+        vault::Record record = catalog.vaultRecord();
+        const QByteArray pk = vault::passwordKey(record, QStringLiteral("pw"));
+        catalog.openVault(*vault::unwrap(record, pk), pk);
+        const QByteArray oldId = catalog.keySnapshot().currentId;
+        const QByteArray fresh = catalog.rotateKey();
+        QCOMPARE(catalog.keySnapshot().keys.size(), 2);
+        const QList<PrivacyJob> rekey = catalog.nextPrivacyJobs(10, {});
+        QCOMPARE(rekey.size(), 1);
+        QCOMPARE(rekey[0].op, QStringLiteral("rekey"));
+        QCOMPARE(runPrivacyJobs(catalog), 1);
+        QCOMPARE(catalog.keySnapshot().keys.size(), 1);
+        QCOMPARE(catalog.keySnapshot().currentId, crypto::keyId(fresh));
+        QVERIFY(catalog.keySnapshot().currentId != oldId);
+        QVERIFY(crypto::decryptFile({{crypto::keyId(fresh), fresh}}, encrypted));
+
+        // Pública de novo: o arquivo volta com o nome e os bytes originais.
+        QCOMPARE(catalog.makePublic({id}), 1);
+        QCOMPARE(runPrivacyJobs(catalog), 1);
+        QVERIFY(QFileInfo::exists(original));
+        QVERIFY(!QFileInfo::exists(encrypted));
+        QCOMPARE(readAll(original), originalBytes);
+        QCOMPARE(count(QStringLiteral("all")), 2);
+        QCOMPARE(count(privateNode), 0);
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT faces_state FROM photo WHERE id = ?"), {id}).toString(),
+                 QStringLiteral("pending"));
+        QVERIFY(QFileInfo::exists(thumb));
+
+        // Queda no meio: o .photoidxe foi gravado mas o original não saiu e
+        // o banco não soube. A rodada seguinte reaproveita o cifrado.
+        QCOMPARE(catalog.makePrivate({id}), 1);
+        const QList<PrivacyJob> jobs = catalog.nextPrivacyJobs(10, {});
+        QCOMPARE(jobs.size(), 1);
+        QVERIFY(runPrivacy(jobs[0]).ok);   // resultado "perdido"
+        writeFile(original, originalBytes);  // e o original "ainda lá"
+        QCOMPARE(runPrivacyJobs(catalog), 1);
+        QVERIFY(!QFileInfo::exists(original));
+        QVERIFY(QFileInfo::exists(encrypted));
+        QVERIFY(!QFileInfo::exists(folder + QStringLiteral("/p0 (2).photoidxe")));
+
+        // Um .photoidxe que o catálogo não conhece entra como privada.
+        const QString foreign = folder + QStringLiteral("/other.photoidxe");
+        writeFile(foreign, crypto::encryptBytes(fresh, "x", QStringLiteral("other.nef")));
+        FoundFile f;
+        f.path = foreign;
+        f.size = QFileInfo(foreign).size();
+        f.keyId = QString::fromLatin1(crypto::keyId(fresh).toHex());
+        catalog.ingest(catalog.db().scalar(QStringLiteral("SELECT folder_id FROM photo WHERE id = ?"), {id}).toString(), {f});
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT private FROM photo WHERE path = ?"), {foreign}).toInt(), 1);
+        QCOMPARE(count(privateNode), 2);
     }
 
     void pipelineEndToEnd()

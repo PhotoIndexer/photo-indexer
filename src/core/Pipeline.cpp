@@ -2,14 +2,18 @@
 #include "core/Pipeline.h"
 
 #include "core/Catalog.h"
+#include "core/Crypto.h"
 #include "core/Paths.h"
 #include "core/Places.h"
+#include "core/Privacy.h"
 #include "imaging/Formats.h"
 #include "imaging/Hashes.h"
 #include "imaging/ImageIO.h"
 #include "imaging/Inspect.h"
+#include "imaging/Memory.h"
 
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
 #include <QLoggingCategory>
 #include <QRunnable>
@@ -128,7 +132,25 @@ IndexResult runIndex(const IndexJob &job)
 {
     IndexResult r;
     r.photoId = job.photoId;
-    imaging::Inspection in = imaging::inspect(job.path);
+    imaging::Inspection in;
+    if (job.path.endsWith(QStringLiteral(".") + QLatin1String(crypto::kEncryptedExtension), Qt::CaseInsensitive)) {
+        // Original cifrado: decifra na memória (nunca em claro no disco).
+        if (!job.keys.isOpen()) {
+            r.error = QStringLiteral("vault.locked");
+            return r;
+        }
+        const imaging::MemoryLease lease(QFileInfo(job.path).size());
+        QString name, error;
+        const auto plain = crypto::decryptFile(job.keys.keys, job.path, &name, &error);
+        if (!plain) {
+            r.error = error;
+            return r;
+        }
+        in = imaging::inspectData(*plain, name);
+        r.originalName = name;
+    } else {
+        in = imaging::inspect(job.path);
+    }
     if (!in.ok) {
         r.error = in.error.isEmpty() ? QStringLiteral("unreadable file") : in.error;
         return r;
@@ -153,9 +175,15 @@ IndexResult runIndex(const IndexJob &job)
     }
     if (!in.image.empty()) {
         const cv::Mat thumb = imaging::fitTo(in.image, kThumbSide);
-        const QString path = AppPaths::thumbnailPath(job.photoId, r.takenAt.date());
+        QString path = AppPaths::thumbnailPath(job.photoId, r.takenAt.date());
         QDir().mkpath(QFileInfo(path).absolutePath());
-        if (imaging::writeAtomic(path, imaging::encodeJpeg(thumb, kThumbQuality))) {
+        QByteArray jpeg = imaging::encodeJpeg(thumb, kThumbQuality);
+        if (job.isPrivate) {
+            // Miniatura de privada: só cifrada (.pidx).
+            jpeg = job.keys.isOpen() ? crypto::encryptBytes(job.keys.current(), jpeg, QFileInfo(path).fileName()) : QByteArray();
+            path = encryptedThumbPath(path);
+        }
+        if (!jpeg.isEmpty() && imaging::writeAtomic(path, jpeg)) {
             r.thumbPath = path;
             r.thumbWidth = thumb.cols;
             r.thumbHeight = thumb.rows;
@@ -275,7 +303,8 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
     const QHash<QString, int> defaults{{QStringLiteral("search"), 2},
                                        {QStringLiteral("index"), std::clamp(cores / 2, 2, 6)},
                                        {QStringLiteral("categorize"), std::clamp(cores / 8, 1, 2)},
-                                       {QStringLiteral("faces"), std::clamp(cores / 8, 1, 2)}};
+                                       {QStringLiteral("faces"), std::clamp(cores / 8, 1, 2)},
+                                       {QStringLiteral("privacy"), 1}};
     // Teto de tarefas simultâneas somando TODAS as etapas: as threads de
     // cada etapa são o limite dela; este é o do computador.
     m_maxTasks = std::clamp(catalog->setting(QStringLiteral("tasks/max"), defaultMaxTasks()).toInt(), 1, 64);
@@ -297,6 +326,12 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
     m_statusTimer.setSingleShot(true);
     m_statusTimer.setInterval(250);
     connect(&m_statusTimer, &QTimer::timeout, this, &Pipeline::statusChanged);
+    // Abriu o cofre (ou pediram privada/pública): a etapa "privacy" anda.
+    connect(catalog, &Catalog::privacyChanged, this, [this]() {
+        m_pendingTimer.invalidate();
+        if (m_timer.isActive())
+            QTimer::singleShot(0, this, &Pipeline::pump);
+    });
     connect(catalog, &Catalog::treeChanged, this, [this](const QString &tab) {
         if (tab == QLatin1String("categories"))
             invalidatePrompts();
@@ -340,7 +375,8 @@ int Pipeline::totalInFlight() const
 
 QStringList Pipeline::stageKeys()
 {
-    return {QStringLiteral("search"), QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces")};
+    return {QStringLiteral("search"), QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces"),
+            QStringLiteral("privacy")};
 }
 
 Pipeline::Stage &Pipeline::stage(const QString &key)
@@ -373,7 +409,8 @@ QVariantList Pipeline::status() const
             detail = QString::number(m_scanFound);
         } else {
             if (!m_pendingTimer.isValid() || m_pendingTimer.elapsed() > 2000 || !m_pendingCache.contains(key)) {
-                for (const QString &k : {QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces")})
+                for (const QString &k : {QStringLiteral("index"), QStringLiteral("categorize"), QStringLiteral("faces"),
+                                         QStringLiteral("privacy")})
                     m_pendingCache.insert(k, m_catalog->pendingCount(k));
                 m_pendingTimer.restart();
             }
@@ -383,6 +420,9 @@ QVariantList Pipeline::status() const
             state = QStringLiteral("unavailable");
         if (key == QLatin1String("faces") && !m_faces->available())
             state = QStringLiteral("unavailable");
+        // Privadas: só com o cofre aberto (as chaves estão na sessão).
+        if (key == QLatin1String("privacy") && s.running && s.inFlight == 0 && !m_catalog->privateUnlocked())
+            state = QStringLiteral("locked");
         // Itens por minuto nos últimos 60 s.
         int recent = 0;
         for (qint64 t : s.finishedAt)
@@ -551,17 +591,32 @@ void Pipeline::pump()
                         continue;
                     }
                     const QString name = fi.fileName();
-                    if (name.startsWith(QLatin1String("._")) || !imaging::isImageFile(name))
+                    const bool encrypted = name.endsWith(QStringLiteral(".") + QLatin1String(crypto::kEncryptedExtension),
+                                                         Qt::CaseInsensitive);
+                    if (name.startsWith(QLatin1String("._")) || (!encrypted && !imaging::isImageFile(name)))
                         continue;
-                    if (fi.size() < minBytes
+                    if ((!encrypted && fi.size() < minBytes)
                         || (imaging::extensionOf(name) == QLatin1String("raw") && fi.size() > kMaxGenericRawBytes))
                         continue;
                     // A extensão diz "imagem"; o conteúdo (os primeiros 4 KB)
                     // confirma: imagem de disco, arquivo corrompido ou
-                    // renomeado fica de fora.
-                    if (imaging::sniffImageFile(fi.absoluteFilePath()).isEmpty())
+                    // renomeado fica de fora. O .photoidxe, pela magia.
+                    QByteArray head;
+                    {
+                        QFile probe(fi.absoluteFilePath());
+                        if (probe.open(QIODevice::ReadOnly))
+                            head = probe.read(imaging::kSniffBytes);
+                    }
+                    QString keyId;
+                    if (encrypted) {
+                        if (!crypto::isEncrypted(head))
+                            continue;
+                        keyId = QString::fromLatin1(head.mid(16, 8).toHex());
+                    } else if (imaging::sniffImageMime(head).isEmpty()) {
                         continue;
+                    }
                     FoundFile f;
+                    f.keyId = keyId;
                     f.path = QDir::fromNativeSeparators(fi.absoluteFilePath());
                     f.size = fi.size();
                     f.modified = fi.lastModified();
@@ -633,16 +688,22 @@ void Pipeline::dispatchWork()
         }
     }
 
+    Stage &privacy = stage(QStringLiteral("privacy"));
+    QList<PrivacyJob> privacyJobs;
+    if (room(privacy) > 0 && m_catalog->privateUnlocked())
+        privacyJobs = m_catalog->nextPrivacyJobs(room(privacy), privacy.busy);
+
     // Uma de cada etapa por vez, começando por uma diferente a cada rodada:
     // com o teto apertado nenhuma etapa fica parada esperando a outra esvaziar.
-    qsizetype next[3] = {0, 0, 0};
-    const qsizetype sizes[3] = {indexJobs.size(), categorizeJobs.size(), faceJobs.size()};
+    constexpr int kStages = 4;
+    qsizetype next[kStages] = {0, 0, 0, 0};
+    const qsizetype sizes[kStages] = {indexJobs.size(), categorizeJobs.size(), faceJobs.size(), privacyJobs.size()};
     const int first = m_roundRobin;
-    m_roundRobin = (m_roundRobin + 1) % 3;
+    m_roundRobin = (m_roundRobin + 1) % kStages;
     while (free > 0) {
         bool any = false;
-        for (int k = 0; k < 3 && free > 0; ++k) {
-            const int which = (first + k) % 3;
+        for (int k = 0; k < kStages && free > 0; ++k) {
+            const int which = (first + k) % kStages;
             if (next[which] >= sizes[which])
                 continue;
             const qsizetype i = next[which]++;
@@ -650,8 +711,10 @@ void Pipeline::dispatchWork()
                 dispatchIndex(indexJobs[i]);
             else if (which == 1)
                 dispatchCategorize(categorizeJobs[i]);
-            else
+            else if (which == 2)
                 dispatchFaces(faceJobs[i]);
+            else
+                dispatchPrivacy(privacyJobs[i]);
             --free;
             any = true;
         }
@@ -799,6 +862,37 @@ void Pipeline::dispatchFaces(const FaceJob &job)
                     }
                 }
                 self->finished(self->stage(QStringLiteral("faces")), id, !skip && r.ok, QFileInfo(path).fileName());
+                self->pump();
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void Pipeline::dispatchPrivacy(const PrivacyJob &job)
+{
+    Stage &s = stage(QStringLiteral("privacy"));
+    QPointer<Pipeline> self(this);
+    const auto gen = s.generation;
+    const int myGen = gen->load();
+    s.busy.insert(job.photoId);
+    ++s.inFlight;
+    runInPool(*s.pool, [self, job, gen, myGen]() {
+        PrivacyResult r;
+        const bool skip = gen->load() != myGen;
+        if (!skip)
+            r = guarded<PrivacyResult>(job.photoId, [&job] { return runPrivacy(job); });
+        r.op = job.op;
+        QMetaObject::invokeMethod(
+            self.data(),
+            [self, r = std::move(r), skip, id = job.photoId, path = job.path]() {
+                if (!self)
+                    return;
+                if (!skip) {
+                    self->m_catalog->applyPrivacy(r);
+                    if (!r.ok)
+                        qCWarning(lcPipeline) << "Privacy" << r.op << "failed:" << path << "-" << r.error;
+                }
+                self->finished(self->stage(QStringLiteral("privacy")), id, !skip && r.ok, QFileInfo(path).fileName());
                 self->pump();
             },
             Qt::QueuedConnection);

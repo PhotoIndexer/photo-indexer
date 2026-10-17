@@ -51,6 +51,14 @@ AppController::AppController(QObject *parent)
     m_viewer = std::make_unique<ViewerController>(m_catalog.get(), m_library->grid());
     m_people = std::make_unique<PeopleController>(m_catalog.get(), m_pipeline.get());
     m_tasks = std::make_unique<TasksController>(m_catalog.get(), m_pipeline.get());
+    m_privacy = std::make_unique<PrivacyController>(m_catalog.get());
+    connect(m_privacy.get(), &PrivacyController::notice, this, &AppController::notice);
+    // Trancou com uma foto privada aberta: volta para a biblioteca.
+    connect(m_catalog.get(), &Catalog::privacyChanged, this, [this]() {
+        if (!m_catalog->privateUnlocked() && m_page == QLatin1String("viewer")
+            && m_viewer->detail().value(QStringLiteral("isPrivate")).toBool())
+            setPage(QStringLiteral("library"));
+    });
     connect(m_library.get(), &LibraryController::failed, this, &AppController::failed);
     connect(m_viewer.get(), &ViewerController::failed, this, &AppController::failed);
     connect(m_people.get(), &PeopleController::failed, this, &AppController::failed);
@@ -73,6 +81,11 @@ AppController::~AppController()
 {
     m_pipeline.reset();  // espera os workers antes de o catálogo sair
     g_instance = nullptr;
+}
+
+std::shared_ptr<const pix::crypto::KeyRing> AppController::keyRing() const
+{
+    return m_catalog->keyRing();
 }
 
 AppController *AppController::instance()
@@ -299,5 +312,5 @@ QString AppController::formatDateTime(const QString &wallClock) const
 
 QString AppController::fileUrl(const QString &path) const
 {
-    return path.isEmpty() ? QString() : QUrl::fromLocalFile(QDir::fromNativeSeparators(path)).toString();
+    return thumbnailUrl(path);
 }

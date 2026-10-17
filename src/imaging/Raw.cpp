@@ -143,13 +143,17 @@ cv::Mat largestPreview(LibRaw &raw, int orientation)
 
 } // namespace
 
-RawInfo readRaw(const QString &path, bool wantPreview, bool wantHash)
+namespace {
+
+RawInfo readRawWith(const QString &path, const QByteArray *data, bool wantPreview, bool wantHash)
 {
     RawInfo out;
     auto raw = std::make_unique<LibRaw>();
     TagCollector collector;
     raw->set_exifparser_handler(exifCallback, &collector);
-    const int rc = openRaw(*raw, path);
+    // Da memória (o original de uma foto privada, decifrado sem tocar o
+    // disco) ou do arquivo. O buffer precisa viver até o fim desta função.
+    const int rc = data ? raw->open_buffer(data->constData(), size_t(data->size())) : openRaw(*raw, path);
     if (rc != LIBRAW_SUCCESS) {
         out.error = QString::fromLatin1(libraw_strerror(rc));
         return out;
@@ -224,6 +228,18 @@ RawInfo readRaw(const QString &path, bool wantPreview, bool wantHash)
     if (out.pictureHash.isEmpty() && wantHash)
         qCDebug(lcRaw) << "No sensor data to hash in" << path;
     return out;
+}
+
+} // namespace
+
+RawInfo readRaw(const QString &path, bool wantPreview, bool wantHash)
+{
+    return readRawWith(path, nullptr, wantPreview, wantHash);
+}
+
+RawInfo readRawData(const QByteArray &data, bool wantPreview, bool wantHash)
+{
+    return readRawWith(QStringLiteral("<memory>"), &data, wantPreview, wantHash);
 }
 
 } // namespace pix::imaging

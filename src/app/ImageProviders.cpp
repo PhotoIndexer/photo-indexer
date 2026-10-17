@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: BSD-2-Clause
 #include "ImageProviders.h"
 
+#include <QDir>
 #include <QFile>
 #include <QPainter>
 #include <QRunnable>
 #include <QSvgRenderer>
 #include <QThreadPool>
+#include <QUrl>
 #include <QUrlQuery>
 
 namespace {
@@ -62,6 +64,38 @@ QThreadPool &imagePool()
 }
 
 } // namespace
+
+QString thumbnailUrl(const QString &path)
+{
+    if (path.isEmpty())
+        return {};
+    if (path.endsWith(QLatin1String(".") + QLatin1String(pix::crypto::kThumbnailExtension)))
+        return QStringLiteral("image://private/")
+            + QString::fromLatin1(QDir::fromNativeSeparators(path).toUtf8().toBase64(QByteArray::Base64UrlEncoding
+                                                                                   | QByteArray::OmitTrailingEquals));
+    return QUrl::fromLocalFile(QDir::fromNativeSeparators(path)).toString();
+}
+
+QQuickImageResponse *PrivateImageProvider::requestImageResponse(const QString &id, const QSize &requestedSize)
+{
+    const QString path = QString::fromUtf8(QByteArray::fromBase64(id.section(u'?', 0, 0).toLatin1(),
+                                                                  QByteArray::Base64UrlEncoding));
+    auto keys = m_keys;
+    auto *response = new Response(
+        [path, keys]() {
+            // Só arquivos cifrados da pasta de dados, e só com o cofre aberto.
+            if (!keys || !keys->isOpen() || !path.endsWith(QLatin1String(".") + QLatin1String(pix::crypto::kThumbnailExtension)))
+                return QImage();
+            QFile f(path);
+            if (!f.open(QIODevice::ReadOnly))
+                return QImage();
+            const auto plain = pix::crypto::decryptBytes(keys->keys(), f.readAll());
+            return plain ? QImage::fromData(*plain) : QImage();
+        },
+        requestedSize);
+    imagePool().start(response);
+    return response;
+}
 
 ImageRegistry &ImageRegistry::instance()
 {

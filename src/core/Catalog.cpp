@@ -61,6 +61,8 @@ void Catalog::open(const QString &path)
 {
     m_db.open(path);
     seedCategories();
+    ensureVault();
+    ensurePrivateAlbum();
     loadIndexes();
     loadPeople();
     qCInfo(lcCatalog) << "Catalog open:" << (path.isEmpty() ? QStringLiteral(":memory:") : path) << "-"
@@ -257,9 +259,9 @@ QVariantList Catalog::folders() const
     QVariantList out;
     QSqlQuery q = m_db.exec(QStringLiteral(
         "SELECT f.id, f.path, f.disk_id, f.scanned_at, d.online, "
-        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state != 'missing'), "
-        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state = 'indexed'), "
-        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state = 'error') "
+        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state != 'missing' AND p.private = 0), "
+        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state = 'indexed' AND p.private = 0), "
+        "  (SELECT count(*) FROM photo p WHERE p.folder_id = f.id AND p.state = 'error' AND p.private = 0) "
         "FROM folder f JOIN disk d ON d.id = f.disk_id ORDER BY f.path"));
     while (q.next())
         out << QVariantMap{{QStringLiteral("id"), q.value(0)},
@@ -280,7 +282,7 @@ QVariantList Catalog::disks() const
         "SELECT d.id, d.disk_key, d.label, d.kind, d.protocol, d.server, d.share, d.fs_type, d.device, d.serial, d.model, "
         "  d.mount_point, d.total_bytes, d.online, "
         "  (SELECT count(*) FROM folder f WHERE f.disk_id = d.id), "
-        "  (SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id WHERE f.disk_id = d.id AND p.state != 'missing') "
+        "  (SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id WHERE f.disk_id = d.id AND p.state != 'missing' AND p.private = 0) "
         "FROM disk d ORDER BY d.kind, d.label"));
     while (q.next())
         out << QVariantMap{{QStringLiteral("id"), q.value(0)},           {QStringLiteral("key"), q.value(1)},
@@ -371,6 +373,25 @@ int Catalog::ingest(const QString &folderId, const QList<FoundFile> &files)
         const QFileInfo fi(f.path);
         const QString dir = fi.absolutePath();
         if (!q.next()) {
+            // Sumiu entre a varredura e agora (ex.: o original que a etapa
+            // "privacy" acabou de cifrar): não entra.
+            if (!fi.exists())
+                continue;
+            if (!f.keyId.isEmpty()) {
+                // Um .photoidxe que o catálogo não conhece (outro catálogo,
+                // banco recriado): entra como privada; o Indexer o abre com o
+                // cofre aberto.
+                const QString id = Database::newId();
+                m_db.exec(QStringLiteral("INSERT INTO photo(id, folder_id, path, dir, name, ext, format, is_raw, size, file_mtime, "
+                                         "file_created_at, file_modified_at, state, added_at, private, private_state, key_id) "
+                                         "VALUES(?, ?, ?, ?, ?, '', 'PHOTOIDXE', 0, ?, ?, ?, ?, 'pending', ?, 1, 'done', ?)"),
+                          {id, folderId, f.path, dir, fi.fileName(), f.size, f.mtimeMs, localWallClock(f.created),
+                           localWallClock(f.modified), now, f.keyId});
+                m_db.exec(QStringLiteral("INSERT OR IGNORE INTO album_photo(album_id, photo_id, added_at) VALUES(?, ?, ?)"),
+                          {privateAlbumId(), id, now});
+                ++queued;
+                continue;
+            }
             const QString ext = imaging::extensionOf(f.path);
             m_db.exec(QStringLiteral("INSERT INTO photo(id, folder_id, path, dir, name, ext, format, is_raw, size, file_mtime, "
                                      "file_created_at, file_modified_at, state, added_at) "
@@ -407,10 +428,15 @@ int Catalog::ingest(const QString &folderId, const QList<FoundFile> &files)
 int Catalog::finishScan(const QString &folderId, const QSet<QString> &seenPaths)
 {
     QStringList missing, dropped;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, path, indexed_at FROM photo WHERE folder_id = ? AND state != 'missing'"),
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, path, indexed_at, private, private_state FROM photo "
+                                           "WHERE folder_id = ? AND state != 'missing'"),
                             {folderId});
     while (q.next()) {
         if (seenPaths.contains(q.value(1).toString()))
+            continue;
+        // Cifrada/decifrada pela etapa "privacy" durante a varredura: mudou de
+        // nome, mas está lá.
+        if ((q.value(3).toBool() || !q.value(4).toString().isEmpty()) && QFileInfo::exists(q.value(1).toString()))
             continue;
         // Nunca indexado (ainda na fila): não há o que guardar — sai do
         // catálogo. Já indexado: fica como "sumido" (miniatura, categorias,
@@ -438,10 +464,11 @@ QList<IndexJob> Catalog::nextIndexJobs(int limit, const QSet<QString> &busy) con
 {
     QList<IndexJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral(
-                                "SELECT p.id, p.path, p.thumb_path, p.file_created_at, p.file_modified_at FROM photo p "
+                                "SELECT p.id, p.path, p.thumb_path, p.file_created_at, p.file_modified_at, p.private FROM photo p "
                                 "JOIN folder f ON f.id = p.folder_id JOIN disk d ON d.id = f.disk_id "
-                                "WHERE p.state = 'pending' AND d.online = 1 ORDER BY p.added_at, p.path LIMIT ?"),
-                            {limit + int(busy.size())});
+                                "WHERE p.state = 'pending' AND d.online = 1 AND (p.private = 0 OR ?) "
+                                "ORDER BY p.added_at, p.path LIMIT ?"),
+                            {privateUnlocked() ? 1 : 0, limit + int(busy.size())});
     while (q.next() && out.size() < limit) {
         const QString id = q.value(0).toString();
         if (busy.contains(id))
@@ -452,6 +479,9 @@ QList<IndexJob> Catalog::nextIndexJobs(int limit, const QSet<QString> &busy) con
         job.previousThumb = q.value(2).toString();
         job.fileCreated = QDateTime::fromString(q.value(3).toString(), Qt::ISODateWithMs);
         job.fileModified = QDateTime::fromString(q.value(4).toString(), Qt::ISODateWithMs);
+        job.isPrivate = q.value(5).toBool();
+        if (job.isPrivate)
+            job.keys = keySnapshot();
         out.append(job);
     }
     return out;
@@ -462,7 +492,7 @@ QList<CategorizeJob> Catalog::nextCategorizeJobs(int limit, const QSet<QString> 
     QList<CategorizeJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral("SELECT p.id, p.thumb_path, e.vector FROM photo p "
                                            "LEFT JOIN photo_embedding e ON e.photo_id = p.id "
-                                           "WHERE p.state = 'indexed' AND p.ai_state = 'pending' "
+                                           "WHERE p.state = 'indexed' AND p.ai_state = 'pending' AND p.private = 0 "
                                            "AND p.thumb_path != '' ORDER BY p.indexed_at LIMIT ?"),
                             {limit + int(busy.size())});
     while (q.next() && out.size() < limit) {
@@ -480,7 +510,7 @@ QList<FaceJob> Catalog::nextFaceJobs(int limit, const QSet<QString> &busy) const
                                 "SELECT p.id, p.path, p.year, p.month, p.day FROM photo p "
                                 "JOIN folder f ON f.id = p.folder_id JOIN disk d ON d.id = f.disk_id "
                                 "WHERE p.state = 'indexed' AND p.faces_state = 'pending' AND p.thumb_path != '' "
-                                "AND d.online = 1 ORDER BY p.indexed_at LIMIT ?"),
+                                "AND p.private = 0 AND d.online = 1 ORDER BY p.indexed_at LIMIT ?"),
                             {limit + int(busy.size())});
     while (q.next() && out.size() < limit) {
         const QString id = q.value(0).toString();
@@ -500,16 +530,20 @@ int Catalog::pendingCount(const QString &stage) const
 {
     if (stage == QLatin1String("index"))
         return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id "
-                                          "JOIN disk d ON d.id = f.disk_id WHERE p.state = 'pending' AND d.online = 1"))
+                                          "JOIN disk d ON d.id = f.disk_id WHERE p.state = 'pending' AND d.online = 1 "
+                                          "AND (p.private = 0 OR ?)"),
+                           {privateUnlocked() ? 1 : 0})
             .toInt();
     if (stage == QLatin1String("categorize"))
         return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state = 'indexed' AND ai_state = 'pending' "
-                                          "AND thumb_path != ''"))
+                                          "AND thumb_path != '' AND private = 0"))
             .toInt();
+    if (stage == QLatin1String("privacy"))
+        return pendingPrivacy();
     if (stage == QLatin1String("faces"))
         return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id "
                                           "JOIN disk d ON d.id = f.disk_id WHERE p.state = 'indexed' "
-                                          "AND p.faces_state = 'pending' AND p.thumb_path != '' AND d.online = 1"))
+                                          "AND p.faces_state = 'pending' AND p.thumb_path != '' AND p.private = 0 AND d.online = 1"))
             .toInt();
     return 0;
 }
@@ -523,10 +557,14 @@ int Catalog::requeue(const QString &stage, const QString &scope)
                          : QStringLiteral("UPDATE photo SET state = 'pending', error = '' WHERE state IN ('indexed', 'error')");
     else if (stage == QLatin1String("categorize"))
         sql = errorsOnly ? QStringLiteral("UPDATE photo SET ai_state = 'pending' WHERE ai_state = 'error'")
-                         : QStringLiteral("UPDATE photo SET ai_state = 'pending' WHERE ai_state != 'pending'");
+                         : QStringLiteral("UPDATE photo SET ai_state = 'pending' WHERE ai_state != 'pending' AND private = 0");
     else if (stage == QLatin1String("faces"))
         sql = errorsOnly ? QStringLiteral("UPDATE photo SET faces_state = 'pending' WHERE faces_state = 'error'")
-                         : QStringLiteral("UPDATE photo SET faces_state = 'pending' WHERE faces_state != 'pending'");
+                         : QStringLiteral("UPDATE photo SET faces_state = 'pending' WHERE faces_state != 'pending' AND private = 0");
+    else if (stage == QLatin1String("privacy"))
+        // A operação que falhou volta para a fila ("error:encrypt" -> "encrypt").
+        sql = QStringLiteral("UPDATE photo SET private_state = substr(private_state, 7), error = '' "
+                             "WHERE private_state LIKE 'error:%'");
     if (sql.isEmpty())
         return 0;
     const int n = m_db.exec(sql).numRowsAffected();
@@ -582,8 +620,8 @@ void Catalog::applyIndex(const IndexResult &r)
                   "exposure_bias = ?, flash = ?, latitude = ?, longitude = ?, altitude = ?, place_id = ?, "
                   "thumb_path = ?, thumb_width = ?, thumb_height = ?, picture_hash = ?, phash = ?, sharpness = ?, "
                   "exif_count = ?, indexed_at = ?, "
-                  "ai_state = CASE WHEN ? THEN 'pending' ELSE ai_state END, "
-                  "faces_state = CASE WHEN ? THEN 'pending' ELSE faces_state END "
+                  "ai_state = CASE WHEN ? AND private = 0 THEN 'pending' ELSE ai_state END, "
+                  "faces_state = CASE WHEN ? AND private = 0 THEN 'pending' ELSE faces_state END "
                   "WHERE id = ?"),
               QVariantList{r.error.left(500), r.format, r.isRaw ? 1 : 0, r.width, r.height, s.orientation,
                            hasDate ? wallClock(r.takenAt) : QVariant(), r.takenSource, s.takenOffset,
@@ -601,6 +639,15 @@ void Catalog::applyIndex(const IndexResult &r)
                            r.pictureHash, r.perceptualHash, nullable(r.sharpness, r.sharpness >= 0),
                            int(r.tags.size()), Database::timestamp(), pixelsChanged ? 1 : 0,
                            pixelsChanged ? 1 : 0, r.photoId});
+
+    if (!r.originalName.isEmpty()) {
+        // Um .photoidxe que chegou sem catálogo: o nome e o formato reais
+        // vêm dos metadados cifrados.
+        const QString ext = imaging::extensionOf(r.originalName);
+        m_db.exec(QStringLiteral("UPDATE photo SET name = ?, original_name = ?, ext = ?, format = ?, is_raw = ? WHERE id = ?"),
+                  {r.originalName, r.originalName, ext, imaging::formatLabel(ext), imaging::isRawFile(r.originalName) ? 1 : 0,
+                   r.photoId});
+    }
 
     // Todas as tags EXIF (uma query preparada, reaproveitada).
     m_db.exec(QStringLiteral("DELETE FROM exif_tag WHERE photo_id = ?"), {r.photoId});
@@ -633,12 +680,16 @@ void Catalog::markDuplicates(const QString &photoId, const QString &pictureHash,
     const QString dup = builtinId(builtin::kDuplicate);
     if (dup.isEmpty())
         return;
+    // Privada não entra na conta: nem marca nem é marcada (não revela que existe).
+    if (m_db.scalar(QStringLiteral("SELECT private FROM photo WHERE id = ?"), {photoId}).toInt() == 1)
+        return;
     m_db.exec(QStringLiteral("DELETE FROM photo_category WHERE photo_id = ? AND category_id = ? AND source = 'rule'"),
               {photoId, dup});
     QSet<QString> twins;
     // Os mesmos pixels (picture_hash)...
     if (!pictureHash.isEmpty()) {
-        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM photo WHERE picture_hash = ? AND id != ? AND state != 'missing'"),
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM photo WHERE picture_hash = ? AND id != ? AND state != 'missing' "
+                                               "AND private = 0"),
                                 {pictureHash, photoId});
         while (q.next())
             twins.insert(q.value(0).toString());
@@ -652,7 +703,9 @@ void Catalog::markDuplicates(const QString &photoId, const QString &pictureHash,
             for (const HashTree::Match &m : m_hashes.query(phash, 0)) {
                 if (m.id == photoId || twins.contains(m.id))
                     continue;
-                QSqlQuery o = m_db.exec(QStringLiteral("SELECT width, height FROM photo WHERE id = ? AND state != 'missing'"), {m.id});
+                QSqlQuery o = m_db.exec(QStringLiteral("SELECT width, height FROM photo WHERE id = ? AND state != 'missing' "
+                                                       "AND private = 0"),
+                                        {m.id});
                 if (o.next() && o.value(1).toInt() > 0
                     && std::abs(o.value(0).toDouble() / o.value(1).toDouble() - aspect) < 0.01 * aspect)
                     twins.insert(m.id);

@@ -12,12 +12,15 @@
 //   CatalogPeople.cpp    faces, agrupamento em pessoas, merge, busca por rosto
 //   CatalogQuery.cpp     árvores do painel lateral, grade de fotos, detalhe
 //   CatalogOrganize.cpp  categorias e álbuns da pessoa
+//   CatalogPrivate.cpp   fotos privadas: chaveiro, álbum "Private", etapa "privacy"
 
+#include "core/Crypto.h"
 #include "core/Database.h"
 #include "core/Disks.h"
 #include "core/FaceIndex.h"
 #include "core/HashTree.h"
 #include "core/Models.h"
+#include "core/Vault.h"
 
 #include <QHash>
 #include <QObject>
@@ -26,6 +29,7 @@
 #include <QVariantMap>
 
 #include <memory>
+#include <optional>
 
 namespace pix {
 
@@ -56,6 +60,7 @@ struct GridRow
     int width = 0;
     int height = 0;
     bool isRaw = false;
+    bool isPrivate = false;     ///< miniatura cifrada (.pidx): image://private
     QString takenAt;
     QString state;
     double score = 0.0;         ///< busca por IA / por rosto: a similaridade
@@ -243,12 +248,50 @@ public:
     void removePhotosFromAlbum(const QStringList &photoIds, const QString &albumId);
     QVariantList albumChoices() const;
 
+    // ------------------------------------------------------------------ //
+    // Fotos privadas (CatalogPrivate.cpp)
+    // ------------------------------------------------------------------ //
+
+    /// O chaveiro da sessão (vazio = trancado). O provider de imagens e os
+    /// workers usam (thread-safe).
+    std::shared_ptr<const crypto::KeyRing> keyRing() const { return m_keys; }
+    KeySnapshot keySnapshot() const;
+    bool privateUnlocked() const;
+    bool hasVaultPassword() const;
+    vault::Record vaultRecord() const;
+    /// Grava o chaveiro cifrado com a senha (e apaga o em claro).
+    void storeVault(const vault::Record &record);
+    /// Abre a sessão com o chaveiro já decifrado pelo controller (o PBKDF2
+    /// roda fora da thread principal); ``passwordKey`` recifra o chaveiro
+    /// numa troca de chave.
+    void openVault(const vault::Ring &ring, const QByteArray &passwordKey);
+    void lockVault();
+    /// O chaveiro legível agora: o em claro (antes da senha) ou o aberto.
+    std::optional<vault::Ring> currentRing() const;
+    /// Chave nova (a atual vai junto até as fotos serem recifradas).
+    /// Devolve a chave nova. Lança vault.locked.
+    QByteArray rotateKey();
+    QString privateAlbumId() const;
+    bool isPrivateAlbum(const QString &albumId) const;
+    /// Esconde já e põe na fila da etapa "privacy" (cifrar o original e a
+    /// miniatura). Lança vault.noPassword / vault.locked.
+    int makePrivate(const QStringList &photoIds);
+    /// Põe na fila para decifrar (a foto volta a aparecer quando terminar).
+    int makePublic(const QStringList &photoIds);
+    QList<PrivacyJob> nextPrivacyJobs(int limit, const QSet<QString> &busy) const;
+    void applyPrivacy(const PrivacyResult &result);
+    int pendingPrivacy() const;
+    /// {hasPassword, unlocked, photos, encrypted, pending, errors, keyId}
+    QVariantMap privacyStatus() const;
+
 signals:
     /// Fotos entraram, saíram ou mudaram (a grade e as árvores se refazem).
     void photosChanged();
     /// Mudou a estrutura de uma aba ("categories", "albums", "people", "folders"...).
     void treeChanged(const QString &tab);
     void peopleChanged();
+    /// O cofre abriu/fechou ou a fila de privadas mudou.
+    void privacyChanged();
 
 private:
     // Catalog.cpp
@@ -258,6 +301,13 @@ private:
     void loadIndexes();
     void markDuplicates(const QString &photoId, const QString &pictureHash, quint64 phash);
     void removePhotoFiles(const QString &photoId);
+
+    // CatalogPrivate.cpp
+    void ensureVault();
+    void ensurePrivateAlbum();
+    /// O álbum "Private" não se renomeia/apaga/move; os de dentro, só abertos.
+    void guardAlbum(const QString &albumId) const;
+    void pruneKeys();
 
     // CatalogAi.cpp
     void applyRuleCategories(const QString &photoId);
@@ -286,6 +336,9 @@ private:
     FaceIndex m_faces;
     QHash<QString, PersonState> m_people;
     QHash<QString, QString> m_builtinIds;      ///< builtin_key -> id
+
+    std::shared_ptr<crypto::KeyRing> m_keys = std::make_shared<crypto::KeyRing>();
+    QByteArray m_passwordKey;                  ///< só com o cofre aberto
 
     bool m_embeddingsLoaded = false;
     QStringList m_embeddingIds;

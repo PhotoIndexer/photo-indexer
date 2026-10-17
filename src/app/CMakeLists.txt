@@ -11,6 +11,7 @@ qt_add_executable(photoidx
     ViewerController.h ViewerController.cpp
     PeopleController.h PeopleController.cpp
     TasksController.h TasksController.cpp
+    PrivacyController.h PrivacyController.cpp
     PhotoGridModel.h PhotoGridModel.cpp
     TreeModel.h TreeModel.cpp
     ImageProviders.h ImageProviders.cpp

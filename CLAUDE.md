@@ -10,7 +10,9 @@ hash de imagem são os do `../photoe`. As convenções abaixo são obrigatórias
 
 **Não é um editor**: as fotos da pessoa **nunca** são alteradas, movidas nem
 apagadas. O app só lê as pastas indexadas; tudo o que ele gera fica em
-`~/.photo_indexer/`. Não há login, conta nem permissionamento.
+`~/.photo_indexer/`. Não há login, conta nem permissionamento. **Única
+exceção:** a pessoa pedir "tornar privada" — aí o original vira
+`<nome>.photoidxe` (cifrado) na mesma pasta (regra 11.1).
 
 ## Estrutura
 
@@ -124,7 +126,8 @@ Igual nos três SOs (sobrescrevível por `PHOTOIDX_DATA_DIR`):
 ```
 ~/.photo_indexer/data.sqlite3                 o catálogo
 ~/.photo_indexer/thumbnail/YYYY/MM/<uuid>.jpg miniatura (uuid = id da foto,
-                                              YYYY/MM = data de criação)
+                                              YYYY/MM = data de criação;
+                                              .pidx = cifrada, foto privada)
 ~/.photo_indexer/faces/YYYY/MM/<uuid>.jpg     recorte de cada rosto
 ~/.photo_indexer/logs/                        app.log rotativo
 ```
@@ -175,6 +178,19 @@ refaz os caminhos. Código de SO novo vai em `Disks.cpp`, atrás de `#if`.
 - Os modelos do insightface são licenciados **só para pesquisa não
   comercial**: o aviso aparece no Sobre e no README; não remova.
 
+### 11.1 Fotos privadas: só a etapa "privacy" mexe nos arquivos
+- Cifrar/decifrar arquivo da pessoa só em `src/core/Privacy.cpp`: sempre por
+  `QSaveFile`, conferindo (decifrar + SHA-256) **antes** de apagar o
+  original; nunca deixar a foto em dois lugares nem pela metade.
+- O original e a miniatura de uma privada são decifrados **na memória**
+  (`crypto::decryptFile`/`decryptBytes`) — nunca em claro no disco.
+- Consulta nova sobre fotos (árvore, grade, contagem, busca, IA, faces)
+  precisa filtrar `p.private = 0` (salvo os nós de álbum privado com o cofre
+  aberto). Teste em `tst_core::privatePhotoLifecycle`.
+- A chave nasce no `Catalog::open`; com senha, só existe cifrada no banco
+  (`core/Vault.h`). Formato e parâmetros (`core/Crypto.h`) não mudam sem
+  versão nova do formato — arquivos antigos precisam continuar abrindo.
+
 ### 12. Log vai para `~/.photo_indexer/logs/`
 `app.log` rotativo (5 MB × 3) e, com terminal, também o stderr. Nos módulos:
 `Q_LOGGING_CATEGORY(lcX, "photoidx.x")` + `qCInfo`/`qCWarning`. **Proibido**
@@ -214,7 +230,8 @@ Os instaladores saem dos builders em `packaging/<plataforma>/` chamados pelo
 x64/arm64, cross-compile), `.msi` (Windows x64 cross-compile; arm64 nativo).
 
 - **Versões fixas:** Qt, OpenCV (`packaging/deps/opencv.sh`), ONNX Runtime
-  (`src/cmake/OnnxRuntime.cmake`), LibRaw (`src/cmake/LibRaw.cmake`), modelos
+  (`src/cmake/OnnxRuntime.cmake`), LibRaw (`src/cmake/LibRaw.cmake`), Mbed TLS
+  (`src/cmake/MbedTLS.cmake`), modelos
   CLIP e buffalo_sc (revisão + sha256 em `packaging/build.py`). A tabela do
   GeoNames é gerada por `packaging/geonames.py` e versionada. Trocar é
   decisão explícita, nunca efeito colateral de um build.

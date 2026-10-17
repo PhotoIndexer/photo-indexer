@@ -46,6 +46,7 @@ QtObject {
         { id: "people", group: qsTr("Screens"), name: qsTr("People"), icon: "users", keys: ["Ctrl+2"] },
         { id: "folders", group: qsTr("Screens"), name: qsTr("Folders and disks"), icon: "hard-drive", keys: ["Ctrl+3"] },
         { id: "tasks", group: qsTr("Screens"), name: qsTr("Tasks"), icon: "activity", keys: ["Ctrl+4"] },
+        { id: "privacy", group: qsTr("Screens"), name: qsTr("Private photos"), icon: "lock", keys: ["Ctrl+5"] },
 
         { id: "search", group: qsTr("Library"), name: qsTr("Search photos"), icon: "search", keys: ["Ctrl+F"] },
         { id: "aiSearch", group: qsTr("Library"), name: qsTr("AI search on or off"), icon: "sparkles", keys: ["Ctrl+I"] },

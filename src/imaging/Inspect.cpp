@@ -108,9 +108,33 @@ void finish(Inspection &out)
     out.sharpness = sharpness(out.image);
 }
 
+Inspection inspectImpl(const QString &path, const QByteArray *input);
+
 } // namespace
 
 Inspection inspect(const QString &path)
+{
+    if (isRawFile(path))
+        return inspectImpl(path, nullptr);
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) {
+        Inspection out;
+        out.format = formatLabel(extensionOf(path));
+        out.error = f.errorString();
+        return out;
+    }
+    const QByteArray data = f.readAll();
+    return inspectImpl(path, &data);
+}
+
+Inspection inspectData(const QByteArray &data, const QString &fileName)
+{
+    return inspectImpl(fileName, &data);
+}
+
+namespace {
+
+Inspection inspectImpl(const QString &path, const QByteArray *input)
 {
     Inspection out;
     const QString ext = extensionOf(path);
@@ -118,7 +142,7 @@ Inspection inspect(const QString &path)
     out.isRaw = isRawFile(path);
 
     if (out.isRaw) {
-        RawInfo raw = readRaw(path, true, true);
+        RawInfo raw = input ? readRawData(*input, true, true) : readRaw(path, true, true);
         if (!raw.ok) {
             out.error = raw.error;
             return out;
@@ -138,13 +162,7 @@ Inspection inspect(const QString &path)
         return out;
     }
 
-    QFile f(path);
-    if (!f.open(QIODevice::ReadOnly)) {
-        out.error = f.errorString();
-        return out;
-    }
-    const QByteArray data = f.readAll();
-    f.close();
+    const QByteArray &data = *input;
 
     if (isJpegExt(ext) || data.startsWith("\xFF\xD8")) {
         const auto header = parseJpegHeader(data);
@@ -237,6 +255,8 @@ Inspection inspect(const QString &path)
     return out;
 }
 
+} // namespace
+
 cv::Mat loadDisplayImage(const QString &path, int maxSide)
 {
     if (isRawFile(path))
@@ -244,8 +264,13 @@ cv::Mat loadDisplayImage(const QString &path, int maxSide)
     QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
         return {};
-    const QByteArray data = f.readAll();
-    f.close();
+    return loadDisplayImageData(f.readAll(), path, maxSide);
+}
+
+cv::Mat loadDisplayImageData(const QByteArray &data, const QString &fileName, int maxSide)
+{
+    if (isRawFile(fileName))
+        return fitTo(readRawData(data, true, false).preview, maxSide);
     if (const auto header = parseJpegHeader(data)) {
         const ShotInfo shot = summarize(readExifTags(header->exif));
         // Reduz na DCT: o maior fator que ainda deixa o lado pedido.

@@ -27,6 +27,7 @@ Rectangle {
         { key: "people", icon: "users", label: qsTr("People") },
         { key: "folders", icon: "hard-drive", label: qsTr("Folders") },
         { key: "tasks", icon: "activity", label: qsTr("Tasks") },
+        { key: "privacy", icon: App.privacy.unlocked ? "lock-open" : "lock", label: qsTr("Private") },
         { key: "language", icon: "languages", label: qsTr("Language") },
         { key: "about", icon: "info", label: qsTr("About") }
     ]
@@ -37,6 +38,7 @@ Rectangle {
         case "people": return App.page === "people" || App.page === "faceSearch";
         case "folders": return App.page === "folders";
         case "tasks": return App.page === "tasks";
+        case "privacy": return App.page === "privacy";
         case "language": return languageMenu.visible;
         case "about": return aboutMenu.visible;
         }

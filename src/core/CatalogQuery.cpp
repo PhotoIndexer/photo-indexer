@@ -28,6 +28,9 @@
 //   album:<id>                álbum e os de dentro dele
 //   country:BR  state:BR|São Paulo  city:<place id>  place:none
 //   person:<id>  faces:any
+//
+// Foto privada (photo.private = 1) só aparece nos nós de álbum privado e só
+// com o cofre aberto; em todo o resto, nem nas contagens.
 
 namespace pix {
 
@@ -116,7 +119,7 @@ QVariantList Catalog::tree(const QString &tab) const
     if (tab == QLatin1String("folders")) {
         // Disco -> pasta indexada -> subpastas (só as que têm foto, e os caminhos até elas).
         QHash<QString, int> ownCount;
-        QSqlQuery d = m_db.exec(QStringLiteral("SELECT dir, count(*) FROM photo WHERE state != 'missing' GROUP BY dir"));
+        QSqlQuery d = m_db.exec(QStringLiteral("SELECT dir, count(*) FROM photo WHERE state != 'missing' AND private = 0 GROUP BY dir"));
         while (d.next())
             ownCount.insert(d.value(0).toString(), d.value(1).toInt());
         QSqlQuery disks = m_db.exec(QStringLiteral("SELECT id, label, kind, protocol, server, share, fs_type, mount_point, online "
@@ -169,7 +172,7 @@ QVariantList Catalog::tree(const QString &tab) const
         }
     } else if (tab == QLatin1String("dates")) {
         QSqlQuery q = m_db.exec(QStringLiteral("SELECT year, month, day, count(*) FROM photo WHERE state != 'missing' "
-                                               "AND year IS NOT NULL GROUP BY year, month, day "
+                                               "AND private = 0 AND year IS NOT NULL GROUP BY year, month, day "
                                                "ORDER BY year DESC, month DESC, day DESC"));
         QMap<int, int> years;
         QMap<QPair<int, int>, int> months;
@@ -200,7 +203,8 @@ QVariantList Catalog::tree(const QString &tab) const
                 }
             }
         }
-        const int undated = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state != 'missing' AND year IS NULL")).toInt();
+        const int undated = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state != 'missing' AND private = 0 "
+                                                       "AND year IS NULL")).toInt();
         if (undated > 0)
             out << node(QStringLiteral("date:none"), QString(), QCoreApplication::translate("Catalog", "No date"), undated, 0,
                         QStringLiteral("calendar"), {}, QStringLiteral("special"));
@@ -209,7 +213,10 @@ QVariantList Catalog::tree(const QString &tab) const
         const QString table = categories ? QStringLiteral("category") : QStringLiteral("album");
         const QString link = categories ? QStringLiteral("photo_category") : QStringLiteral("album_photo");
         const QString col = categories ? QStringLiteral("category_id") : QStringLiteral("album_id");
-        const QString keep = categories ? QStringLiteral("AND l.source != 'rejected'") : QString();
+        // Categorias: só públicas. Álbuns: o público conta as públicas; o
+        // privado, as privadas (e só com o cofre aberto).
+        const QString keep = categories ? QStringLiteral("AND l.source != 'rejected' AND p.private = 0")
+                                        : QStringLiteral("AND p.private = (SELECT private FROM album WHERE id = tree.root)");
         // Contagem de cada nó = fotos distintas nele e nos de dentro.
         QSqlQuery counts = m_db.exec(QStringLiteral(
             "WITH RECURSIVE tree(root, id) AS (SELECT id, id FROM %1 UNION ALL "
@@ -220,32 +227,56 @@ QVariantList Catalog::tree(const QString &tab) const
         QHash<QString, int> count;
         while (counts.next())
             count.insert(counts.value(0).toString(), counts.value(1).toInt());
-        const QString cols = categories ? QStringLiteral("id, parent_id, name, builtin_key, renamed")
-                                        : QStringLiteral("id, parent_id, name, '', 0");
+        const QString cols = categories ? QStringLiteral("id, parent_id, name, builtin_key, renamed, 0")
+                                        : QStringLiteral("id, parent_id, name, '', 0, private");
         QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1 FROM %2 ORDER BY position, name COLLATE NOCASE").arg(cols, table));
         struct Item
         {
             QString id, parent, label;
             bool builtin;
+            bool isPrivate;
         };
+        const bool unlocked = privateUnlocked();
         QHash<QString, QList<Item>> children;
         while (q.next()) {
-            const QString label = displayCategory(q.value(3).toString(), q.value(4).toBool(), q.value(2).toString());
-            children[q.value(1).toString()].append({q.value(0).toString(), q.value(1).toString(), label, !q.value(3).toString().isEmpty()});
+            const bool isPrivate = q.value(5).toBool();
+            const bool privateRoot = isPrivate && q.value(1).isNull();
+            // Trancado: o álbum privado aparece, mas sem o que tem dentro.
+            if (isPrivate && !privateRoot && !unlocked)
+                continue;
+            const QString label = privateRoot ? QCoreApplication::translate("Catalog", "Private")
+                                              : displayCategory(q.value(3).toString(), q.value(4).toBool(), q.value(2).toString());
+            Item item{q.value(0).toString(), q.value(1).toString(), label, !q.value(3).toString().isEmpty(), isPrivate};
+            // O privado vem primeiro.
+            if (privateRoot)
+                children[item.parent].prepend(item);
+            else
+                children[item.parent].append(item);
         }
         const QString prefix = categories ? QStringLiteral("cat:") : QStringLiteral("album:");
         const QString icon = categories ? QStringLiteral("tag") : QStringLiteral("book-image");
         std::function<void(const QString &, int)> walk = [&](const QString &parent, int depth) {
             for (const Item &item : children.value(parent)) {
-                out << node(prefix + item.id, parent.isEmpty() ? QString() : prefix + parent, item.label,
-                            count.value(item.id), depth, icon, {}, item.builtin ? QStringLiteral("builtin") : QStringLiteral("custom"));
+                QString kind = item.builtin ? QStringLiteral("builtin") : QStringLiteral("custom");
+                QString itemIcon = icon;
+                int itemCount = count.value(item.id);
+                if (item.isPrivate) {
+                    const bool root = parent.isEmpty();
+                    kind = root ? (unlocked ? QStringLiteral("private-open") : QStringLiteral("private-locked"))
+                                : QStringLiteral("private");
+                    itemIcon = root ? (unlocked ? QStringLiteral("lock-open") : QStringLiteral("lock")) : icon;
+                    if (!unlocked)
+                        itemCount = -1;  // trancado: nem a contagem
+                }
+                out << node(prefix + item.id, parent.isEmpty() ? QString() : prefix + parent, item.label, itemCount, depth,
+                            itemIcon, {}, kind);
                 walk(item.id, depth + 1);
             }
         };
         walk(QString(), 0);
     } else if (tab == QLatin1String("places")) {
         QSqlQuery q = m_db.exec(QStringLiteral("SELECT pl.id, pl.country_code, pl.country, pl.state, pl.city, count(*) "
-                                               "FROM photo p JOIN place pl ON pl.id = p.place_id WHERE p.state != 'missing' "
+                                               "FROM photo p JOIN place pl ON pl.id = p.place_id WHERE p.state != 'missing' AND p.private = 0 "
                                                "GROUP BY pl.id ORDER BY pl.country, pl.state, pl.city"));
         struct City
         {
@@ -282,12 +313,14 @@ QVariantList Catalog::tree(const QString &tab) const
             c.insert(QStringLiteral("count"), ctotal);
             out[ci] = c;
         }
-        const int without = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state != 'missing' AND place_id IS NULL")).toInt();
+        const int without = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state != 'missing' AND private = 0 "
+                                                       "AND place_id IS NULL")).toInt();
         if (without > 0)
             out << node(QStringLiteral("place:none"), QString(), QCoreApplication::translate("Catalog", "No location"), without, 0,
                         QStringLiteral("map-pin-off"), {}, QStringLiteral("special"));
     } else if (tab == QLatin1String("people")) {
-        const int withFaces = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state != 'missing' AND face_count > 0")).toInt();
+        const int withFaces = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state != 'missing' AND private = 0 "
+                                                         "AND face_count > 0")).toInt();
         out << node(QStringLiteral("faces:any"), QString(), QCoreApplication::translate("Catalog", "Photos with faces"), withFaces, 0,
                     QStringLiteral("scan-face"), {}, QStringLiteral("special"));
         QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, photo_count FROM person WHERE face_count > 0 OR name != '' "
@@ -314,11 +347,20 @@ QString Catalog::nodeFilter(const QString &key, QVariantList &params) const
     const QString type = key.section(u':', 0, 0);
     const QString value = key.section(u':', 1);
     if (key.isEmpty() || key == QLatin1String("all"))
-        return QStringLiteral("p.state != 'missing'");
+        return QStringLiteral("p.state != 'missing' AND p.private = 0");
     if (key == QLatin1String("missing"))
-        return QStringLiteral("p.state = 'missing'");
+        return QStringLiteral("p.state = 'missing' AND p.private = 0");
     if (key == QLatin1String("errors"))
-        return QStringLiteral("(p.state = 'error' OR p.ai_state = 'error' OR p.faces_state = 'error')");
+        return QStringLiteral("(p.state = 'error' OR p.ai_state = 'error' OR p.faces_state = 'error') AND p.private = 0");
+    // Álbum privado: só com o cofre aberto, e lá só há privadas.
+    if (type == QLatin1String("album") && isPrivateAlbum(value)) {
+        if (!privateUnlocked())
+            return QStringLiteral("0 = 1");
+        params << value;
+        return QStringLiteral("p.state != 'missing' AND p.private = 1 AND p.id IN (WITH RECURSIVE sub(id) AS (SELECT ? "
+                              "UNION ALL SELECT a.id FROM album a JOIN sub ON a.parent_id = sub.id) "
+                              "SELECT l.photo_id FROM album_photo l WHERE l.album_id IN (SELECT id FROM sub))");
+    }
     QString cond;
     if (type == QLatin1String("disk")) {
         cond = QStringLiteral("p.folder_id IN (SELECT id FROM folder WHERE disk_id = ?)");
@@ -366,7 +408,7 @@ QString Catalog::nodeFilter(const QString &key, QVariantList &params) const
     } else {
         cond = QStringLiteral("1 = 1");
     }
-    return QStringLiteral("p.state != 'missing' AND ") + cond;
+    return QStringLiteral("p.state != 'missing' AND p.private = 0 AND ") + cond;
 }
 
 QString Catalog::searchFilter(const QString &search, QVariantList &params) const
@@ -394,7 +436,7 @@ QString Catalog::searchFilter(const QString &search, QVariantList &params) const
         QSqlQuery r = m_db.exec(QStringLiteral("SELECT id, name FROM person WHERE name != ''"));
         while (r.next())
             people.append({r.value(0).toString(), fold(r.value(1).toString())});
-        QSqlQuery a = m_db.exec(QStringLiteral("SELECT id, name FROM album"));
+        QSqlQuery a = m_db.exec(QStringLiteral("SELECT id, name FROM album WHERE private = 0 OR ?"), {privateUnlocked() ? 1 : 0});
         while (a.next())
             albums.append({a.value(0).toString(), fold(a.value(1).toString())});
     }
@@ -467,10 +509,11 @@ GridRow rowFrom(const QSqlQuery &q)
     r.isRaw = q.value(5).toBool();
     r.takenAt = q.value(6).toString();
     r.state = q.value(7).toString();
+    r.isPrivate = q.value(8).toBool();
     return r;
 }
 
-const char *const kGridColumns = "p.id, p.name, p.thumb_path, p.width, p.height, p.is_raw, p.taken_at, p.state";
+const char *const kGridColumns = "p.id, p.name, p.thumb_path, p.width, p.height, p.is_raw, p.taken_at, p.state, p.private";
 
 } // namespace
 
@@ -511,7 +554,7 @@ QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) 
         const qsizetype n = std::min<qsizetype>(500, ranked.size() - start);
         for (qsizetype i = 0; i < n; ++i)
             params << ranked[start + i].first;
-        QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1 FROM photo p WHERE p.state != 'missing' AND p.id IN (%2)")
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1 FROM photo p WHERE p.state != 'missing' AND p.private = 0 AND p.id IN (%2)")
                                     .arg(QLatin1String(kGridColumns), QStringList(n, QStringLiteral("?")).join(u',')),
                                 params);
         while (q.next()) {
@@ -550,6 +593,9 @@ QVariantMap Catalog::photoDetail(const QString &photoId) const
                                 "LEFT JOIN place pl ON pl.id = p.place_id WHERE p.id = ?"),
                             {photoId});
     if (!q.next())
+        return {};
+    // Privada com o cofre trancado: nada.
+    if (q.value(QStringLiteral("private")).toInt() == 1 && !privateUnlocked())
         return {};
     QVariantMap out;
     const QSqlRecord rec = q.record();
@@ -620,15 +666,20 @@ QVariantMap Catalog::photoDetail(const QString &photoId) const
 QVariantList Catalog::similarPhotos(const QString &photoId, int maxDistance) const
 {
     QVariantList out;
-    QSqlQuery me = m_db.exec(QStringLiteral("SELECT picture_hash, phash FROM photo WHERE id = ?"), {photoId});
+    QSqlQuery me = m_db.exec(QStringLiteral("SELECT picture_hash, phash, private FROM photo WHERE id = ?"), {photoId});
     if (!me.next())
+        return out;
+    // Parecidas de uma pública: só públicas. De uma privada (cofre aberto): só privadas.
+    const int scope = me.value(2).toInt();
+    if (scope == 1 && !privateUnlocked())
         return out;
     const QString pictureHash = me.value(0).toString();
     QHash<QString, int> found;
     QSet<QString> identical;
     if (!pictureHash.isEmpty()) {
-        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM photo WHERE picture_hash = ? AND id != ? AND state != 'missing'"),
-                                {pictureHash, photoId});
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM photo WHERE picture_hash = ? AND id != ? AND state != 'missing' "
+                                               "AND private = ?"),
+                                {pictureHash, photoId, scope});
         while (q.next()) {
             found.insert(q.value(0).toString(), 0);
             identical.insert(q.value(0).toString());
@@ -645,7 +696,9 @@ QVariantList Catalog::similarPhotos(const QString &photoId, int maxDistance) con
         ordered.append({it.key(), it.value()});
     std::sort(ordered.begin(), ordered.end(), [](const auto &a, const auto &b) { return a.second < b.second; });
     for (const auto &[id, distance] : ordered) {
-        QSqlQuery r = m_db.exec(QStringLiteral("SELECT name, thumb_path, path FROM photo WHERE id = ? AND state != 'missing'"), {id});
+        QSqlQuery r = m_db.exec(QStringLiteral("SELECT name, thumb_path, path, private FROM photo WHERE id = ? AND state != 'missing' "
+                                               "AND private = ?"),
+                                {id, scope});
         if (!r.next())
             continue;
         out << QVariantMap{{QStringLiteral("id"), id},
@@ -653,7 +706,8 @@ QVariantList Catalog::similarPhotos(const QString &photoId, int maxDistance) con
                            {QStringLiteral("thumbPath"), r.value(1)},
                            {QStringLiteral("path"), QDir::toNativeSeparators(r.value(2).toString())},
                            {QStringLiteral("distance"), distance},
-                           {QStringLiteral("identical"), identical.contains(id)}};
+                           {QStringLiteral("identical"), identical.contains(id)},
+                           {QStringLiteral("isPrivate"), r.value(3).toBool()}};
     }
     return out;
 }
@@ -664,7 +718,7 @@ QVariantMap Catalog::stats() const
         "SELECT count(*), "
         "  sum(state = 'indexed'), sum(is_raw AND state != 'missing'), sum(state = 'error' OR ai_state = 'error' OR faces_state = 'error'), "
         "  sum(state = 'missing'), sum(ai_state = 'done'), sum(faces_state = 'done'), sum(face_count) "
-        "FROM photo"));
+        "FROM photo WHERE private = 0"));
     q.next();
     return {{QStringLiteral("photos"), q.value(0).toInt() - q.value(4).toInt()},
             {QStringLiteral("indexed"), q.value(1).toInt()},
@@ -683,14 +737,16 @@ QVariantMap Catalog::stats() const
 QVariantList Catalog::errors(int limit) const
 {
     QVariantList out;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, path, state, ai_state, faces_state, error FROM photo "
-                                           "WHERE state = 'error' OR ai_state = 'error' OR faces_state = 'error' "
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id, name, path, state, ai_state, faces_state, error, private_state FROM photo "
+                                           "WHERE (state = 'error' OR ai_state = 'error' OR faces_state = 'error' "
+                                           "OR private_state LIKE 'error:%') AND (private = 0 OR ?) "
                                            "ORDER BY indexed_at DESC LIMIT ?"),
-                            {limit});
+                            {privateUnlocked() ? 1 : 0, limit});
     while (q.next()) {
-        const QString stage = q.value(3).toString() == QLatin1String("error") ? QStringLiteral("index")
-                              : q.value(4).toString() == QLatin1String("error") ? QStringLiteral("categorize")
-                                                                                 : QStringLiteral("faces");
+        const QString stage = q.value(7).toString().startsWith(QLatin1String("error:")) ? QStringLiteral("privacy")
+                              : q.value(3).toString() == QLatin1String("error")           ? QStringLiteral("index")
+                              : q.value(4).toString() == QLatin1String("error")           ? QStringLiteral("categorize")
+                                                                                          : QStringLiteral("faces");
         out << QVariantMap{{QStringLiteral("id"), q.value(0)},
                            {QStringLiteral("name"), q.value(1)},
                            {QStringLiteral("path"), QDir::toNativeSeparators(q.value(2).toString())},

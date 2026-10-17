@@ -8,13 +8,16 @@
 //                            lugar (GPS -> cidade/estado/país)
 //   categorize  Categorizer  CLIP: categorias e o embedding da busca por IA
 //   faces       Faces        insightface: rostos, biometria e pessoas
+//   privacy     Privacy      fotos privadas: cifra/decifra o original e a
+//                            miniatura (só com o cofre aberto)
 //
 // O banco é só da thread principal (regra 9): o Pipeline pede ao Catalog o
 // próximo lote (pedidos prontos), despacha para o pool e grava o resultado
 // quando ele volta (por invokeMethod em fila). A fila de cada etapa É o banco
 // (o estado de cada foto): fechar o app no meio não perde nada.
 //
-// Cada etapa: running | paused | idle | unavailable (modelo de IA ausente).
+// Cada etapa: running | paused | idle | unavailable (modelo de IA ausente) |
+// locked (privacy com o cofre trancado).
 // Pausar para de despachar (o que já está rodando termina); cancelar também
 // descarta o que estava na fila do pool.
 
@@ -49,7 +52,7 @@ public:
     explicit Pipeline(Catalog *catalog, QObject *parent = nullptr);
     ~Pipeline() override;
 
-    /// Etapas: "search", "index", "categorize", "faces".
+    /// Etapas: "search", "index", "categorize", "faces", "privacy".
     static QStringList stageKeys();
 
     /// [{key, state, done, failed, pending, inFlight, threads, current, rate, detail}]
@@ -115,6 +118,7 @@ private:
     void dispatchIndex(const IndexJob &job);
     void dispatchCategorize(const CategorizeJob &job);
     void dispatchFaces(const FaceJob &job);
+    void dispatchPrivacy(const PrivacyJob &job);
     int totalInFlight() const;
     void finished(Stage &s, const QString &id, bool ok, const QString &name);
     void preparePrompts();

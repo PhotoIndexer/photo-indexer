@@ -11,6 +11,7 @@
 
 #include "imaging/Exif.h"
 
+#include <QByteArray>
 #include <QString>
 
 #include <opencv2/core.hpp>
@@ -38,9 +39,13 @@ struct Inspection
 };
 
 Inspection inspect(const QString &path);
+/// O mesmo, de um arquivo já na memória (``fileName`` diz o formato pela
+/// extensão): o original decifrado de uma foto privada.
+Inspection inspectData(const QByteArray &data, const QString &fileName);
 
 /// Imagem para exibir em tamanho grande (visualizador): orientada, lado
 /// maior <= ``maxSide``. RAW = a prévia embutida.
 cv::Mat loadDisplayImage(const QString &path, int maxSide);
+cv::Mat loadDisplayImageData(const QByteArray &data, const QString &fileName, int maxSide);
 
 } // namespace pix::imaging

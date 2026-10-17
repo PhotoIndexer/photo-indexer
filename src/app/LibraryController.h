@@ -48,6 +48,8 @@ class LibraryController : public QObject
     Q_PROPERTY(QVariantList categoryChoices READ categoryChoices NOTIFY choicesChanged)
     Q_PROPERTY(QVariantList albumChoices READ albumChoices NOTIFY choicesChanged)
     Q_PROPERTY(QVariantList personChoices READ personChoices NOTIFY choicesChanged)
+    /// O nó escolhido é o álbum privado (ou um de dentro dele).
+    Q_PROPERTY(bool privateNode READ privateNode NOTIFY nodeChanged)
 
 public:
     LibraryController(pix::Catalog *catalog, pix::Pipeline *pipeline, QObject *parent = nullptr);
@@ -76,6 +78,7 @@ public:
     QVariantList categoryChoices() const;
     QVariantList albumChoices() const;
     QVariantList personChoices() const;
+    bool privateNode() const;
 
     Q_INVOKABLE void selectNode(const QString &key);
     Q_INVOKABLE void refresh();
@@ -92,6 +95,9 @@ public:
 
     // Organização (``photoIds`` vazio = a seleção da grade)
     Q_INVOKABLE void addToAlbum(const QStringList &photoIds, const QString &albumId);
+    /// Fotos privadas: some de tudo e o original é cifrado (.photoidxe).
+    Q_INVOKABLE void makePrivate(const QStringList &photoIds);
+    Q_INVOKABLE void makePublic(const QStringList &photoIds);
     Q_INVOKABLE void removeFromAlbum(const QStringList &photoIds, const QString &albumId);
     Q_INVOKABLE void addToCategory(const QStringList &photoIds, const QString &categoryId);
     Q_INVOKABLE void removeFromCategory(const QStringList &photoIds, const QString &categoryId);

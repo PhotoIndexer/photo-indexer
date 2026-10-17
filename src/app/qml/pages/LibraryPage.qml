@@ -13,6 +13,8 @@ Item {
 
     /// NameDialog do Main.
     required property var names
+    /// PasswordDialog do Main (fotos privadas).
+    required property var passwords
 
     signal addFolderRequested()
     signal newAlbumRequested(string parentId)
@@ -38,6 +40,27 @@ Item {
     readonly property string nodeType: App.library.node.split(":")[0]
     readonly property string nodeId: App.library.node.substring(App.library.node.indexOf(":") + 1)
     readonly property bool hasFolders: App.folders.length > 0
+    /// No álbum privado (ou num de dentro): as ações viram "tornar pública".
+    readonly property bool inPrivate: App.library.privateNode
+    readonly property bool privateLocked: page.inPrivate && !App.privacy.unlocked
+
+    /// Tornar privada a seleção: explica o que acontece com o arquivo e pede
+    /// a senha (ou a cria) antes.
+    function makeSelectionPrivate() {
+        const n = App.library.grid.selectedCount;
+        Dialogs.confirm({
+            title: qsTr("Make %n photo(s) private?", "", n),
+            description: qsTr("The original file is encrypted into a <b>.photoidxe</b> file in the same folder and the original is deleted after the copy is checked. The photos disappear from the library and only show up in the Private album, with the password.")
+                + "<br><br>" + qsTr("Other programs cannot open .photoidxe files. To get the normal file back, make the photo public."),
+            variant: "warning",
+            iconName: "lock",
+            confirmLabel: qsTr("Make private")
+        }, () => page.passwords.gate(() => App.library.makePrivate([])));
+    }
+
+    function makeSelectionPublic() {
+        page.passwords.gate(() => App.library.makePublic([]));
+    }
 
     // O filtro (Ctrl+Shift+F) e o Esc da grade valem só aqui.
     Shortcut {
@@ -184,7 +207,14 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 current: App.library.node
-                onPicked: (key) => App.library.selectNode(key)
+                // O álbum privado trancado pede a senha antes de abrir.
+                onPicked: (key) => {
+                    const kind = App.library.tree.node(key).kind || "";
+                    if (kind === "private-locked")
+                        page.passwords.gate(() => App.library.selectNode(key));
+                    else
+                        App.library.selectNode(key);
+                }
                 onContextRequested: (key, kind, row) => {
                     nodeMenu.key = key;
                     nodeMenu.kind = kind;
@@ -240,6 +270,7 @@ Item {
         property string label: ""
         readonly property string type: key.split(":")[0]
         readonly property string id: key.substring(key.indexOf(":") + 1)
+        readonly property bool privateRoot: kind === "private-locked" || kind === "private-open"
 
         AppMenuItem {
             text: qsTr("Show photos")
@@ -258,20 +289,32 @@ Item {
             onTriggered: App.page = "folders"
         }
         AppMenuItem {
-            visible: nodeMenu.type === "album"
+            visible: nodeMenu.privateRoot
+            height: visible ? implicitHeight : 0
+            text: App.privacy.unlocked ? qsTr("Lock private photos") : qsTr("Unlock private photos…")
+            onTriggered: App.privacy.unlocked ? App.privacy.lock() : page.passwords.gate(() => App.library.selectNode(nodeMenu.key))
+        }
+        AppMenuItem {
+            visible: nodeMenu.privateRoot
+            height: visible ? implicitHeight : 0
+            text: qsTr("Privacy settings…")
+            onTriggered: App.page = "privacy"
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "album" && (!nodeMenu.privateRoot || App.privacy.unlocked)
             height: visible ? implicitHeight : 0
             text: qsTr("New sub-album…")
             onTriggered: page.newAlbumRequested(nodeMenu.id)
         }
         AppMenuItem {
-            visible: nodeMenu.type === "album"
+            visible: nodeMenu.type === "album" && !nodeMenu.privateRoot
             height: visible ? implicitHeight : 0
             text: qsTr("Rename…")
             onTriggered: page.names.ask({ title: qsTr("Rename album"), label: qsTr("Album name"), text: nodeMenu.label },
                                         (name) => App.library.renameAlbum(nodeMenu.id, name))
         }
         AppMenuItem {
-            visible: nodeMenu.type === "album"
+            visible: nodeMenu.type === "album" && !nodeMenu.privateRoot
             height: visible ? implicitHeight : 0
             text: qsTr("Delete album…")
             onTriggered: Dialogs.confirm({
@@ -395,7 +438,17 @@ Item {
                     onClicked: categoryMenu.popup(categoryButton, 0, categoryButton.height + 4)
                 }
                 Button {
+                    visible: App.library.grid.selectedCount > 0
+                    size: "sm"
+                    implicitHeight: 30
+                    variant: "outline"
+                    iconName: page.inPrivate ? "lock-open" : "lock"
+                    text: page.inPrivate ? qsTr("Make public") : qsTr("Make private")
+                    onClicked: page.inPrivate ? page.makeSelectionPublic() : page.makeSelectionPrivate()
+                }
+                Button {
                     visible: App.library.grid.selectedCount > 0 && (page.nodeType === "album" || page.nodeType === "cat")
+                                && !(page.inPrivate && page.nodeId === App.privacy.albumNode.substring(6))
                     size: "sm"
                     implicitHeight: 30
                     variant: "ghost"
@@ -512,14 +565,16 @@ Item {
 
                 Icon {
                     Layout.alignment: Qt.AlignHCenter
-                    name: page.hasFolders ? "image-off" : "folder-plus"
+                    name: page.privateLocked ? "lock" : page.hasFolders ? "image-off" : "folder-plus"
                     size: 44
                     color: Theme.mutedForeground
                 }
                 Text {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: !page.hasFolders ? qsTr("Add a folder to start your catalog")
+                    text: page.privateLocked ? qsTr("Private photos are locked")
+                        : page.inPrivate ? qsTr("No private photos yet")
+                        : !page.hasFolders ? qsTr("Add a folder to start your catalog")
                         : App.tasks.pending > 0 && App.library.node === "all" && App.library.search === "" ? qsTr("Indexing your photos…")
                         : qsTr("No photos here")
                     font.pixelSize: Theme.fontLg
@@ -530,7 +585,9 @@ Item {
                 Text {
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: !page.hasFolders
+                    text: page.privateLocked ? qsTr("Enter the password to see the Private album and its sub-albums.")
+                        : page.inPrivate ? qsTr("Select photos in the library and choose “Make private”. Their files are encrypted and they only show up here.")
+                        : !page.hasFolders
                         ? qsTr("%1 looks for photos in the folder and in all its subfolders, including RAW files, on local disks, USB drives and network shares. Your files are never changed.").arg(App.brandName)
                         : qsTr("Try another item in the side panel, another search or fewer filter conditions.")
                     font.pixelSize: Theme.fontBase
@@ -539,7 +596,14 @@ Item {
                 }
                 Button {
                     Layout.alignment: Qt.AlignHCenter
-                    visible: !page.hasFolders
+                    visible: page.privateLocked
+                    iconName: "lock-open"
+                    text: qsTr("Unlock")
+                    onClicked: page.passwords.gate(null)
+                }
+                Button {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: !page.hasFolders && !page.inPrivate
                     iconName: "folder-plus"
                     text: qsTr("Add folder")
                     onClicked: page.addFolderRequested()
@@ -575,8 +639,15 @@ Item {
             onTriggered: App.revealInFolder(App.photoPath(photoMenu.firstId))
         }
         AppMenuItem {
+            // Um .photoidxe só o PhotoIDX abre.
+            visible: !page.inPrivate
+            height: visible ? implicitHeight : 0
             text: qsTr("Open with the default app")
             onTriggered: App.openExternally(App.photoPath(photoMenu.firstId))
+        }
+        AppMenuItem {
+            text: page.inPrivate ? qsTr("Make public") : qsTr("Make private…")
+            onTriggered: page.inPrivate ? page.makeSelectionPublic() : page.makeSelectionPrivate()
         }
         AppMenuSeparator {}
         ChoiceMenu {
@@ -591,7 +662,7 @@ Item {
             onPicked: (id) => App.library.addToCategory([], id)
         }
         AppMenuItem {
-            visible: page.nodeType === "album"
+            visible: page.nodeType === "album" && page.nodeId !== App.privacy.albumNode.substring(6)
             height: visible ? implicitHeight : 0
             text: qsTr("Remove from this album")
             onTriggered: App.library.removeFromAlbum([], page.nodeId)

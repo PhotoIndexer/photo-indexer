@@ -13,6 +13,7 @@ import PhotoIDX
 //   "faceSearch"  pages/FaceSearchPage.qml busca pela foto de uma pessoa
 //   "folders"     pages/FoldersPage.qml    pastas indexadas e discos
 //   "tasks"       pages/TasksPage.qml      as etapas da indexação
+//   "privacy"     pages/PrivacyPage.qml    fotos privadas: senha, chave, trancar
 //
 // Também é daqui: os diálogos globais (DialogHost), o modal de erro de
 // qualquer ``failed``, a faixa de avisos, o Sobre, a paleta de comandos, o
@@ -88,7 +89,7 @@ QQC.ApplicationWindow {
 
     function runAction(id) {
         switch (id) {
-        case "library": case "people": case "folders": case "tasks": App.page = id; break;
+        case "library": case "people": case "folders": case "tasks": case "privacy": App.page = id; break;
         case "palette": palette.opened ? palette.close() : palette.open(); break;
         case "shortcuts": shortcutsDialog.open(); break;
         case "theme": App.darkTheme = !App.darkTheme; break;
@@ -126,7 +127,7 @@ QQC.ApplicationWindow {
     }
 
     readonly property bool globalKeys: !Keymap.recording && Dialogs.current === null && !nameDialog.opened
-    readonly property var globalShortcuts: ["library", "people", "folders", "tasks", "palette", "shortcuts", "theme",
+    readonly property var globalShortcuts: ["library", "people", "folders", "tasks", "privacy", "palette", "shortcuts", "theme",
         "fullScreen", "quit", "addFolder", "rescan", "faceSearch", "search", "aiSearch", "zoomIn", "zoomOut", "newAlbum"]
 
     // O Shortcut acha a janela pelo Item pai: cada um vai num Item vazio.
@@ -158,6 +159,7 @@ QQC.ApplicationWindow {
         add("people");
         add("folders");
         add("tasks");
+        add("privacy");
         add("addFolder");
         add("rescan");
         add("faceSearch");
@@ -193,6 +195,16 @@ QQC.ApplicationWindow {
 
         function onFailed(key, params) {
             Dialogs.alert(Messages.errorDialog(key, params));
+        }
+    }
+
+    // Erros da senha: dentro do modal da senha se ele estiver aberto
+    // (PasswordDialog), senão o modal de erro de sempre.
+    Connections {
+        target: App.privacy
+        function onFailed(key, params) {
+            if (!passwordDialog.opened)
+                Dialogs.alert(Messages.errorDialog(key, params));
         }
 
         function onNotice(key, params) {
@@ -230,6 +242,7 @@ QQC.ApplicationWindow {
             onAddFolderRequested: folderDialog.open()
             onNewAlbumRequested: (parentId) => window.newAlbum(parentId)
             names: nameDialog
+            passwords: passwordDialog
         }
 
         Loader {
@@ -238,6 +251,7 @@ QQC.ApplicationWindow {
             visible: active
             sourceComponent: ViewerPage {
                 names: nameDialog
+                passwords: passwordDialog
             }
         }
 
@@ -275,6 +289,15 @@ QQC.ApplicationWindow {
             visible: active
             sourceComponent: TasksPage {}
         }
+
+        Loader {
+            anchors.fill: parent
+            active: App.page === "privacy"
+            visible: active
+            sourceComponent: PrivacyPage {
+                passwords: passwordDialog
+            }
+        }
     }
 
     // ------------------------------------------------------------------ //
@@ -301,6 +324,10 @@ QQC.ApplicationWindow {
 
     NameDialog {
         id: nameDialog
+    }
+
+    PasswordDialog {
+        id: passwordDialog
     }
 
     AboutDialog {

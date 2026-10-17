@@ -61,6 +61,13 @@
             <numerusform>Filter (%n conditions)</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>Make %n photo(s) private?</source>
+        <translation>
+            <numerusform>Make %n photo private?</numerusform>
+            <numerusform>Make %n photos private?</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>Messages</name>
@@ -114,6 +121,37 @@
         <translation>
             <numerusform>%n face selected</numerusform>
             <numerusform>%n faces selected</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>PrivacyPage</name>
+    <message numerus="yes">
+        <source>%n private photo(s)</source>
+        <translation>
+            <numerusform>%n private photo</numerusform>
+            <numerusform>%n private photos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n waiting to be encrypted or decrypted</source>
+        <translation>
+            <numerusform>%n waiting to be encrypted or decrypted</numerusform>
+            <numerusform>%n waiting to be encrypted or decrypted</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n with errors (see Tasks)</source>
+        <translation>
+            <numerusform>%n with an error (see Tasks)</numerusform>
+            <numerusform>%n with errors (see Tasks)</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s)</source>
+        <translation>
+            <numerusform>%n minute</numerusform>
+            <numerusform>%n minutes</numerusform>
         </translation>
     </message>
 </context>

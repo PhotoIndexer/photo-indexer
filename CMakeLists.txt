@@ -51,6 +51,7 @@ qt_standard_project_setup(REQUIRES 6.7)
 find_package(OpenCV 4.10 REQUIRED COMPONENTS core imgproc imgcodecs)
 
 include(src/cmake/LibRaw.cmake)
+include(src/cmake/MbedTLS.cmake)
 if(PHOTOIDX_WITH_ONNX)
     include(src/cmake/OnnxRuntime.cmake)
 endif()
