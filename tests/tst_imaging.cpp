@@ -35,6 +35,46 @@ QJsonObject expected()
     return QJsonDocument::fromJson(f.readAll()).object();
 }
 
+/// Bloco "Exif\0\0" + TIFF (little-endian) de uma Canon com Orientation = 1
+/// e o MakerNote com ShotInfo[27] (AutoRotate) = ``autoRotate``.
+QByteArray canonExif(qint16 autoRotate)
+{
+    QByteArray t("II*\0", 4);
+    auto put16 = [&](int v) { t.append(char(v & 0xFF)).append(char((v >> 8) & 0xFF)); };
+    auto put32 = [&](quint32 v) { for (int i = 0; i < 4; ++i) t.append(char((v >> (8 * i)) & 0xFF)); };
+    auto entry = [&](int tag, int type, quint32 count, quint32 value) { put16(tag); put16(type); put32(count); put32(value); };
+    const quint32 ifd0 = 8, ifd0Size = 2 + 3 * 12 + 4;
+    const quint32 make = ifd0 + ifd0Size;                    // "Canon\0" (6) + 2 de folga
+    const quint32 exif = make + 8, exifSize = 2 + 12 + 4;
+    const quint32 maker = exif + exifSize, makerSize = 2 + 12 + 4;
+    const quint32 shot = maker + makerSize;                  // 34 SHORTs
+    put32(ifd0);
+    put16(3);
+    entry(0x010F, 2, 6, make);
+    entry(0x0112, 3, 1, 1);
+    entry(0x8769, 4, 1, exif);
+    put32(0);
+    t.append("Canon\0\0\0", 8);
+    put16(1);
+    entry(0x927C, 7, makerSize + 34 * 2, maker);
+    put32(0);
+    put16(1);
+    entry(0x0004, 3, 34, shot);
+    put32(0);
+    for (int i = 0; i < 34; ++i)
+        put16(i == 27 ? autoRotate : 0);
+    return QByteArray("Exif\0\0", 6) + t;
+}
+
+/// JPEG com o segmento APP1 ``exif`` logo depois do SOI.
+QByteArray withExif(const QByteArray &jpeg, const QByteArray &exif)
+{
+    QByteArray app1("\xFF\xE1", 2);
+    const int len = int(exif.size()) + 2;
+    app1.append(char(len >> 8)).append(char(len & 0xFF)).append(exif);
+    return jpeg.left(2) + app1 + jpeg.mid(2);
+}
+
 } // namespace
 
 class TestImaging : public QObject
@@ -83,6 +123,38 @@ private slots:
         QCOMPARE(budget.used(), 0);
         QVERIFY(pix::imaging::physicalMemory() > 0);
         budget.setCapacity(saved);
+    }
+
+    void canonMakerNoteOrientation()
+    {
+        // Paisagem 300x200 no arquivo; a câmera estava em pé (AutoRotate 3 =
+        // girar 270°): a imagem de trabalho sai em pé, o hash fica o dos
+        // pixels como gravados (o do Pillow, que só lê a tag).
+        cv::Mat bgr(200, 300, CV_8UC3, cv::Scalar(30, 60, 90));
+        cv::rectangle(bgr, cv::Rect(0, 0, 60, 40), cv::Scalar(250, 250, 250), cv::FILLED);
+        std::vector<uchar> buf;
+        cv::imencode(".jpg", bgr, buf);
+        const QByteArray plain(reinterpret_cast<const char *>(buf.data()), qsizetype(buf.size()));
+        QCOMPARE(makerNoteOrientation(canonExif(3)), 8);
+        QCOMPARE(makerNoteOrientation(canonExif(1)), 6);
+        QCOMPARE(makerNoteOrientation(canonExif(0)), 0);
+
+        const Inspection normal = inspectData(withExif(plain, canonExif(0)), QStringLiteral("a.jpg"));
+        const Inspection turned = inspectData(withExif(plain, canonExif(3)), QStringLiteral("a.jpg"));
+        QVERIFY(normal.ok && turned.ok);
+        QCOMPARE(normal.shot.orientation, 1);
+        QCOMPARE(turned.shot.orientation, 8);
+        QCOMPARE(normal.width, 300);
+        QCOMPARE(turned.width, 200);
+        QCOMPARE(turned.height, 300);
+        QCOMPARE(turned.image.cols, 200);
+        QCOMPARE(turned.image.rows, 300);
+        QCOMPARE(turned.pictureHash, normal.pictureHash);
+        // O canto claro (em cima à esquerda) vai para baixo à esquerda (270° horário).
+        const cv::Vec3b bottomLeft = turned.image.at<cv::Vec3b>(turned.image.rows - 5, 5);
+        QVERIFY(bottomLeft[0] > 200);
+        const cv::Mat view = loadDisplayImageData(withExif(plain, canonExif(3)), QStringLiteral("a.jpg"), 1000);
+        QCOMPARE(view.cols, 200);
     }
 
     void sniffByContent()

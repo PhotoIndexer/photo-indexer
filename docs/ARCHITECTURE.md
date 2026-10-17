@@ -106,6 +106,11 @@ exata em memória).
   Hamming): fotos parecidas (redimensionadas, recomprimidas) sem comparar com
   todas. Duplicata = mesmo `picture_hash`, ou hash perceptual igual com a
   mesma proporção.
+- Orientação: a tag `Orientation`; quando ela diz "normal", a do fabricante
+  (`imaging::makerNoteOrientation`: Canon, ShotInfo/AutoRotate — câmeras com
+  "Girar auto" desligado). A miniatura, o visualizador e as faces usam a
+  efetiva (`ShotInfo::displayOrientation`); o `picture_hash`, só a da tag
+  (igual ao Pillow/photoe).
 
 ## Catálogo
 

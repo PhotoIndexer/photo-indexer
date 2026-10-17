@@ -594,11 +594,15 @@ QString Catalog::ensurePlace(const PlaceMatch &place)
 
 void Catalog::applyIndex(const IndexResult &r)
 {
-    QSqlQuery p = m_db.exec(QStringLiteral("SELECT picture_hash, thumb_path FROM photo WHERE id = ?"), {r.photoId});
+    QSqlQuery p = m_db.exec(QStringLiteral("SELECT picture_hash, thumb_path, orientation, indexed_at FROM photo WHERE id = ?"),
+                            {r.photoId});
     if (!p.next())
         return;  // saiu do catálogo enquanto o worker trabalhava
     const QString oldHash = p.value(0).toString();
     const QString oldThumb = p.value(1).toString();
+    // Mesmos pixels, outra posição (orientação do fabricante): a miniatura
+    // girou, então a IA e as faces (caixas na imagem orientada) refazem.
+    const bool turned = !p.value(3).isNull() && p.value(2).toInt() != r.shot.orientation;
 
     Transaction tx(m_db);
     if (!r.ok) {
@@ -612,7 +616,7 @@ void Catalog::applyIndex(const IndexResult &r)
     const QString placeId = s.hasGps ? ensurePlace(r.place) : QString();
     const bool hasDate = r.takenAt.isValid();
     // Imagem nova (outros pixels): a IA e as faces refazem.
-    const bool pixelsChanged = oldHash != r.pictureHash || oldHash.isEmpty();
+    const bool pixelsChanged = oldHash != r.pictureHash || oldHash.isEmpty() || turned;
     m_db.exec(QStringLiteral(
                   "UPDATE photo SET state = 'indexed', error = ?, format = ?, is_raw = ?, width = ?, height = ?, "
                   "orientation = ?, taken_at = ?, taken_source = ?, taken_offset = ?, year = ?, month = ?, day = ?, "

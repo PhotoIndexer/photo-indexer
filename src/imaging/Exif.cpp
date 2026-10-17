@@ -542,6 +542,63 @@ QDateTime parseExifDateTime(const QString &text, const QString &subsec)
     return QDateTime(date, QTime(h, mi, s, ms), QTimeZone::UTC);
 }
 
+int makerNoteOrientation(const QByteArray &exif)
+{
+    const QByteArray tiff = exif.startsWith(kExifHeader) ? exif.mid(kExifHeader.size()) : exif;
+    if (tiff.size() < 8)
+        return 0;
+    const bool little = tiff.startsWith("II");
+    if (!little && !tiff.startsWith("MM"))
+        return 0;
+    const auto *d = reinterpret_cast<const uchar *>(tiff.constData());
+    const qint64 size = tiff.size();
+    auto u16 = [&](qint64 o) -> quint32 {
+        return o + 2 > size ? 0 : little ? quint32(d[o] | (d[o + 1] << 8)) : quint32((d[o] << 8) | d[o + 1]);
+    };
+    auto u32 = [&](qint64 o) -> quint32 {
+        if (o + 4 > size)
+            return 0;
+        return little ? quint32(d[o]) | (quint32(d[o + 1]) << 8) | (quint32(d[o + 2]) << 16) | (quint32(d[o + 3]) << 24)
+                      : (quint32(d[o]) << 24) | (quint32(d[o + 1]) << 16) | (quint32(d[o + 2]) << 8) | quint32(d[o + 3]);
+    };
+    // Entrada ``tag`` de um IFD: o deslocamento da entrada (0 se não há).
+    auto entry = [&](quint32 ifd, quint16 tag) -> qint64 {
+        if (ifd == 0 || ifd + 2 > size)
+            return 0;
+        const quint32 n = std::min<quint32>(u16(ifd), 512);
+        for (quint32 i = 0; i < n; ++i) {
+            const qint64 e = qint64(ifd) + 2 + qint64(i) * 12;
+            if (e + 12 > size)
+                return 0;
+            if (u16(e) == tag)
+                return e;
+        }
+        return 0;
+    };
+    // Só Canon: o MakerNote dela é um IFD comum.
+    const qint64 make = entry(u32(4), 0x010F);
+    if (!make)
+        return 0;
+    const quint32 makeCount = u32(make + 4);
+    const QByteArray makeText = makeCount <= 4 ? tiff.mid(make + 8, makeCount) : tiff.mid(u32(make + 8), makeCount);
+    if (!makeText.startsWith("Canon"))
+        return 0;
+    const qint64 exifPtr = entry(u32(4), kExifIfdPointer);
+    const qint64 maker = exifPtr ? entry(u32(exifPtr + 8), 0x927C) : 0;
+    if (!maker)
+        return 0;
+    const qint64 shot = entry(u32(maker + 8), 0x0004);  // ShotInfo: SHORTs
+    if (!shot || u16(shot + 2) != 3 || u32(shot + 4) <= 27)
+        return 0;
+    const qint16 autoRotate = qint16(u16(qint64(u32(shot + 8)) + 27 * 2));
+    switch (autoRotate) {
+    case 1: return 6;   // girar 90° horário
+    case 2: return 3;   // 180°
+    case 3: return 8;   // girar 270° horário
+    default: return 0;  // 0 = nenhum; -1 = não se aplica
+    }
+}
+
 ShotInfo summarize(const ExifTags &tags)
 {
     ShotInfo info;

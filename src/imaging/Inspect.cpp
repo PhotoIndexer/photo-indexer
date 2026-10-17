@@ -100,6 +100,20 @@ bool tooLarge(Inspection &out, qint64 width, qint64 height)
     return true;
 }
 
+/// A tag diz "normal" mas a câmera anotou outra posição (Canon com "Girar
+/// auto" desligado): gira a imagem de trabalho (miniatura, IA, faces) e o
+/// tamanho exibido. O picture_hash já foi calculado com a orientação da tag.
+void applyMakerOrientation(Inspection &out)
+{
+    const int display = out.shot.displayOrientation();
+    if (display == out.shot.orientation)
+        return;
+    out.image = applyOrientation(out.image, display);
+    if (display >= 5)
+        std::swap(out.width, out.height);
+    out.shot.orientation = display;
+}
+
 void finish(Inspection &out)
 {
     if (out.image.empty())
@@ -169,6 +183,7 @@ Inspection inspectImpl(const QString &path, const QByteArray *input)
         if (header) {
             out.tags = readExifTags(header->exif);
             out.shot = summarize(out.tags);
+            out.shot.makerOrientation = makerNoteOrientation(header->exif);
         }
         if (header && tooLarge(out, header->width, header->height))
             return out;
@@ -193,6 +208,7 @@ Inspection inspectImpl(const QString &path, const QByteArray *input)
             full = rgb;
         }
         out.image = fitTo(full, kWorkingSide);
+        applyMakerOrientation(out);
         finish(out);
         return out;
     }
@@ -272,7 +288,8 @@ cv::Mat loadDisplayImageData(const QByteArray &data, const QString &fileName, in
     if (isRawFile(fileName))
         return fitTo(readRawData(data, true, false).preview, maxSide);
     if (const auto header = parseJpegHeader(data)) {
-        const ShotInfo shot = summarize(readExifTags(header->exif));
+        ShotInfo shot = summarize(readExifTags(header->exif));
+        shot.makerOrientation = makerNoteOrientation(header->exif);
         // Reduz na DCT: o maior fator que ainda deixa o lado pedido.
         int scale = 1;
         const int longest = std::max(header->width, header->height);
@@ -281,7 +298,7 @@ cv::Mat loadDisplayImageData(const QByteArray &data, const QString &fileName, in
                 scale = s;
                 break;
             }
-        return fitTo(applyOrientation(decodeImage(data, scale), shot.orientation), maxSide);
+        return fitTo(applyOrientation(decodeImage(data, scale), shot.displayOrientation()), maxSide);
     }
     QSize declared;
     {

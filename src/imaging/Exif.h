@@ -59,7 +59,16 @@ QString exifValueText(const ExifTag &tag);
 /// Os dados que o catálogo guarda em colunas próprias.
 struct ShotInfo
 {
-    int orientation = 1;        ///< 1..8
+    int orientation = 1;        ///< 1..8 (a tag Orientation)
+    /// A orientação que o FABRICANTE anotou quando a tag diz "normal": as
+    /// Canon com "Girar auto" desligado gravam Orientation = 1 mesmo em pé,
+    /// mas o sensor de posição fica no MakerNote (ShotInfo/AutoRotate).
+    /// 0 = não há.
+    int makerOrientation = 0;
+    /// A orientação para EXIBIR (miniatura, visualizador, faces): a tag, ou a
+    /// do fabricante quando a tag diz "normal". O picture_hash continua com
+    /// a da tag (o mesmo do Pillow/photoe).
+    int displayOrientation() const { return orientation != 1 || makerOrientation == 0 ? orientation : makerOrientation; }
     /// Data/hora de captura como a câmera gravou (relógio LOCAL do evento) —
     /// é por ela que a árvore de datas agrupa. Inválida se não há.
     QDateTime takenLocal;
@@ -90,6 +99,11 @@ struct ShotInfo
 };
 
 ShotInfo summarize(const ExifTags &tags);
+
+/// Orientação 1..8 que a câmera anotou no MakerNote (hoje: Canon,
+/// ShotInfo[27] AutoRotate); 0 se não há. Lê o bloco ``"Exif\0\0"`` + TIFF
+/// inteiro (os deslocamentos do MakerNote da Canon são relativos ao TIFF).
+int makerNoteOrientation(const QByteArray &exif);
 
 /// "2026:10:15 21:24:30" (+ subsegundos) -> data/hora local; inválida se não lê.
 QDateTime parseExifDateTime(const QString &text, const QString &subsec = {});
