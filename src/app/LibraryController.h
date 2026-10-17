@@ -59,6 +59,9 @@ class LibraryController : public QObject
     Q_PROPERTY(QString copiesOf READ copiesOf NOTIFY copiesChanged)
     Q_PROPERTY(QString copiesName READ copiesName NOTIFY copiesChanged)
     Q_PROPERTY(int copiesTolerance READ copiesTolerance WRITE setCopiesTolerance NOTIFY copiesChanged)
+    /// As cópias por pasta: [{folder, photos: [{id, name, thumbUrl, score, sizeText, original}]}]
+    /// — a pasta da foto escolhida primeiro, depois as outras pela melhor semelhança.
+    Q_PROPERTY(QVariantList copyGroups READ copyGroups NOTIFY copiesChanged)
 
 public:
     LibraryController(pix::Catalog *catalog, pix::Pipeline *pipeline, pix::CatalogReader *reader, QObject *parent = nullptr);
@@ -73,6 +76,7 @@ public:
     QString copiesOf() const { return m_copiesOf; }
     QString copiesName() const { return m_copiesName; }
     int copiesTolerance() const { return m_copiesTolerance; }
+    QVariantList copyGroups() const { return m_copyGroups; }
     void setCopiesTolerance(int tolerance);
     void setAiSearch(bool on);
     bool aiAvailable() const;
@@ -186,6 +190,7 @@ private:
     QString m_copiesOf;
     QString m_copiesName;
     int m_copiesTolerance = 1;
+    QVariantList m_copyGroups;
     QString m_sort = QStringLiteral("date-desc");
     int m_thumbSize = 180;
     QVariantList m_rules;

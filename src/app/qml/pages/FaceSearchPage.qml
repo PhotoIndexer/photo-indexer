@@ -157,7 +157,32 @@ Item {
                 Layout.fillWidth: true
                 visible: App.people.matchedPeople.length > 0
                 spacing: 6
-                SectionTitle { text: qsTr("Who it may be") }
+                RowLayout {
+                    Layout.fillWidth: true
+                    SectionTitle {
+                        Layout.fillWidth: true
+                        text: qsTr("Who it may be")
+                    }
+                    // Busca por pessoa: juntar de uma vez todas as sem nome da lista.
+                    Button {
+                        readonly property int count: App.people.matchedPeople.filter((m) => !m.named).length
+                        visible: App.people.queryPersonId !== "" && count > 0
+                        size: "sm"
+                        variant: "outline"
+                        iconName: "merge"
+                        text: qsTr("Merge all (%1)").arg(count)
+                        onClicked: Dialogs.confirm({
+                            title: qsTr("Merge all into %1?").arg(App.people.queryPersonLabel),
+                            description: qsTr("The %n unnamed person(s) in this list become <b>%1</b>. People with a name are left out. Check the list first: raise the minimum similarity to leave out doubtful ones.", "", count)
+                                .arg(Messages.escapeHtml(App.people.queryPersonLabel)),
+                            variant: "warning",
+                            confirmLabel: qsTr("Merge all")
+                        }, () => {
+                            page.showPerson = false;
+                            App.people.mergeAllMatched();
+                        })
+                    }
+                }
                 Repeater {
                     model: App.people.matchedPeople
                     T.ItemDelegate {

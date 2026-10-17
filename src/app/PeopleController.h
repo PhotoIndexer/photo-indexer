@@ -100,6 +100,9 @@ public:
     /// "Procurar rostos parecidos": o rosto médio da pessoa contra todas as
     /// faces; as dela ficam de fora (o que sobra são candidatos a juntar).
     Q_INVOKABLE void searchByPerson(const QString &personId);
+    /// Busca por pessoa: junta nela todas as SEM nome de "quem pode ser"
+    /// (as com nome ficam). Devolve quantas.
+    Q_INVOKABLE int mergeAllMatched();
     QString queryPersonId() const { return m_queryPerson; }
     QString queryPersonLabel() const { return m_queryPerson.isEmpty() ? QString() : labelOf(m_queryPerson); }
 

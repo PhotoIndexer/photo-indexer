@@ -813,9 +813,20 @@ Item {
                 dragEnabled: true
                 showScore: page.copies || (App.library.aiSearch && App.library.search !== "")
                 showFolder: page.copies
-                visible: App.library.grid.count > 0
+                visible: App.library.grid.count > 0 && !page.copies
                 onOpened: (photoId) => App.openPhoto(photoId)
                 onContextRequested: (index, cell) => photoMenu.popup(cell, cell.width / 2, cell.height / 2)
+            }
+
+            // Cópias: por pasta, o caminho e as fotos dela embaixo.
+            CopiesView {
+                anchors.fill: parent
+                visible: page.copies && App.library.grid.count > 0
+                onOpened: (photoId) => App.openPhoto(photoId)
+                onContextRequested: (photoId, item) => {
+                    copyMenu.photoId = photoId;
+                    copyMenu.popup(item, item.width / 2, item.height / 2);
+                }
             }
 
             // Vazio: sem pasta nenhuma, ou nada no nó/busca/filtro.
@@ -1029,5 +1040,34 @@ Item {
         title: qsTr("Move to folder")
         onAccepted: page.moveSelectionTo(decodeURIComponent(String(selectedFolder).replace(/^file:\/\//, "")
                                                                 .replace(/^\/([A-Za-z]:)/, "$1")), moveDialog.ids)
+    }
+
+    // Menu de uma foto na vista de cópias: abrir, mostrar na pasta e, para
+    // ficar com uma só, mandar a cópia para a Lixeira.
+    AppMenu {
+        id: copyMenu
+        property string photoId: ""
+        AppMenuItem {
+            text: qsTr("Open")
+            onTriggered: App.openPhoto(copyMenu.photoId)
+        }
+        AppMenuItem {
+            text: qsTr("Show in file manager")
+            onTriggered: App.revealInFolder(App.photoPath(copyMenu.photoId))
+        }
+        AppMenuSeparator {}
+        AppMenuItem {
+            text: qsTr("Move to Trash…")
+            onTriggered: {
+                const id = copyMenu.photoId;
+                Dialogs.confirm({
+                    title: qsTr("Move to the Trash?"),
+                    description: qsTr("%n photo(s) go to the system Trash (you can restore them from there) and leave the catalog.", "", 1)
+                        + (page.networkWarning(App.files.photosOnNetwork([id])) ? "<br><br>" + page.networkText() : ""),
+                    variant: "danger",
+                    confirmLabel: qsTr("Move to Trash")
+                }, () => App.files.trashPhotos([id]));
+            }
+        }
     }
 }

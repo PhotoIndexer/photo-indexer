@@ -814,6 +814,24 @@
     </message>
 </context>
 <context>
+    <name>CopiesView</name>
+    <message numerus="yes">
+        <source>%n photo(s)</source>
+        <translation>
+            <numerusform>%n foto</numerusform>
+            <numerusform>%n fotos</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show in file manager</source>
+        <translation>Mostrar no gerenciador de arquivos</translation>
+    </message>
+    <message>
+        <source>Original</source>
+        <translation>Original</translation>
+    </message>
+</context>
+<context>
     <name>DialogHost</name>
     <message>
         <source>Type %1 to confirm.</source>
@@ -910,6 +928,25 @@
     <message>
         <source>Merge</source>
         <translation>Juntar</translation>
+    </message>
+    <message>
+        <source>Merge all (%1)</source>
+        <translation>Juntar todas (%1)</translation>
+    </message>
+    <message>
+        <source>Merge all into %1?</source>
+        <translation>Juntar todas em %1?</translation>
+    </message>
+    <message numerus="yes">
+        <source>The %n unnamed person(s) in this list become &lt;b&gt;%1&lt;/b&gt;. People with a name are left out. Check the list first: raise the minimum similarity to leave out doubtful ones.</source>
+        <translation>
+            <numerusform>A %n pessoa sem nome desta lista vira &lt;b&gt;%1&lt;/b&gt;. Pessoas com nome ficam de fora. Confira a lista antes: aumente a similaridade mínima para deixar de fora as duvidosas.</numerusform>
+            <numerusform>As %n pessoas sem nome desta lista viram &lt;b&gt;%1&lt;/b&gt;. Pessoas com nome ficam de fora. Confira a lista antes: aumente a similaridade mínima para deixar de fora as duvidosas.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Merge all</source>
+        <translation>Juntar todas</translation>
     </message>
 </context>
 <context>

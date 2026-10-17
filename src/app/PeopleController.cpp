@@ -165,6 +165,26 @@ void PeopleController::merge(const QString &targetId, const QString &sourceId)
         openPerson(targetId);
 }
 
+int PeopleController::mergeAllMatched()
+{
+    if (m_queryPerson.isEmpty())
+        return 0;
+    // Só as sem nome: uma com nome é, quase sempre, outra pessoa.
+    QStringList ids;
+    for (const QVariant &v : m_matched) {
+        const QVariantMap m = v.toMap();
+        if (!m.value(QStringLiteral("named")).toBool() && m.value(QStringLiteral("id")).toString() != m_queryPerson)
+            ids << m.value(QStringLiteral("id")).toString();
+    }
+    for (const QString &id : ids)
+        m_catalog->mergePeople(m_queryPerson, id);
+    if (ids.contains(m_personId))
+        openPerson(m_queryPerson);
+    if (!ids.isEmpty())
+        runSearch(true);
+    return int(ids.size());
+}
+
 void PeopleController::remove(const QString &personId)
 {
     m_catalog->deletePerson(personId);
@@ -330,6 +350,7 @@ void PeopleController::runSearch(bool refresh)
         const QVariantMap p = m_catalog->person(it.key());
         m_matched << QVariantMap{{QStringLiteral("id"), it.key()},
                                  {QStringLiteral("label"), labelOf(it.key())},
+                                 {QStringLiteral("named"), !p.value(QStringLiteral("name")).toString().isEmpty()},
                                  {QStringLiteral("coverUrl"), fileUrl(p.value(QStringLiteral("coverPath")).toString())},
                                  {QStringLiteral("similarity"), it.value().first},
                                  {QStringLiteral("faces"), it.value().second}};

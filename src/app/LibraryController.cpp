@@ -3,12 +3,15 @@
 
 #include "core/Perf.h"
 
+#include "ImageProviders.h"
+
 #include "core/Catalog.h"
 #include "core/CatalogReader.h"
 #include "core/GridReader.h"
 #include "core/Pipeline.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFutureWatcher>
 #include <QLoggingCategory>
 #include <QSettings>
@@ -304,7 +307,26 @@ void LibraryController::refresh()
     if (!m_copiesOf.isEmpty()) {
         // Poucas fotos (as cópias de uma): a árvore de hashes e o CLIP já
         // estão na memória, a consulta é de milissegundos.
-        m_grid.setRows(m_catalog->photosByIds(m_catalog->findCopies(m_copiesOf, m_copiesTolerance)), background);
+        const QList<GridRow> rows = m_catalog->photosByIds(m_catalog->findCopies(m_copiesOf, m_copiesTolerance));
+        m_grid.setRows(rows, background);
+        // Agrupadas por pasta, na ordem em que aparecem (a escolhida vem primeiro).
+        QStringList order;
+        QHash<QString, QVariantList> byFolder;
+        for (const GridRow &r : rows) {
+            const QString folder = QDir::toNativeSeparators(r.dir);
+            if (!byFolder.contains(folder))
+                order << folder;
+            byFolder[folder] << QVariantMap{{QStringLiteral("id"), r.id},
+                                            {QStringLiteral("name"), r.name},
+                                            {QStringLiteral("thumbUrl"), thumbnailUrl(r.thumbPath)},
+                                            {QStringLiteral("score"), r.score},
+                                            {QStringLiteral("sizeText"), r.width > 0 ? QStringLiteral("%1×%2").arg(r.width).arg(r.height) : QString()},
+                                            {QStringLiteral("original"), r.id == m_copiesOf}};
+        }
+        m_copyGroups.clear();
+        for (const QString &folder : order)
+            m_copyGroups << QVariantMap{{QStringLiteral("folder"), folder}, {QStringLiteral("photos"), byFolder.value(folder)}};
+        emit copiesChanged();
         return;
     }
     if (!m_aiSearch || m_search.trimmed().isEmpty() || !aiAvailable()) {

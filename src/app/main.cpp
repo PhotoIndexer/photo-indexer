@@ -124,7 +124,9 @@ int main(int argc, char *argv[])
     const QCommandLineOption tabOption(QStringLiteral("tab"),
                                        QStringLiteral("Side panel tab of the library (folders, dates, categories, albums, places, people)."),
                                        QStringLiteral("tab"));
-    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption, tabOption});
+    const QCommandLineOption copiesOption(QStringLiteral("copies"),
+                                          QStringLiteral("Show the copies of the Nth photo of the library (screenshot)."), QStringLiteral("n"));
+    parser.addOptions({debugOption, screenshotOption, pageOption, waitOption, tabOption, copiesOption});
     // O Finder às vezes passa -psn_0_12345: ignorado.
     QStringList args = QCoreApplication::arguments();
     args.erase(std::remove_if(args.begin(), args.end(), [](const QString &a) { return a.startsWith(QLatin1String("-psn_")); }),
@@ -258,6 +260,13 @@ int main(int argc, char *argv[])
                 const QString id = controller.library()->grid()->idAt(n);
                 if (!id.isEmpty())
                     controller.openPhoto(id);
+            });
+        }
+        if (parser.isSet(copiesOption)) {
+            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, n = parser.value(copiesOption).toInt()]() {
+                const QString id = controller.library()->grid()->idAt(n);
+                if (!id.isEmpty())
+                    controller.library()->findCopies(id);
             });
         }
         // Tempo para as imagens assíncronas chegarem; o timeout fecha mesmo se travar.

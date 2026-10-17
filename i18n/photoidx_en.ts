@@ -12,6 +12,16 @@
     </message>
 </context>
 <context>
+    <name>CopiesView</name>
+    <message numerus="yes">
+        <source>%n photo(s)</source>
+        <translation>
+            <numerusform>%n photo</numerusform>
+            <numerusform>%n photos</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>FaceSearchPage</name>
     <message numerus="yes">
         <source>%1% similar · %n face(s)</source>
@@ -25,6 +35,13 @@
         <translation>
             <numerusform>%n photo found</numerusform>
             <numerusform>%n photos found</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>The %n unnamed person(s) in this list become &lt;b&gt;%1&lt;/b&gt;. People with a name are left out. Check the list first: raise the minimum similarity to leave out doubtful ones.</source>
+        <translation>
+            <numerusform>The %n unnamed person in this list becomes &lt;b&gt;%1&lt;/b&gt;. People with a name are left out. Check the list first: raise the minimum similarity to leave out doubtful ones.</numerusform>
+            <numerusform>The %n unnamed people in this list become &lt;b&gt;%1&lt;/b&gt;. People with a name are left out. Check the list first: raise the minimum similarity to leave out doubtful ones.</numerusform>
         </translation>
     </message>
 </context>
