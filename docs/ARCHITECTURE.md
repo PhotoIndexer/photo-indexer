@@ -190,8 +190,9 @@ Na aba Pastas a grade e o painel agem sobre os arquivos (`App.files`,
 nova pasta, renomear pasta/arquivo e mandar para a Lixeira — sempre com
 confirmação. Os arquivos mudam em `core/FileOps` (thread própria, um pedido
 por vez): mesmo volume = rename; outro = copiar, conferir SHA-256 e só então
-remover o original. Excluir = `QFile::moveToTrash`; sem Lixeira (rede), recusa
-— nunca apaga de vez. O catálogo acompanha em `CatalogFiles.cpp`
+remover o original. Excluir = `QFile::moveToTrash` (o app nunca apaga de vez);
+sem Lixeira, macOS e Linux recusam (erro na tela); no Windows, num disco de
+rede, o sistema pode apagar de vez — a confirmação avisa. O catálogo acompanha em `CatalogFiles.cpp`
 (`applyMoved`: mesmo id, faces, categorias e miniatura; só o caminho muda;
 `removePaths`: a foto sai do catálogo). Pastas indexadas (raiz) e discos não
 se movem por aqui; com varredura em andamento, nada começa; o destino tem de

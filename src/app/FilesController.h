@@ -47,6 +47,10 @@ public:
     Q_INVOKABLE void trashFolder(const QString &dir);
     /// A pasta é uma pasta indexada (raiz): não se move, renomeia nem exclui por aqui.
     Q_INVOKABLE bool isRootFolder(const QString &dir) const;
+    /// Alguma destas fotos (ou a pasta) está num disco de rede: a confirmação
+    /// da Lixeira avisa (no Windows o sistema pode apagar de vez).
+    Q_INVOKABLE bool photosOnNetwork(const QStringList &photoIds) const;
+    Q_INVOKABLE bool folderOnNetwork(const QString &dir) const;
 
 signals:
     void busyChanged();

@@ -518,6 +518,7 @@ private slots:
         QVERIFY(catalog.isRootFolder(root));
         QVERIFY(!catalog.rootFolderOf(root + QStringLiteral("/b")).isEmpty());
         QVERIFY(catalog.rootFolderOf(m_home.path()).isEmpty());
+        QVERIFY(!catalog.onNetworkDisk(root + QStringLiteral("/b")));  // disco local
         // Foto para b/.
         const QString from = catalog.photoPaths({photos[0]}).first().second;
         const QString to = root + QStringLiteral("/b/p0.jpg");

@@ -130,6 +130,9 @@ public:
     QString rootFolderOf(const QString &path) const;
     /// ``dir`` é uma pasta indexada (raiz) — essas não se movem por aqui.
     bool isRootFolder(const QString &dir) const;
+    /// ``path`` está num disco de rede (compartilhamento): no Windows, a
+    /// Lixeira pode não existir lá e o sistema apagar de vez — a interface avisa.
+    bool onNetworkDisk(const QString &path) const;
     /// (id, caminho) das fotos.
     QList<QPair<QString, QString>> photoPaths(const QStringList &photoIds) const;
     /// O catálogo acompanha arquivos e pastas que mudaram de lugar.

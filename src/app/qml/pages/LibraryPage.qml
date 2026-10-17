@@ -115,10 +115,20 @@ Item {
             return;
         Dialogs.confirm({
             title: qsTr("Move to the Trash?"),
-            description: qsTr("%n photo(s) go to the system Trash (you can restore them from there) and leave the catalog.", "", ids.length),
+            description: qsTr("%n photo(s) go to the system Trash (you can restore them from there) and leave the catalog.", "", ids.length)
+                + (page.networkWarning(App.files.photosOnNetwork(ids)) ? "<br><br>" + page.networkText() : ""),
             variant: "danger",
             confirmLabel: qsTr("Move to Trash")
         }, () => App.files.trashPhotos(ids));
+    }
+
+    /// Disco de rede no Windows: lá a Lixeira costuma não existir e o
+    /// próprio sistema pode apagar de vez — a pessoa decide sabendo disso.
+    function networkWarning(onNetwork) {
+        return onNetwork && Qt.platform.os === "windows";
+    }
+    function networkText() {
+        return "<b>" + qsTr("Warning:") + "</b> " + qsTr("this is on a network drive. Network drives usually have no Recycle Bin, so Windows may delete the files permanently.");
     }
 
     function moveFolderTo(from, to) {
@@ -434,7 +444,8 @@ Item {
             onTriggered: Dialogs.confirm({
                 title: qsTr("Move folder to the Trash?"),
                 description: qsTr("<b>%1</b> and everything in it go to the system Trash (you can restore them from there). Its photos leave the catalog.")
-                    .arg(Messages.escapeHtml(nodeMenu.label)),
+                    .arg(Messages.escapeHtml(nodeMenu.label))
+                    + (page.networkWarning(App.files.folderOnNetwork(nodeMenu.id)) ? "<br><br>" + page.networkText() : ""),
                 variant: "danger",
                 confirmLabel: qsTr("Move to Trash")
             }, () => App.files.trashFolder(nodeMenu.id))

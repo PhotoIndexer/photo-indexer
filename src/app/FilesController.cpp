@@ -45,6 +45,19 @@ bool FilesController::isRootFolder(const QString &dir) const
     return m_catalog->isRootFolder(dir);
 }
 
+bool FilesController::photosOnNetwork(const QStringList &photoIds) const
+{
+    for (const auto &[id, path] : m_catalog->photoPaths(photoIds))
+        if (m_catalog->onNetworkDisk(path))
+            return true;
+    return false;
+}
+
+bool FilesController::folderOnNetwork(const QString &dir) const
+{
+    return m_catalog->onNetworkDisk(dir);
+}
+
 bool FilesController::ready()
 {
     if (m_busy) {

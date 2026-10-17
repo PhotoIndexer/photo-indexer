@@ -1770,6 +1770,14 @@
         <source>Move to folder</source>
         <translation>Mover para a pasta</translation>
     </message>
+    <message>
+        <source>Warning:</source>
+        <translation>Atenção:</translation>
+    </message>
+    <message>
+        <source>this is on a network drive. Network drives usually have no Recycle Bin, so Windows may delete the files permanently.</source>
+        <translation>isto está num disco de rede. Discos de rede costumam não ter Lixeira, então o Windows pode apagar os arquivos de vez.</translation>
+    </message>
 </context>
 <context>
     <name>Main</name>

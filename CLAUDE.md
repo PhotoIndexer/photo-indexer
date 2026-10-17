@@ -14,7 +14,7 @@ Não há login, conta nem permissionamento. **Exceções, só a pedido explícit
 da pessoa:** "tornar privada" — o original vira `<nome>.photoidxe` (cifrado)
 na mesma pasta (regra 11.1) — e as operações de arquivo do modo Pastas
 (regra 10.1): mover, renomear, criar pasta e **excluir sempre para a
-Lixeira** do sistema. Apagar de vez é proibido.
+Lixeira** do sistema. O app nunca apaga de vez por conta própria.
 
 ## Estrutura
 
@@ -206,8 +206,10 @@ Arquivo que some no meio de uma etapa (disco saiu antes de o app perceber)
   principal; o catálogo (caminho, pasta, `folder_id`) é atualizado depois, na
   principal. Mover entre volumes = copiar, conferir (tamanho + SHA-256) e só
   então remover o original.
-- Excluir = `QFile::moveToTrash`. Sem Lixeira (compartilhamento de rede):
-  recusa com erro — nunca cai para apagar de vez.
+- Excluir = `QFile::moveToTrash` (o app nunca chama remoção definitiva). Sem
+  Lixeira: no macOS/Linux o sistema recusa e o app mostra o erro; no Windows,
+  num disco de rede, o próprio sistema pode apagar de vez — a confirmação
+  **avisa** (decisão da pessoa: avisar, não bloquear).
 - Destino sempre dentro de uma pasta indexada (as fotos não saem do
   catálogo); pasta indexada (raiz) e disco não se movem nem se excluem por
   aqui; nada roda com uma varredura em andamento.

@@ -46,6 +46,14 @@ bool Catalog::isRootFolder(const QString &dir) const
     return m_db.scalar(QStringLiteral("SELECT 1 FROM folder WHERE path = ?"), {clean(dir)}).isValid();
 }
 
+bool Catalog::onNetworkDisk(const QString &path) const
+{
+    const QString folderId = rootFolderOf(path);
+    return !folderId.isEmpty()
+        && m_db.scalar(QStringLiteral("SELECT d.kind FROM folder f JOIN disk d ON d.id = f.disk_id WHERE f.id = ?"), {folderId})
+                   .toString() == QLatin1String("network");
+}
+
 QList<QPair<QString, QString>> Catalog::photoPaths(const QStringList &photoIds) const
 {
     QList<QPair<QString, QString>> out;
