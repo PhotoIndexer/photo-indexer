@@ -74,6 +74,10 @@ public:
     void setThreads(const QString &stage, int threads);
     /// Há trabalho novo na fila (requeue, fotos novas): olha já.
     void wake();
+    /// Refaz as pessoas automáticas (core/FaceClusterer.h) fora da thread
+    /// principal; ``done`` recebe quantas pessoas ficaram.
+    void regroupPeople(std::function<void(int people)> done = {});
+    bool regrouping() const { return m_regrouping; }
     int threads(const QString &stage) const;
     /// Teto de tarefas ao mesmo tempo, somando todas as etapas (o padrão
     /// é metade dos núcleos, entre 2 e 8).
@@ -160,6 +164,9 @@ private:
     bool m_promptsDirty = true;
 
     int m_facesSinceMerge = 0;
+    bool m_merging = false;
+    bool m_regrouping = false;
+    void mergePeopleAsync();
     int m_maxTasks = 4;
     QElapsedTimer m_indexIdle;      ///< a última busca do Indexer veio vazia (desde quando)
     int m_roundRobin = 0;

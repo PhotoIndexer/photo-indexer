@@ -17,6 +17,7 @@
 #include "core/Crypto.h"
 #include "core/Database.h"
 #include "core/Disks.h"
+#include "core/FaceClusterer.h"
 #include "core/FaceIndex.h"
 #include "core/HashTree.h"
 #include "core/Models.h"
@@ -198,11 +199,41 @@ public:
     // ------------------------------------------------------------------ //
 
     void applyFaces(const FaceResult &result);
-    /// Junta pessoas parecidas (limiares nas preferências). Devolve quantas junções.
+    /// Junta pessoas parecidas (limiares nas preferências). Devolve quantas
+    /// junções. Síncrono: mergeSnapshot + mergePairs + applyMergePairs (o
+    /// Pipeline roda o meio — a comparação de todos os pares — fora da
+    /// thread principal).
     int autoMergePeople();
+    struct MergeSnapshot
+    {
+        QStringList ids;
+        std::vector<std::vector<float>> sums;
+        std::vector<int> counts;
+        float threshold = 0.4f;
+    };
+    struct MergePair
+    {
+        QString a, b;
+        float sim;
+    };
+    MergeSnapshot mergeSnapshot() const;
+    static std::vector<MergePair> mergePairs(const MergeSnapshot &snapshot);
+    int applyMergePairs(const std::vector<MergePair> &pairs);
     /// Refaz o agrupamento automático das pessoas sem nome e das faces soltas
-    /// (mantém o que a pessoa confirmou e as pessoas com nome).
+    /// (mantém o que a pessoa confirmou e as pessoas com nome). Síncrono:
+    /// prepareRecluster + clusterFaces + applyRecluster (o app roda o meio
+    /// fora da thread principal — Pipeline::regroupPeople).
     void reclusterPeople();
+    struct ReclusterPlan
+    {
+        std::vector<ClusterFace> faces;
+        QStringList faceIds;            ///< na mesma ordem de ``faces``
+        QStringList fixedPersons;       ///< grupo fixo i = esta pessoa
+        ClusterParams params;
+    };
+    ReclusterPlan prepareRecluster() const;
+    /// Grava o resultado; devolve quantas pessoas ficaram.
+    int applyRecluster(const ReclusterPlan &plan, const std::vector<int> &labels);
     const FaceIndex &faceIndex() const { return m_faces; }
 
     /// [{id, name, coverPath, faceCount, photoCount}] — nomeadas primeiro; as
@@ -376,7 +407,11 @@ private:
         QString name;
     };
     void loadPeople();
-    QString clusterFace(const QString &faceId, const imaging::Embedding &embedding, float *similarity);
+    /// ``exclude``: pessoas que já têm um rosto nesta foto (uma por foto).
+    QString clusterFace(const QString &faceId, const imaging::Embedding &embedding, float *similarity,
+                        const QSet<QString> &exclude = {});
+    ClusterParams clusterParams() const;
+    float minPersonScore() const;
     void refreshPerson(const QString &personId);
     imaging::Embedding centroidOf(const QString &personId) const;
 

@@ -2205,18 +2205,6 @@
         <translation>Fotos abaixo desta nitidez vão para “Imagem borrada / Baixa qualidade”.</translation>
     </message>
     <message>
-        <source>Faces detected with less confidence (animals, objects, tiny faces in the background) stay searchable but do not form people.</source>
-        <translation>Faces detectadas com menos confiança (animais, objetos, rostos minúsculos ao fundo) continuam buscáveis, mas não formam pessoas.</translation>
-    </message>
-    <message>
-        <source>A new face joins the most similar person from this similarity on (0.45, as in PhotoE).</source>
-        <translation>Uma face nova entra na pessoa mais parecida a partir desta similaridade (0,45, como no PhotoE).</translation>
-    </message>
-    <message>
-        <source>Two people are merged automatically when their average faces are at least this similar.</source>
-        <translation>Duas pessoas são juntadas automaticamente quando as faces médias delas são pelo menos tão parecidas quanto isto.</translation>
-    </message>
-    <message>
         <source>Confidence: only people with at least this many faces take part in automatic merges.</source>
         <translation>Confiabilidade: só pessoas com pelo menos esta quantidade de faces entram nas junções automáticas.</translation>
     </message>
@@ -2327,6 +2315,29 @@
     <message>
         <source>Unnamed people with fewer photos stay out of the People screen and the side panel (they still show up in “Search by photo”). People with a name always show, first.</source>
         <translation>Pessoas sem nome com menos fotos ficam fora da tela Pessoas e do painel lateral (continuam aparecendo na “Busca por foto”). Pessoas com nome sempre aparecem, primeiro.</translation>
+    </message>
+    <message>
+        <source>Regrouping people with the improved rule… This runs in the background.</source>
+        <translation>Reagrupando as pessoas com a regra melhorada… Isso roda em segundo plano.</translation>
+    </message>
+    <message numerus="yes">
+        <source>People regrouped: %n person(s).</source>
+        <translation>
+            <numerusform>Pessoas reagrupadas: %n pessoa.</numerusform>
+            <numerusform>Pessoas reagrupadas: %n pessoas.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Faces detected with less confidence (the back of a head, profiles, blur, animals, objects) stay searchable but do not form people.</source>
+        <translation>Rostos detectados com menos confiança (nuca, perfil, borrão, animais, objetos) continuam na busca, mas não formam pessoas.</translation>
+    </message>
+    <message>
+        <source>A new face joins the most similar person from this similarity on. Two faces of the same photo are never the same person.</source>
+        <translation>Um rosto novo entra na pessoa mais parecida a partir desta similaridade. Dois rostos da mesma foto nunca são a mesma pessoa.</translation>
+    </message>
+    <message>
+        <source>Two people are merged automatically when their faces are, on average, at least this similar to each other — and never if they appear together in a photo.</source>
+        <translation>Duas pessoas são juntadas automaticamente quando seus rostos são, em média, pelo menos tão parecidos assim — e nunca se aparecem juntas numa foto.</translation>
     </message>
 </context>
 <context>

@@ -115,6 +115,22 @@ AppController::AppController(QObject *parent)
     // Ao abrir: reconhece os discos (algum pode ter voltado em outro lugar),
     // liga as etapas e revarre as pastas — o que mudou com o app fechado entra.
     m_pipeline->startAll();
+    // Regra nova de agrupar rostos (core/FaceClusterer.h, "uma pessoa por
+    // foto", junção sem cadeia): as pessoas automáticas de um catálogo antigo
+    // são refeitas uma vez, em segundo plano. Nomes e confirmações ficam.
+    constexpr int kFaceRule = 2;
+    if (m_catalog->setting(QStringLiteral("faces/clusterRule"), 1).toInt() < kFaceRule
+        && m_catalog->db().scalar(QStringLiteral("SELECT count(*) FROM face")).toInt() > 0) {
+        QTimer::singleShot(1500, this, [this]() {
+            emit notice(QStringLiteral("people.regrouping"), {});
+            m_pipeline->regroupPeople([this](int people) {
+                m_catalog->setSetting(QStringLiteral("faces/clusterRule"), kFaceRule);
+                emit notice(QStringLiteral("people.reclustered"), {{QStringLiteral("count"), people}});
+            });
+        });
+    } else {
+        m_catalog->setSetting(QStringLiteral("faces/clusterRule"), kFaceRule);
+    }
     // Disco conectado ou desconectado com o app aberto: a lista de volumes
     // montados é barata de ler (QStorageInfo, igual nos três SOs).
     // A primeira olhada (m_volumes vazio) sonda todos os discos, fora da

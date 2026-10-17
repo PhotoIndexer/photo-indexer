@@ -735,7 +735,7 @@ void Pipeline::dispatchWork()
         if (faceJobs.isEmpty() && faces.inFlight == 0 && m_facesSinceMerge > 0) {
             // Fila vazia: junta as pessoas parecidas do que entrou.
             m_facesSinceMerge = 0;
-            m_catalog->autoMergePeople();
+            mergePeopleAsync();
         }
     }
 
@@ -826,6 +826,76 @@ void Pipeline::flushIndexResults()
         finished(s, r.photoId, r.ok, QFileInfo(path).fileName());
     }
     schedulePump();
+}
+
+void Pipeline::mergePeopleAsync()
+{
+    // A comparação de todos os pares (cresce com o quadrado das pessoas) roda
+    // fora da thread principal; as junções, rechecadas, na principal.
+    if (m_merging || m_regrouping)
+        return;
+    m_merging = true;
+    QPointer<Pipeline> self(this);
+    const Catalog::MergeSnapshot snap = m_catalog->mergeSnapshot();
+    runInPool(*QThreadPool::globalInstance(), [self, snap]() {
+        auto pairs = Catalog::mergePairs(snap);
+        QMetaObject::invokeMethod(
+            self.data(), [self, pairs = std::move(pairs)]() {
+                if (!self)
+                    return;
+                self->m_merging = false;
+                if (!self->m_regrouping)
+                    self->m_catalog->applyMergePairs(pairs);
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void Pipeline::regroupPeople(std::function<void(int)> done)
+{
+    // Refaz as pessoas automáticas do zero (core/FaceClusterer.h): a etapa de
+    // faces pausa (nada entra no meio), o agrupamento roda fora da thread
+    // principal e o resultado é gravado numa transação só.
+    if (m_regrouping)
+        return;
+    m_regrouping = true;
+    Stage &faces = stage(QStringLiteral("faces"));
+    const bool wasRunning = faces.running;
+    faces.running = false;
+    emitStatus();
+    // Espera o que já estava rodando terminar antes de fotografar o estado.
+    auto start = std::make_shared<std::function<void()>>();
+    QPointer<Pipeline> self(this);
+    *start = [self, done, wasRunning, start]() {
+        if (!self)
+            return;
+        if (self->stage(QStringLiteral("faces")).inFlight > 0 || self->m_merging) {
+            QTimer::singleShot(200, self.data(), *start);
+            return;
+        }
+        auto plan = std::make_shared<Catalog::ReclusterPlan>(self->m_catalog->prepareRecluster());
+        qCInfo(lcPipeline) << "Regrouping" << plan->faces.size() << "faces into people";
+        runInPool(*QThreadPool::globalInstance(), [self, plan, done, wasRunning]() {
+            std::vector<int> labels;
+            {
+                PIX_PERF("clusterFaces");
+                labels = clusterFaces(plan->faces, int(plan->fixedPersons.size()), plan->params);
+            }
+            QMetaObject::invokeMethod(
+                self.data(), [self, plan, labels = std::move(labels), done, wasRunning]() {
+                    if (!self)
+                        return;
+                    const int people = self->m_catalog->applyRecluster(*plan, labels);
+                    self->m_regrouping = false;
+                    if (wasRunning)
+                        self->start(QStringLiteral("faces"));
+                    if (done)
+                        done(people);
+                },
+                Qt::QueuedConnection);
+        });
+    };
+    QTimer::singleShot(0, this, *start);
 }
 
 void Pipeline::wake()
@@ -952,7 +1022,7 @@ void Pipeline::dispatchFaces(const FaceJob &job)
                     self->m_catalog->applyFaces(r);
                     if (!r.faces.isEmpty() && ++self->m_facesSinceMerge >= kMergeEvery) {
                         self->m_facesSinceMerge = 0;
-                        self->m_catalog->autoMergePeople();
+                        self->mergePeopleAsync();
                     }
                 }
                 self->finished(self->stage(QStringLiteral("faces")), id, !skip && r.ok, QFileInfo(path).fileName());

@@ -10,6 +10,7 @@ add_library(photoidx_core STATIC
     Places.h Places.cpp
     HashTree.h HashTree.cpp
     FaceIndex.h FaceIndex.cpp
+    FaceClusterer.h FaceClusterer.cpp
     Taxonomy.h Taxonomy.cpp
     Models.h
     Classifier.h Classifier.cpp

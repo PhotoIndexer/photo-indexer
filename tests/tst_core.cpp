@@ -27,6 +27,7 @@
 #include <QTest>
 #include <QThread>
 
+#include <cmath>
 #include <limits>
 
 using namespace pix;
@@ -681,6 +682,65 @@ private slots:
         // Limite menor: as pequenas voltam.
         catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
         QCOMPARE(catalog.people().size(), 3);
+    }
+
+    void faceClustererRules()
+    {
+        auto face = [](int photo, imaging::Embedding e, int fixed = -1) {
+            ClusterFace f;
+            f.photo = photo;
+            f.embedding = std::move(e);
+            f.fixed = fixed;
+            return f;
+        };
+        // Sem cadeia: faces que "giram" aos poucos (vizinhas parecidas, as
+        // pontas não) não viram uma pessoa só.
+        std::vector<ClusterFace> chain;
+        for (int i = 0; i < 40; ++i) {
+            const float a = float(i) * 0.06f;  // ~3,4° por face, ~130° no total
+            chain.push_back(face(i, vec({std::cos(a), std::sin(a)})));
+        }
+        ClusterParams params;
+        params.mergeMinFaces = 1;
+        params.mergeEvery = 5;
+        const std::vector<int> l = clusterFaces(chain, 0, params);
+        QVERIFY(l.front() != l.back());
+        // Uma pessoa por foto: duas faces iguais na mesma foto, dois grupos.
+        const std::vector<int> same = clusterFaces({face(7, vec({1})), face(7, vec({1})), face(8, vec({1}))}, 0, params);
+        QVERIFY(same[0] != same[1]);
+        QVERIFY(same[2] == same[0] || same[2] == same[1]);
+        // Grupos fixos: recebem faces, mas dois fixos nunca se juntam.
+        const std::vector<int> fixed = clusterFaces({face(1, vec({1}), 0), face(2, vec({1}), 1), face(3, vec({1}))}, 2, params);
+        QCOMPARE(fixed[0], 0);
+        QCOMPARE(fixed[1], 1);
+        QVERIFY(fixed[2] == 0 || fixed[2] == 1);
+    }
+
+    void onePersonPerPhoto()
+    {
+        // Dois rostos iguais na mesma foto (gêmeos, reflexo, cartaz): nunca a
+        // mesma pessoa. E o reagrupamento mantém quem tem nome.
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
+        const QStringList photos = seedPhotos(catalog, 3, m_photos.path() + QStringLiteral("/twins"));
+        catalog.applyFaces(faces(photos[0], {vec({1, 0.01f}), vec({1, 0.02f})}));
+        QSqlQuery q = catalog.db().exec(QStringLiteral("SELECT count(DISTINCT person_id) FROM face WHERE photo_id = ?"), {photos[0]});
+        QVERIFY(q.next());
+        QCOMPARE(q.value(0).toInt(), 2);
+        catalog.applyFaces(faces(photos[1], {vec({0, 1})}));
+        QSqlQuery named = catalog.db().exec(QStringLiteral("SELECT person_id FROM face WHERE photo_id = ?"), {photos[1]});
+        QVERIFY(named.next());
+        const QString ana = named.value(0).toString();
+        catalog.renamePerson(ana, QStringLiteral("Ana"));
+        catalog.reclusterPeople();
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT person_id FROM face WHERE photo_id = ?"), {photos[1]}).toString(), ana);
+        QSqlQuery after = catalog.db().exec(QStringLiteral("SELECT count(DISTINCT person_id) FROM face WHERE photo_id = ?"), {photos[0]});
+        QVERIFY(after.next());
+        QCOMPARE(after.value(0).toInt(), 2);
+        // Detecção fraca não forma pessoa (fica na foto e na busca).
+        catalog.applyFaces(faces(photos[2], {vec({0.3f, 0.3f, 1})}, 0.5f));
+        QVERIFY(catalog.db().scalar(QStringLiteral("SELECT person_id FROM face WHERE photo_id = ?"), {photos[2]}).isNull());
     }
 
     void cryptoFormat()

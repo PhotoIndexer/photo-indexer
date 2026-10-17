@@ -68,12 +68,28 @@ imaging::Embedding Catalog::centroidOf(const QString &personId) const
     return c;
 }
 
-QString Catalog::clusterFace(const QString &faceId, const imaging::Embedding &embedding, float *similarity)
+ClusterParams Catalog::clusterParams() const
 {
-    // O _assign_person do photoe: a pessoa mais parecida (cosseno com o
-    // centroide) a partir do limiar; senão, uma pessoa nova. Pessoas de que
-    // esta face foi tirada (face_rejection) não contam.
-    const float threshold = setting(QStringLiteral("faces/matchSimilarity"), imaging::kFaceMatchSimilarity).toFloat();
+    // Padrões do core/FaceClusterer.h (calibrados num catálogo real).
+    ClusterParams p;
+    p.join = setting(QStringLiteral("faces/matchSimilarity"), p.join).toFloat();
+    p.merge = setting(QStringLiteral("faces/mergeSimilarity"), p.merge).toFloat();
+    p.mergeMinFaces = setting(QStringLiteral("faces/mergeMinFaces"), p.mergeMinFaces).toInt();
+    return p;
+}
+
+float Catalog::minPersonScore() const
+{
+    return setting(QStringLiteral("faces/minPersonScore"), 0.65).toFloat();
+}
+
+QString Catalog::clusterFace(const QString &faceId, const imaging::Embedding &embedding, float *similarity,
+                             const QSet<QString> &exclude)
+{
+    // A pessoa mais parecida (cosseno com o centroide) a partir do limiar;
+    // senão, uma pessoa nova. Não contam: as de que esta face foi tirada
+    // (face_rejection) e as que já têm um rosto nesta foto (core/FaceClusterer.h).
+    const float threshold = clusterParams().join;
     QSet<QString> rejected;
     QSqlQuery r = m_db.exec(QStringLiteral("SELECT person_id FROM face_rejection WHERE face_id = ?"), {faceId});
     while (r.next())
@@ -81,7 +97,7 @@ QString Catalog::clusterFace(const QString &faceId, const imaging::Embedding &em
     QString best;
     float bestSim = 0.0f;
     for (auto it = m_people.constBegin(); it != m_people.constEnd(); ++it) {
-        if (it->faces == 0 || rejected.contains(it.key()))
+        if (it->faces == 0 || rejected.contains(it.key()) || exclude.contains(it.key()))
             continue;
         const float s = similarityToSum(it->sum, embedding);
         if (s > bestSim) {
@@ -182,17 +198,19 @@ void Catalog::applyFaces(const FaceResult &r)
     const QString now = Database::timestamp();
     // Detecção fraca (animais, objetos, rostos minúsculos no fundo): a face
     // fica na foto e na busca por rosto, mas não forma nem engorda pessoas.
-    const float minPersonScore = setting(QStringLiteral("faces/minPersonScore"), 0.5).toFloat();
+    const float minScore = minPersonScore();
+    QSet<QString> inThisPhoto;  // uma pessoa por foto
     for (const FoundFace &f : r.faces) {
         m_db.exec(QStringLiteral("INSERT INTO face(id, photo_id, x, y, w, h, score, embedding, model, crop_path, created_at) "
                                  "VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"),
                   {f.faceId, r.photoId, f.x, f.y, f.w, f.h, f.score, imaging::toBlob(f.embedding),
                    QString::fromLatin1(imaging::FaceEngine::kName), f.cropPath, now});
         m_faces.insert({f.faceId, r.photoId, QString()}, f.embedding);
-        if (f.score < minPersonScore)
+        if (f.score < minScore)
             continue;
         float similarity = 0.0f;
-        const QString person = clusterFace(f.faceId, f.embedding, &similarity);
+        const QString person = clusterFace(f.faceId, f.embedding, &similarity, inThisPhoto);
+        inThisPhoto.insert(person);
         m_db.exec(QStringLiteral("UPDATE face SET person_id = ?, similarity = ? WHERE id = ?"), {person, similarity, f.faceId});
         m_faces.setPerson(f.faceId, person);
         touched.insert(person);
@@ -209,111 +227,239 @@ void Catalog::applyFaces(const FaceResult &r)
 int Catalog::autoMergePeople()
 {
     PIX_PERF("Catalog::autoMergePeople");
-    // Junta duas pessoas quando os centroides são parecidos o bastante
-    // (similaridade) E as duas são confiáveis: faces suficientes e confiança
-    // média de detecção alta. Nomes diferentes nunca se juntam.
-    const float minSim = setting(QStringLiteral("faces/mergeSimilarity"), 0.55).toFloat();
-    const int minFaces = setting(QStringLiteral("faces/mergeMinFaces"), 3).toInt();
-    const double minScore = setting(QStringLiteral("faces/mergeMinScore"), 0.6).toDouble();
+    return applyMergePairs(mergePairs(mergeSnapshot()));
+}
 
-    struct Candidate
-    {
-        QString id;
-        QString name;
-        imaging::Embedding centroid;
-        int faces;
-    };
-    QList<Candidate> candidates;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT person_id, count(*), avg(score) FROM face WHERE person_id IS NOT NULL "
+// Junta duas pessoas quando a MÉDIA das similaridades entre as faces de uma
+// e as da outra passa do limiar, recalculada depois de cada junção (sem
+// cadeia), as duas são confiáveis (faces suficientes, confiança média alta)
+// e nunca aparecem juntas numa foto. Nomes diferentes nunca se juntam. Ver
+// core/FaceClusterer.h.
+Catalog::MergeSnapshot Catalog::mergeSnapshot() const
+{
+    PIX_PERF("Catalog::mergeSnapshot");
+    const ClusterParams params = clusterParams();
+    MergeSnapshot snap;
+    snap.threshold = params.merge;
+    const double minScore = setting(QStringLiteral("faces/mergeMinScore"), 0.6).toDouble();
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT person_id FROM face WHERE person_id IS NOT NULL "
                                            "GROUP BY person_id HAVING count(*) >= ? AND avg(score) >= ?"),
-                            {minFaces, minScore});
+                            {params.mergeMinFaces, minScore});
     while (q.next()) {
-        const QString id = q.value(0).toString();
-        imaging::Embedding c = centroidOf(id);
-        if (!c.empty())
-            candidates.append({id, m_people.value(id).name.trimmed(), std::move(c), q.value(1).toInt()});
+        const auto it = m_people.constFind(q.value(0).toString());
+        if (it == m_people.constEnd() || it->faces == 0 || it->sum.empty())
+            continue;
+        snap.ids << it.key();
+        snap.sums.push_back(it->sum);
+        snap.counts.push_back(it->faces);
     }
-    struct Pair
-    {
-        int a, b;
-        float sim;
-    };
-    std::vector<Pair> pairs;
-    for (int i = 0; i < candidates.size(); ++i)
-        for (int j = i + 1; j < candidates.size(); ++j) {
-            const float s = imaging::dot(candidates[i].centroid, candidates[j].centroid);
-            if (s >= minSim)
-                pairs.push_back({i, j, s});
+    return snap;
+}
+
+std::vector<Catalog::MergePair> Catalog::mergePairs(const MergeSnapshot &snap)
+{
+    PIX_PERF("Catalog::mergePairs");
+    std::vector<MergePair> pairs;
+    const int n = int(snap.ids.size());
+    for (int i = 0; i < n; ++i)
+        for (int j = i + 1; j < n; ++j) {
+            const auto &x = snap.sums[size_t(i)], &y = snap.sums[size_t(j)];
+            if (x.size() != y.size())
+                continue;
+            double d = 0;
+            for (size_t k = 0; k < x.size(); ++k)
+                d += double(x[k]) * y[k];
+            const float s = float(d / (double(snap.counts[size_t(i)]) * snap.counts[size_t(j)]));
+            if (s >= snap.threshold)
+                pairs.push_back({snap.ids[i], snap.ids[j], s});
         }
-    std::sort(pairs.begin(), pairs.end(), [](const Pair &x, const Pair &y) { return x.sim > y.sim; });
-    QHash<int, int> root;
-    auto find = [&](int i) {
-        while (root.contains(i))
-            i = root.value(i);
-        return i;
+    std::sort(pairs.begin(), pairs.end(), [](const MergePair &x, const MergePair &y) { return x.sim > y.sim; });
+    return pairs;
+}
+
+int Catalog::applyMergePairs(const std::vector<MergePair> &pairs)
+{
+    PIX_PERF("Catalog::applyMergePairs");
+    const float threshold = clusterParams().merge;
+    auto link = [this](const QString &a, const QString &b) {
+        const PersonState &x = m_people[a], &y = m_people[b];
+        if (x.sum.size() != y.sum.size() || x.faces == 0 || y.faces == 0)
+            return 0.0f;
+        double d = 0;
+        for (size_t i = 0; i < x.sum.size(); ++i)
+            d += double(x.sum[i]) * y.sum[i];
+        return float(d / (double(x.faces) * y.faces));
+    };
+    QHash<QString, QString> into;  // absorvida -> quem absorveu
+    auto find = [&into](QString id) {
+        while (into.contains(id))
+            id = into.value(id);
+        return id;
     };
     int merged = 0;
-    for (const Pair &p : pairs) {
-        const int a = find(p.a), b = find(p.b);
-        if (a == b)
+    for (const MergePair &p : pairs) {
+        QString a = find(p.a), b = find(p.b);
+        if (a == b || !m_people.contains(a) || !m_people.contains(b))
             continue;
-        const QString na = candidates[a].name, nb = candidates[b].name;
+        const QString na = m_people.value(a).name.trimmed(), nb = m_people.value(b).name.trimmed();
         if (!na.isEmpty() && !nb.isEmpty() && na.compare(nb, Qt::CaseInsensitive) != 0)
             continue;
+        const float sim = link(a, b);  // com as pessoas de agora (sem cadeia)
+        if (sim < threshold)
+            continue;
+        if (m_db.scalar(QStringLiteral("SELECT 1 FROM face x JOIN face y ON y.photo_id = x.photo_id "
+                                       "WHERE x.person_id = ? AND y.person_id = ? LIMIT 1"),
+                        {a, b})
+                .isValid())
+            continue;  // aparecem juntas numa foto: são duas pessoas
         // Fica a nomeada; entre duas sem nome, a maior.
-        const bool keepA = !na.isEmpty() || (nb.isEmpty() && candidates[a].faces >= candidates[b].faces);
-        const int target = keepA ? a : b, source = keepA ? b : a;
-        qCInfo(lcCatalog) << "Auto-merging person" << candidates[source].id << "into" << candidates[target].id
-                          << "similarity" << p.sim;
-        mergePeople(candidates[target].id, candidates[source].id);
-        candidates[target].faces += candidates[source].faces;
-        if (candidates[target].name.isEmpty())
-            candidates[target].name = candidates[source].name;
-        root.insert(source, target);
+        if (!nb.isEmpty() || (na.isEmpty() && m_people.value(b).faces > m_people.value(a).faces))
+            std::swap(a, b);
+        qCInfo(lcCatalog) << "Auto-merging person" << b << "into" << a << "average similarity" << sim;
+        mergePeople(a, b);
+        into.insert(b, a);
         ++merged;
     }
-    if (merged)
-        emit peopleChanged();
     return merged;
 }
 
 void Catalog::reclusterPeople()
 {
     PIX_PERF("Catalog::reclusterPeople");
+    const ReclusterPlan plan = prepareRecluster();
+    applyRecluster(plan, clusterFaces(plan.faces, int(plan.fixedPersons.size()), plan.params));
+}
+
+Catalog::ReclusterPlan Catalog::prepareRecluster() const
+{
+    PIX_PERF("Catalog::prepareRecluster");
+    ReclusterPlan plan;
+    plan.params = clusterParams();
+    // Ficam como estão (grupos fixos): as pessoas com nome e as que têm
+    // alguma face confirmada pela pessoa.
+    QHash<QString, int> fixed;
+    QSet<QString> named;
+    QSqlQuery p = m_db.exec(QStringLiteral("SELECT id, name FROM person WHERE name != '' OR id IN "
+                                           "(SELECT person_id FROM face WHERE assignment = 'user' AND person_id IS NOT NULL)"));
+    while (p.next()) {
+        fixed.insert(p.value(0).toString(), int(plan.fixedPersons.size()));
+        plan.fixedPersons << p.value(0).toString();
+        if (!p.value(1).toString().isEmpty())
+            named.insert(p.value(0).toString());
+    }
+    QHash<QString, std::vector<int>> rejected;
+    QSqlQuery r = m_db.exec(QStringLiteral("SELECT face_id, person_id FROM face_rejection"));
+    while (r.next())
+        if (fixed.contains(r.value(1).toString()))
+            rejected[r.value(0).toString()].push_back(fixed.value(r.value(1).toString()));
+    QHash<QString, int> photos;
+    const float minScore = minPersonScore();
+    QSqlQuery f = m_db.exec(QStringLiteral("SELECT id, photo_id, person_id, assignment, score FROM face ORDER BY created_at"));
+    while (f.next()) {
+        const QString faceId = f.value(0).toString();
+        const QString person = f.value(2).toString();
+        // Ficam onde estão: as faces das pessoas com nome e as confirmadas.
+        const bool keep = fixed.contains(person) && (named.contains(person) || f.value(3).toString() == QLatin1String("user"));
+        if (!keep && f.value(4).toFloat() < minScore)
+            continue;  // detecção fraca (nuca, perfil, borrão): não forma pessoa
+        imaging::Embedding e = m_faces.embeddingOf(faceId);
+        if (e.empty())
+            continue;
+        ClusterFace c;
+        c.photo = photos.value(f.value(1).toString(), int(photos.size()));
+        photos.insert(f.value(1).toString(), c.photo);
+        c.embedding = std::move(e);
+        c.fixed = keep ? fixed.value(person) : -1;
+        c.notIn = rejected.value(faceId);
+        plan.faces.push_back(std::move(c));
+        plan.faceIds << faceId;
+    }
+    return plan;
+}
+
+int Catalog::applyRecluster(const ReclusterPlan &plan, const std::vector<int> &labels)
+{
+    PIX_PERF("Catalog::applyRecluster");
+    const int fixedCount = int(plan.fixedPersons.size());
+    int groups = fixedCount;
+    for (int l : labels)
+        groups = std::max(groups, l + 1);
+    // Soma de cada grupo: o centroide (similaridade de cada face e o da pessoa).
+    const size_t dims = plan.faces.empty() ? 0 : plan.faces.front().embedding.size();
+    std::vector<double> sums(size_t(groups) * dims, 0.0);
+    for (size_t i = 0; i < labels.size(); ++i)
+        if (labels[i] >= 0)
+            for (size_t k = 0; k < dims; ++k)
+                sums[size_t(labels[i]) * dims + k] += plan.faces[i].embedding[k];
+    std::vector<double> norms(size_t(groups), 0.0);
+    for (int g = 0; g < groups; ++g) {
+        double n = 0;
+        for (size_t k = 0; k < dims; ++k)
+            n += sums[size_t(g) * dims + k] * sums[size_t(g) * dims + k];
+        norms[size_t(g)] = std::sqrt(n);
+    }
+    QStringList personOf = plan.fixedPersons;
+    const QString now = Database::timestamp();
     Transaction tx(m_db);
-    // Fica o que a pessoa confirmou e o que está em pessoas com nome; o
-    // automático das pessoas sem nome (e as faces soltas) é refeito.
-    m_db.exec(QStringLiteral("UPDATE face SET person_id = NULL WHERE assignment = 'auto' AND "
-                             "person_id IN (SELECT id FROM person WHERE name = '')"));
-    m_db.exec(QStringLiteral("DELETE FROM person WHERE name = '' AND id NOT IN "
-                             "(SELECT person_id FROM face WHERE person_id IS NOT NULL)"));
+    // As pessoas automáticas (sem nome, sem face confirmada) são refeitas.
+    QVariantList keep;
+    for (const QString &id : plan.fixedPersons)
+        keep << id;
+    m_db.exec(QStringLiteral("UPDATE face SET person_id = NULL WHERE assignment = 'auto'"));
+    if (keep.isEmpty())
+        m_db.exec(QStringLiteral("DELETE FROM person WHERE name = ''"));
+    else
+        m_db.exec(QStringLiteral("DELETE FROM person WHERE name = '' AND id NOT IN (%1)")
+                      .arg(QStringList(keep.size(), QStringLiteral("?")).join(u',')),
+                  keep);
+    for (int g = fixedCount; g < groups; ++g) {
+        const QString id = Database::newId();
+        m_db.exec(QStringLiteral("INSERT INTO person(id, name, created_at, updated_at) VALUES(?, '', ?, ?)"), {id, now, now});
+        personOf << id;
+    }
+    QSqlQuery update(m_db.handle());
+    update.prepare(QStringLiteral("UPDATE face SET person_id = ?, similarity = ? WHERE id = ?"));
+    for (size_t i = 0; i < labels.size(); ++i) {
+        const int g = labels[i];
+        if (g < 0)
+            continue;
+        double d = 0;
+        for (size_t k = 0; k < dims; ++k)
+            d += sums[size_t(g) * dims + k] * plan.faces[i].embedding[k];
+        update.addBindValue(personOf.at(g));
+        update.addBindValue(norms[size_t(g)] > 0 ? d / norms[size_t(g)] : 0.0);
+        update.addBindValue(plan.faceIds.at(qsizetype(i)));
+        update.exec();
+    }
+    // Contagens, capa (a face de maior confiança) e centroide, em lote.
+    m_db.exec(QStringLiteral("UPDATE person SET "
+                             "face_count = (SELECT count(*) FROM face f WHERE f.person_id = person.id), "
+                             "photo_count = (SELECT count(DISTINCT photo_id) FROM face f WHERE f.person_id = person.id), "
+                             "cover_face_id = (SELECT id FROM face f WHERE f.person_id = person.id ORDER BY score DESC LIMIT 1), "
+                             "updated_at = ?"),
+              {now});
+    QSqlQuery centroid(m_db.handle());
+    centroid.prepare(QStringLiteral("UPDATE person SET centroid = ? WHERE id = ?"));
+    for (int g = 0; g < groups; ++g) {
+        if (norms[size_t(g)] <= 0)
+            continue;
+        imaging::Embedding c(dims);
+        for (size_t k = 0; k < dims; ++k)
+            c[k] = float(sums[size_t(g) * dims + k] / norms[size_t(g)]);
+        centroid.addBindValue(imaging::toBlob(c));
+        centroid.addBindValue(personOf.at(g));
+        centroid.exec();
+    }
+    tx.commit();
     QSqlQuery all = m_db.exec(QStringLiteral("SELECT id, person_id FROM face"));
     while (all.next())
         m_faces.setPerson(all.value(0).toString(), all.value(1).toString());
     loadPeople();
-    QStringList faceIds;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM face WHERE assignment = 'auto' AND person_id IS NULL "
-                                           "AND score >= ? ORDER BY score DESC"),
-                            {setting(QStringLiteral("faces/minPersonScore"), 0.5).toDouble()});
-    while (q.next())
-        faceIds << q.value(0).toString();
-    QSet<QString> touched;
-    for (const QString &faceId : faceIds) {
-        float similarity = 0.0f;
-        const QString person = clusterFace(faceId, m_faces.embeddingOf(faceId), &similarity);
-        m_db.exec(QStringLiteral("UPDATE face SET person_id = ?, similarity = ? WHERE id = ?"), {person, similarity, faceId});
-        m_faces.setPerson(faceId, person);
-        touched.insert(person);
-    }
-    QSqlQuery people = m_db.exec(QStringLiteral("SELECT id FROM person"));
-    QStringList ids;
-    while (people.next())
-        ids << people.value(0).toString();
-    for (const QString &id : ids)
-        refreshPerson(id);
-    tx.commit();
-    autoMergePeople();
+    const int people = m_db.scalar(QStringLiteral("SELECT count(*) FROM person WHERE face_count > 0")).toInt();
+    qCInfo(lcCatalog) << "People regrouped:" << plan.faces.size() << "faces," << people << "people";
     emit peopleChanged();
+    emit treeChanged(QStringLiteral("people"));
+    return people;
 }
 
 // --------------------------------------------------------------------------- //

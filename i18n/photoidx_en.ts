@@ -92,6 +92,13 @@
             <numerusform>%n merges of similar people.</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>People regrouped: %n person(s).</source>
+        <translation>
+            <numerusform>People regrouped: %n person.</numerusform>
+            <numerusform>People regrouped: %n people.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>PeoplePage</name>

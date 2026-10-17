@@ -123,8 +123,10 @@ QtObject {
                 + (p.missing ? qsTr(", %1 no longer on disk").arg(p.missing) : "") + ".";
         case "tasks.requeued":
             return qsTr("%n photo(s) back in the queue of “%1”.", "", Number(p.count || 0)).arg(stageName(p.stage));
+        case "people.regrouping":
+            return qsTr("Regrouping people with the improved rule… This runs in the background.");
         case "people.reclustered":
-            return qsTr("People regrouped.");
+            return p.count !== undefined ? qsTr("People regrouped: %n person(s).", "", Number(p.count)) : qsTr("People regrouped.");
         case "people.merged":
             return qsTr("%n merge(s) of similar people.", "", Number(p.count || 0));
         case "filter.saved":
@@ -382,10 +384,10 @@ QtObject {
         case "parentProbability": return qsTr("When the AI cannot tell similar categories apart (basketball or volleyball?), the photo goes to the group (Sports) if the group is at least this likely.");
         case "siblingMargin": return qsTr("Two categories of the same group count as a tie when the second has at least this fraction of the first's confidence. Lower: more photos go to the group.");
         case "blurThreshold": return qsTr("Photos below this sharpness go to “Blurry / Low quality”.");
-        case "minPersonScore": return qsTr("Faces detected with less confidence (animals, objects, tiny faces in the background) stay searchable but do not form people.");
+        case "minPersonScore": return qsTr("Faces detected with less confidence (the back of a head, profiles, blur, animals, objects) stay searchable but do not form people.");
         case "minPersonPhotos": return qsTr("Unnamed people with fewer photos stay out of the People screen and the side panel (they still show up in “Search by photo”). People with a name always show, first.");
-        case "matchSimilarity": return qsTr("A new face joins the most similar person from this similarity on (0.45, as in PhotoE).");
-        case "mergeSimilarity": return qsTr("Two people are merged automatically when their average faces are at least this similar.");
+        case "matchSimilarity": return qsTr("A new face joins the most similar person from this similarity on. Two faces of the same photo are never the same person.");
+        case "mergeSimilarity": return qsTr("Two people are merged automatically when their faces are, on average, at least this similar to each other — and never if they appear together in a photo.");
         case "mergeMinFaces": return qsTr("Confidence: only people with at least this many faces take part in automatic merges.");
         case "mergeMinScore": return qsTr("Confidence: only people whose faces were detected with at least this average confidence.");
         }

@@ -28,10 +28,11 @@ const Setting kSettings[] = {
     {"parentProbability", "ai/parentProbability", 0.5},
     {"siblingMargin", "ai/siblingMargin", 0.3},
     {"blurThreshold", "ai/blurThreshold", 40},
-    {"minPersonScore", "faces/minPersonScore", 0.5},
+    // Padrões do core/FaceClusterer.h (calibrados com 43 mil faces reais).
+    {"minPersonScore", "faces/minPersonScore", 0.65},
     {"minPersonPhotos", "people/minPhotos", 20},
-    {"matchSimilarity", "faces/matchSimilarity", double(imaging::kFaceMatchSimilarity)},
-    {"mergeSimilarity", "faces/mergeSimilarity", 0.55},
+    {"matchSimilarity", "faces/matchSimilarity", 0.50},
+    {"mergeSimilarity", "faces/mergeSimilarity", 0.40},
     {"mergeMinFaces", "faces/mergeMinFaces", 3},
     {"mergeMinScore", "faces/mergeMinScore", 0.6},
 };
@@ -161,8 +162,11 @@ void TasksController::requeue(const QString &stage, const QString &scope)
 
 void TasksController::reclusterPeople()
 {
-    m_catalog->reclusterPeople();
-    emit notice(QStringLiteral("people.reclustered"), {});
+    // Dezenas de milhares de faces: fora da thread principal.
+    emit notice(QStringLiteral("people.regrouping"), {});
+    m_pipeline->regroupPeople([this](int people) {
+        emit notice(QStringLiteral("people.reclustered"), {{QStringLiteral("count"), people}});
+    });
 }
 
 void TasksController::mergePeopleNow()

@@ -200,10 +200,16 @@ refaz os caminhos. Código de SO novo vai em `Disks.cpp`, atrás de `#if`.
 - `picture_hash` = SHA-256 de `"<modo>:<L>x<A>:"` + pixels decodificados e
   orientados (o `picture_hash` do photoe; RAW = dados do sensor). O teste
   `tst_imaging::pictureHashMatchesPhotoe` compara com o Pillow.
-- Faces = insightface `buffalo_sc` (SCRFD 0,35 + ArcFace, cosseno 0,45 para a
-  mesma pessoa), comparado com o insightface em `tst_ai` (referências geradas
-  por `tests/data/faces/gen_faces.py`). Mudou o pipeline de faces? Regere as
+- Faces = insightface `buffalo_sc` (SCRFD 0,35 + ArcFace), comparado com o
+  insightface em `tst_ai` (referências geradas por
+  `tests/data/faces/gen_faces.py`). Mudou o pipeline de faces? Regere as
   referências e rode o teste.
+- Agrupar em pessoas só em `src/core/FaceClusterer.cpp`: uma pessoa por foto,
+  entrar com cosseno ≥ 0,50 ao centroide, juntar pela média das
+  similaridades ≥ 0,40 (nunca cadeia, nunca quem aparece junto), faces com
+  confiança < 0,65 fora. Mudou a regra? Suba `faces/clusterRule` em
+  `AppController` (reagrupa uma vez ao abrir) e teste em
+  `tst_core::faceClustererRules`.
 - Os modelos do insightface são licenciados **só para pesquisa não
   comercial**: o aviso aparece no Sobre e no README; não remova.
 

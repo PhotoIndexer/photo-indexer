@@ -105,14 +105,29 @@ embutida que a pessoa não mudou é atualizada ao abrir (`previousPrompts`).
 
 ### Pessoas
 
-O mesmo agrupamento do `_assign_person` do photoe, mas global: cada face nova
-vai para a pessoa de centroide mais parecido (cosseno ≥ 0,45) ou cria uma
-pessoa nova (UUID). Faces com confiança de detecção abaixo de 0,5 ficam
-buscáveis, mas não formam pessoas (animais, objetos). Merge automático:
-centroides ≥ 0,55 **e** as duas pessoas confiáveis (≥ 3 faces, confiança
-média ≥ 0,6); nomes diferentes nunca se juntam. Correções da pessoa:
-`assignFaces` (falso negativo), `rejectFaces` (falso positivo — gravado em
-`face_rejection`, o agrupamento nunca devolve). A busca por foto detecta os
+A regra inteira mora em `core/FaceClusterer` (sem banco, roda fora da thread
+principal), calibrada com 43 mil faces de um catálogo real:
+
+1. **Uma pessoa por foto**: duas faces da mesma foto nunca são a mesma pessoa.
+2. **Entrar**: a face nova vai para a pessoa de centroide (normalizado) mais
+   parecido, cosseno ≥ 0,50 (`faces/matchSimilarity`), ou cria uma nova (UUID).
+3. **Juntar**: duas pessoas se juntam quando a **média** das similaridades
+   entre as faces das duas é ≥ 0,40 (`faces/mergeSimilarity`), recalculada a
+   cada junção — sem cadeia (A~B e B~C não junta A com C) — e nunca se
+   aparecem juntas numa foto. O cosseno entre centroides inchava com grupos
+   mistos e criava "pessoas" de milhares de rostos diferentes.
+4. Faces com confiança de detecção < 0,65 (`faces/minPersonScore`: nuca,
+   perfil, borrão, animais) ficam buscáveis, mas não formam pessoas.
+5. Pessoas com nome e faces confirmadas são fixas: recebem faces, absorvem
+   grupos, mas duas fixas nunca se juntam.
+
+"Reagrupar pessoas" (Tarefas) refaz tudo com essa regra mantendo nomes,
+confirmações e `face_rejection`; roda uma vez sozinho ao abrir um catálogo da
+regra antiga (`faces/clusterRule`). Correções da pessoa: `assignFaces` (falso
+negativo), `rejectFaces` (falso positivo — gravado em `face_rejection`, o
+agrupamento nunca devolve). A tela Pessoas mostra primeiro as com nome e
+esconde as com menos de 20 fotos (`people/minPhotos`), salvo na busca por foto.
+A busca por foto detecta os
 rostos da imagem enviada e compara com todas as faces (`FaceIndex`, busca
 exata em memória).
 
