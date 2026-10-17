@@ -35,9 +35,10 @@ option(PHOTOIDX_WITH_ONNX "Categorias e busca por IA (CLIP) com ONNX Runtime" ON
 set(PHOTOIDX_ONNXRUNTIME_ROOT "" CACHE PATH "ONNX Runtime já instalado (com include/ e lib/); vazio = baixar o pacote oficial")
 set(PHOTOIDX_LIBRAW_SOURCE "" CACHE PATH "Fonte do LibRaw já extraído; vazio = baixar a versão fixa")
 
-# Identidade da marca: nome e site (Sobre).
+# Identidade da marca: nome, site e repositório (Sobre).
 set(PHOTOIDX_BRAND_NAME "PhotoIDX" CACHE STRING "Nome do produto")
-set(PHOTOIDX_BRAND_URL "https://github.com/helviojunior/photo-indexer" CACHE STRING "Site do produto (Sobre)")
+set(PHOTOIDX_BRAND_URL "https://photoindexer.github.io/" CACHE STRING "Site do produto (Sobre)")
+set(PHOTOIDX_REPO_URL "https://github.com/PhotoIndexer/photo-indexer" CACHE STRING "Código-fonte (Sobre)")
 
 find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Sql Concurrent)
 if(PHOTOIDX_BUILD_APP)

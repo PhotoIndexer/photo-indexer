@@ -1,8 +1,11 @@
-# Hotsite (docs/site) no GitHub Pages.
+# Hotsite (docs/site) em https://photoindexer.github.io/.
 #
-# Todo push na main que mexe no site (docs/: HTML, CSS, JS, capturas de tela)
-# ou no que ele copia do app (logo e ícones) monta o site com `make site` e o
-# publica. À mão: Actions -> Hotsite -> Run workflow.
+# O GitHub só serve a raiz do domínio da organização a partir do repositório
+# PhotoIndexer/photoindexer.github.io. Este workflow monta o site aqui
+# (`make site`) e o publica lá, num commit só, com a deploy key daquele
+# repositório (secret SITE_DEPLOY_KEY; a chave só escreve no repositório do
+# site). Roda a cada push na main que mexe no site (docs/) ou no que ele copia
+# do app (logo e ícones). À mão: Actions -> Hotsite -> Run workflow.
 
 name: Hotsite
 
@@ -18,31 +21,35 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: hotsite
   cancel-in-progress: true
 
+env:
+  SITE_REPO: PhotoIndexer/photoindexer.github.io
+
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - name: Build the site
         run: make site SITE_OUT=_site
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-24.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Publish to the organization site repository
+        env:
+          SITE_DEPLOY_KEY: ${{ secrets.SITE_DEPLOY_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SITE_DEPLOY_KEY" > ~/.ssh/site_key
+          chmod 600 ~/.ssh/site_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          export GIT_SSH_COMMAND="ssh -i ~/.ssh/site_key -o IdentitiesOnly=yes"
+          cd _site
+          git init -q -b main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Hotsite from ${GITHUB_REPOSITORY}@${GITHUB_SHA::7}"
+          git push -q --force "git@github.com:${SITE_REPO}.git" main
+          echo "Published https://photoindexer.github.io/ from ${GITHUB_SHA::7}" >> "$GITHUB_STEP_SUMMARY"

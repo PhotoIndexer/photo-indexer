@@ -123,4 +123,6 @@ plataforma tem o seu builder Docker em `packaging/<plataforma>/`; o
 com sha256 fixo e desenha a arte dos instaladores. O LibRaw é baixado e
 compilado pelo próprio CMake (`src/cmake/LibRaw.cmake`), igual nos seis
 alvos. O `.github/workflows/release.yml` gera os instaladores ao publicar uma
-Release; o `pages.yml` publica o hotsite (`docs/site`).
+Release; o `pages.yml` publica o hotsite (`docs/site`) em
+<https://photoindexer.github.io/>, pelo repositório
+`PhotoIndexer/photoindexer.github.io`.

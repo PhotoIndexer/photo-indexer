@@ -35,6 +35,7 @@ class AppController : public QObject
     Q_PROPERTY(QString version READ version CONSTANT)
     Q_PROPERTY(QString brandName READ brandName CONSTANT)
     Q_PROPERTY(QString brandUrl READ brandUrl CONSTANT)
+    Q_PROPERTY(QString repoUrl READ repoUrl CONSTANT)
     Q_PROPERTY(QString language READ language NOTIFY languageChanged)
     Q_PROPERTY(QVariantList languages READ languages CONSTANT)
     Q_PROPERTY(bool darkTheme READ darkTheme WRITE setDarkTheme NOTIFY darkThemeChanged)
@@ -66,6 +67,7 @@ public:
     QString version() const;
     QString brandName() const;
     QString brandUrl() const;
+    QString repoUrl() const;
     QString language() const;
     QVariantList languages() const;
     bool darkTheme() const { return m_dark; }

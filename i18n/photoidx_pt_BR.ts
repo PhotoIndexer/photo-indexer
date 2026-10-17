@@ -39,6 +39,10 @@
         <source>Close</source>
         <translation>Fechar</translation>
     </message>
+    <message>
+        <source>Source code and releases on GitHub</source>
+        <translation>Código-fonte e versões no GitHub</translation>
+    </message>
 </context>
 <context>
     <name>ActivityRail</name>

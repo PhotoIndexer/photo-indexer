@@ -42,28 +42,34 @@ Modal {
             horizontalAlignment: Text.AlignHCenter
         }
 
-        // Site do produto: abre no navegador do sistema.
-        Text {
-            id: siteLink
-            readonly property string url: App.brandUrl
-            Layout.alignment: Qt.AlignHCenter
-            text: App.brandUrl.replace(/^https?:\/\//, "")
-            font.pixelSize: Theme.fontBase
-            font.underline: siteMouse.containsMouse
-            color: Theme.brand400
-            Accessible.role: Accessible.Link
-            Accessible.name: qsTr("Open the PhotoIDX website")
+        // Site e código-fonte: abrem no navegador do sistema.
+        Repeater {
+            model: [
+                { url: App.brandUrl, tip: qsTr("Open the PhotoIDX website") },
+                { url: App.repoUrl, tip: qsTr("Source code and releases on GitHub") }
+            ]
+            Text {
+                id: link
+                required property var modelData
+                Layout.alignment: Qt.AlignHCenter
+                text: link.modelData.url.replace(/^https?:\/\//, "").replace(/\/$/, "")
+                font.pixelSize: Theme.fontBase
+                font.underline: linkMouse.containsMouse
+                color: Theme.brand400
+                Accessible.role: Accessible.Link
+                Accessible.name: link.modelData.tip
 
-            MouseArea {
-                id: siteMouse
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: App.openUrl(siteLink.url)
-            }
-            Tip {
-                text: qsTr("Open the PhotoIDX website")
-                visible: siteMouse.containsMouse
+                MouseArea {
+                    id: linkMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: App.openUrl(link.modelData.url)
+                }
+                Tip {
+                    text: link.modelData.tip
+                    visible: linkMouse.containsMouse
+                }
             }
         }
 

@@ -106,7 +106,7 @@ def run(cmd, **kw):
 # O arquivo VERSION da raiz e GERADO aqui (ignorado pelo git): e de onde o
 # CMakeLists.txt le a versao (rotulo para a interface, numero para o projeto).
 
-GITHUB_REPO = 'helviojunior/photo-indexer'
+GITHUB_REPO = 'PhotoIndexer/photo-indexer'
 CHANNELS = ('release', 'dev')
 LATEST_RELEASE_CACHE = CACHE / 'latest-release'
 # Versao encontrada vale 24 h. "Nenhuma Release" (0.0.0) so 1 h: e o estado

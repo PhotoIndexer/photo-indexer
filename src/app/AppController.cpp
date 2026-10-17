@@ -102,6 +102,11 @@ QString AppController::brandUrl() const
     return QStringLiteral(PHOTOIDX_BRAND_URL);
 }
 
+QString AppController::repoUrl() const
+{
+    return QStringLiteral(PHOTOIDX_REPO_URL);
+}
+
 QString AppController::language() const
 {
     return app::activeLanguage();

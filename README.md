@@ -13,12 +13,12 @@ as lê.
 
 ![Biblioteca com as categorias da IA](./docs/images/categories.jpg)
 
-Site: <http://www.helviojunior.com.br/photo-indexer/>
+Site: <https://photoindexer.github.io/>
 
 ## Instalação
 
 Baixe o instalador do seu sistema na página de
-[**Releases**](https://github.com/helviojunior/photo-indexer/releases):
+[**Releases**](https://github.com/PhotoIndexer/photo-indexer/releases):
 
 | Sistema | Arquivo | Como instalar |
 |---|---|---|

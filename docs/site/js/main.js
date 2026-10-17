@@ -74,7 +74,7 @@
   // recente (maior `id`) que tenha um asset do padrão pedido — por plataforma.
   // Assim, se uma release sair sem o instalador de um sistema, aquele sistema
   // continua apontando para a última versão que o tinha.
-  var REPO = "helviojunior/photo-indexer";
+  var REPO = "PhotoIndexer/photo-indexer";
   var API = "https://api.github.com/repos/" + REPO + "/releases?per_page=30";
   var CACHE_KEY = "pix_releases_v1";
   var CACHE_TTL = 10 * 60 * 1000; // a API anônima permite 60 req/h por IP

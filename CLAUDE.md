@@ -212,9 +212,12 @@ x64/arm64, cross-compile), `.msi` (Windows x64 cross-compile; arm64 nativo).
 - Dependência nova precisa existir para os **seis** alvos.
 
 ### 17. Hotsite
-`docs/site/` é o hotsite (HTML/CSS/JS estáticos, EN e PT-BR), publicado no
-GitHub Pages pelo `.github/workflows/pages.yml` a cada push na `main` que
-mexe em `docs/`. Capturas de tela em `docs/site/assets/screens/`, geradas
+`docs/site/` é o hotsite (HTML/CSS/JS estáticos, EN e PT-BR), em
+<https://photoindexer.github.io/>. O `.github/workflows/pages.yml`, a cada
+push na `main` que mexe em `docs/`, monta o site (`make site`) e o publica no
+repositório `PhotoIndexer/photoindexer.github.io` (o único que o GitHub serve
+na raiz do domínio), com a deploy key do secret `SITE_DEPLOY_KEY`. As
+capturas de tela moram em `docs/images/` (o README também as usa), geradas
 pelo próprio app (`--screenshot`).
 
 ### 18. Como validar

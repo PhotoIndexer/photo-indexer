@@ -41,7 +41,8 @@ qt_add_qml_module(photoidx
 target_compile_definitions(photoidx PRIVATE
     PHOTOIDX_VERSION="${PHOTOIDX_VERSION_LABEL}"
     PHOTOIDX_BRAND_NAME="${PHOTOIDX_BRAND_NAME}"
-    PHOTOIDX_BRAND_URL="${PHOTOIDX_BRAND_URL}")
+    PHOTOIDX_BRAND_URL="${PHOTOIDX_BRAND_URL}"
+    PHOTOIDX_REPO_URL="${PHOTOIDX_REPO_URL}")
 target_link_libraries(photoidx PRIVATE
     photoidx_core
     Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Concurrent)
