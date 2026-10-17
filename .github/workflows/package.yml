@@ -59,7 +59,7 @@ jobs:
             runner: ubuntu-24.04-arm
             image: photoidx-linux-builder-arm64
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
@@ -67,7 +67,7 @@ jobs:
         run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
       # Modelos de IA (CLIP e buffalo_sc): downloads fixos (packaging/build.py).
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             .cache/models
@@ -75,10 +75,10 @@ jobs:
             .cache/pip
           key: downloads-linux-${{ matrix.arch }}-${{ hashFiles('packaging/build.py') }}
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Builder image (cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: packaging
           file: packaging/linux/Dockerfile
@@ -107,7 +107,7 @@ jobs:
     outputs:
       key: ${{ steps.sdk.outputs.key }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
@@ -115,7 +115,7 @@ jobs:
         run: echo "key=macos-sdk-$(xcrun --sdk macosx --show-sdk-version)" >> "$GITHUB_OUTPUT"
 
       - id: cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .cache/macos-sdk
           key: ${{ steps.sdk.outputs.key }}
@@ -125,7 +125,7 @@ jobs:
         run: make macos-sdk
 
       - if: steps.cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .cache/macos-sdk
           key: ${{ steps.sdk.outputs.key }}
@@ -148,20 +148,20 @@ jobs:
                       /opt/hostedtoolcache/CodeQL /usr/local/share/boost
           df -h /
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
       - name: Commit of the build
         run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: .cache/macos-sdk
           key: ${{ needs.macos-sdk.outputs.key }}
           fail-on-cache-miss: true
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             .cache/models
@@ -169,10 +169,10 @@ jobs:
             .cache/pip
           key: downloads-macos-${{ matrix.arch }}-${{ hashFiles('packaging/build.py') }}
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Builder image (cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: packaging/macos
           file: packaging/macos/Dockerfile
@@ -201,14 +201,14 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
       - name: Commit of the build
         run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             .cache/models
@@ -216,10 +216,10 @@ jobs:
             .cache/pip
           key: downloads-windows-x64-${{ hashFiles('packaging/build.py') }}
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Builder image (cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: packaging/windows
           file: packaging/windows/Dockerfile
@@ -251,23 +251,48 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
       - name: Commit of the build
         run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: arm64
+      # Ambiente do MSVC para ARM64: o vcvarsall do Visual Studio da imagem,
+      # exportado para os próximos passos (o que o ilammy/msvc-dev-cmd fazia —
+      # parado em Node 20 desde 2024).
+      - name: MSVC environment (arm64)
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property installationPath
+          if (-not $vs) { throw "Visual Studio with the ARM64 C++ tools not found" }
+          $vcvars = Join-Path $vs "VC\Auxiliary\Build\vcvarsall.bat"
+          $before = @{}
+          Get-ChildItem env: | ForEach-Object { $before[$_.Name.ToUpperInvariant()] = $_.Value }
+          $oldPath = $env:PATH -split ';'
+          $lines = cmd /c "`"$vcvars`" arm64 >nul && set"
+          if ($LASTEXITCODE -ne 0) { throw "vcvarsall.bat arm64 failed" }
+          foreach ($line in $lines) {
+            if ($line -notmatch '^([^=]+)=(.*)$') { continue }
+            $name = $matches[1]; $value = $matches[2]
+            if ($name -ieq 'PATH') {
+              # Só as pastas novas, na frente (GITHUB_PATH).
+              $new = $value -split ';' | Where-Object { $_ -and ($oldPath -notcontains $_) }
+              [array]::Reverse($new)
+              $new | ForEach-Object { Add-Content -Path $env:GITHUB_PATH -Value $_ -Encoding utf8 }
+            } elseif ($before[$name.ToUpperInvariant()] -cne $value) {
+              Add-Content -Path $env:GITHUB_ENV -Value "$name=$value" -Encoding utf8
+            }
+          }
+          Write-Host "MSVC from $vs"
 
       # Qt, OpenCV e downloads: tudo em .cache/ (packaging/windows/native.sh).
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: |
             .cache/qt
@@ -283,7 +308,7 @@ jobs:
       - name: Build the app folder
         run: make windows-native TARGET=windows-arm64 PYTHON=python
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: stage-windows-arm64
           path: .cache/stage/windows-arm64
@@ -297,22 +322,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
 
       - name: Commit of the build
         run: echo "PHOTOIDX_GIT_HASH=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: stage-windows-arm64
           path: .cache/stage/windows-arm64
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Builder image (cache)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: packaging/windows
           file: packaging/windows/Dockerfile
