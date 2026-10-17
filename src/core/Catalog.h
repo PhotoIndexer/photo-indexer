@@ -18,6 +18,7 @@
 #include "core/Database.h"
 #include "core/Disks.h"
 #include "core/FaceClusterer.h"
+#include "core/FileOps.h"
 #include "core/FaceIndex.h"
 #include "core/HashTree.h"
 #include "core/Models.h"
@@ -121,6 +122,24 @@ public:
     /// Tira a pasta do catálogo: fotos, miniaturas e recortes de rosto
     /// (as fotos no disco não são tocadas).
     void removeFolder(const QString &folderId);
+
+    // ------------------------------------------------------------------ //
+    // Modo Pastas (CatalogFiles.cpp; os arquivos em core/FileOps.h)
+    // ------------------------------------------------------------------ //
+    /// A pasta indexada que contém ``path`` (id), ou vazio: fora do catálogo.
+    QString rootFolderOf(const QString &path) const;
+    /// ``dir`` é uma pasta indexada (raiz) — essas não se movem por aqui.
+    bool isRootFolder(const QString &dir) const;
+    /// (id, caminho) das fotos.
+    QList<QPair<QString, QString>> photoPaths(const QStringList &photoIds) const;
+    /// O catálogo acompanha arquivos e pastas que mudaram de lugar.
+    void applyMoved(const QList<fileops::Moved> &moved);
+    /// Arquivos ou pastas mandados para a Lixeira: as fotos saem do catálogo.
+    void removePaths(const QStringList &paths);
+    /// Pastas sem foto que a árvore mostra mesmo assim (criadas ou esvaziadas
+    /// por aqui) — no banco, porque a árvore é lida por outra conexão.
+    QStringList extraDirs() const;
+    void addExtraDir(const QString &dir);
     QString folderPath(const QString &folderId) const;
     QStringList folderIds() const;
     /// [{id, path, diskId, photoCount, indexed, errors, scannedAt, online}]

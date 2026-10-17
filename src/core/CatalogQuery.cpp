@@ -124,6 +124,8 @@ QVariantList Catalog::tree(const QString &tab) const
         QSqlQuery d = m_db.exec(QStringLiteral("SELECT dir, count(*) FROM photo WHERE state != 'missing' AND private = 0 GROUP BY dir"));
         while (d.next())
             ownCount.insert(d.value(0).toString(), d.value(1).toInt());
+        // Pastas sem foto criadas ou esvaziadas no modo Pastas: aparecem também.
+        const QStringList extra = extraDirs();
         QSqlQuery disks = m_db.exec(QStringLiteral("SELECT id, label, kind, protocol, server, share, fs_type, mount_point, online "
                                                    "FROM disk ORDER BY kind, label"));
         while (disks.next()) {
@@ -156,6 +158,12 @@ QVariantList Catalog::tree(const QString &tab) const
                         p = p.left(p.lastIndexOf(u'/'));
                     }
                 }
+                for (const QString &dir : extra) {
+                    if (dir == root || !dir.startsWith(root + u'/'))
+                        continue;
+                    for (QString p = dir; p != root && !total.count(p); p = p.left(p.lastIndexOf(u'/')))
+                        total[p] += 0;
+                }
                 diskTotal += total[root];
                 // std::map já sai em ordem de caminho: é a pré-ordem da árvore.
                 for (const auto &[path, count] : total) {
@@ -165,7 +173,8 @@ QVariantList Catalog::tree(const QString &tab) const
                     out << node(QStringLiteral("dir:") + path, parent,
                                 isRoot ? QDir::toNativeSeparators(path) : path.section(u'/', -1), count, depth,
                                 isRoot ? QStringLiteral("folder-open") : QStringLiteral("folder"),
-                                isRoot ? QDir::toNativeSeparators(path) : QString(), QStringLiteral("dir"));
+                                isRoot ? QDir::toNativeSeparators(path) : QString(),
+                                isRoot ? QStringLiteral("root") : QStringLiteral("dir"));
                 }
             }
             QVariantMap diskNode = out[diskIndex].toMap();

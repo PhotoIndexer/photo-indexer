@@ -1672,6 +1672,104 @@
         <source>Find similar faces</source>
         <translation>Procurar rostos parecidos</translation>
     </message>
+    <message>
+        <source>Move photos?</source>
+        <translation>Mover fotos?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Move %n photo(s) to &lt;b&gt;%1&lt;/b&gt;? The files change place on the disk.</source>
+        <translation>
+            <numerusform>Mover %n foto para &lt;b&gt;%1&lt;/b&gt;? O arquivo muda de lugar no disco.</numerusform>
+            <numerusform>Mover %n fotos para &lt;b&gt;%1&lt;/b&gt;? Os arquivos mudam de lugar no disco.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Move</source>
+        <translation>Mover</translation>
+    </message>
+    <message>
+        <source>Move to the Trash?</source>
+        <translation>Mandar para a Lixeira?</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) go to the system Trash (you can restore them from there) and leave the catalog.</source>
+        <translation>
+            <numerusform>%n foto vai para a Lixeira do sistema (dá para restaurar de lá) e sai do catálogo.</numerusform>
+            <numerusform>%n fotos vão para a Lixeira do sistema (dá para restaurar de lá) e saem do catálogo.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Move to Trash</source>
+        <translation>Mandar para a Lixeira</translation>
+    </message>
+    <message>
+        <source>Move folder?</source>
+        <translation>Mover pasta?</translation>
+    </message>
+    <message>
+        <source>Move &lt;b&gt;%1&lt;/b&gt; and everything in it into &lt;b&gt;%2&lt;/b&gt;? The files change place on the disk.</source>
+        <translation>Mover &lt;b&gt;%1&lt;/b&gt; e tudo o que está nela para dentro de &lt;b&gt;%2&lt;/b&gt;? Os arquivos mudam de lugar no disco.</translation>
+    </message>
+    <message>
+        <source>New folder…</source>
+        <translation>Nova pasta…</translation>
+    </message>
+    <message>
+        <source>New folder</source>
+        <translation>Nova pasta</translation>
+    </message>
+    <message>
+        <source>Folder name</source>
+        <translation>Nome da pasta</translation>
+    </message>
+    <message>
+        <source>Rename folder…</source>
+        <translation>Renomear pasta…</translation>
+    </message>
+    <message>
+        <source>Rename folder</source>
+        <translation>Renomear pasta</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>Renomear</translation>
+    </message>
+    <message>
+        <source>Move folder to Trash…</source>
+        <translation>Mandar pasta para a Lixeira…</translation>
+    </message>
+    <message>
+        <source>Move folder to the Trash?</source>
+        <translation>Mandar a pasta para a Lixeira?</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1&lt;/b&gt; and everything in it go to the system Trash (you can restore them from there). Its photos leave the catalog.</source>
+        <translation>&lt;b&gt;%1&lt;/b&gt; e tudo o que está nela vão para a Lixeira do sistema (dá para restaurar de lá). As fotos dela saem do catálogo.</translation>
+    </message>
+    <message>
+        <source>Move to folder…</source>
+        <translation>Mover para a pasta…</translation>
+    </message>
+    <message>
+        <source>Rename file…</source>
+        <translation>Renomear arquivo…</translation>
+    </message>
+    <message>
+        <source>Rename file</source>
+        <translation>Renomear arquivo</translation>
+    </message>
+    <message>
+        <source>File name</source>
+        <translation>Nome do arquivo</translation>
+    </message>
+    <message>
+        <source>Move to Trash…</source>
+        <translation>Mandar para a Lixeira…</translation>
+    </message>
+    <message>
+        <source>Move to folder</source>
+        <translation>Mover para a pasta</translation>
+    </message>
 </context>
 <context>
     <name>Main</name>
@@ -2481,6 +2579,97 @@
     <message>
         <source>This group no longer exists.</source>
         <translation>Este grupo não existe mais.</translation>
+    </message>
+    <message>
+        <source>Another file operation is still running. Wait for it to finish.</source>
+        <translation>Outra operação de arquivos ainda está em andamento. Espere ela terminar.</translation>
+    </message>
+    <message>
+        <source>A folder scan is running. Wait for it to finish before moving or deleting files.</source>
+        <translation>Uma varredura de pasta está em andamento. Espere ela terminar antes de mover ou excluir arquivos.</translation>
+    </message>
+    <message>
+        <source>“%1” is not inside an indexed folder. Photos can only be moved to folders of the catalog.</source>
+        <translation>“%1” não está dentro de uma pasta indexada. As fotos só podem ir para pastas do catálogo.</translation>
+    </message>
+    <message>
+        <source>“%1” is an indexed folder. Manage it in Folders and disks.</source>
+        <translation>“%1” é uma pasta indexada. Gerencie em Pastas e discos.</translation>
+    </message>
+    <message>
+        <source>A folder cannot go inside itself or one of its subfolders.</source>
+        <translation>Uma pasta não pode ir para dentro dela mesma nem de uma subpasta dela.</translation>
+    </message>
+    <message>
+        <source>There is already a file or folder called “%1”.</source>
+        <translation>Já existe um arquivo ou pasta chamado “%1”.</translation>
+    </message>
+    <message>
+        <source>“%1” is not a valid name.</source>
+        <translation>“%1” não é um nome válido.</translation>
+    </message>
+    <message>
+        <source>“%1” is no longer on the disk (or the disk is disconnected).</source>
+        <translation>“%1” não está mais no disco (ou o disco está desconectado).</translation>
+    </message>
+    <message>
+        <source>The destination folder is not available (is the disk connected?).</source>
+        <translation>A pasta de destino não está disponível (o disco está conectado?).</translation>
+    </message>
+    <message>
+        <source>“%1” could not be moved. Check that the disk is connected and writable.</source>
+        <translation>Não foi possível mover “%1”. Confira se o disco está conectado e permite gravação.</translation>
+    </message>
+    <message>
+        <source>The copy of “%1” did not match the original, so the original was kept where it was.</source>
+        <translation>A cópia de “%1” não conferiu com o original, então o original ficou onde estava.</translation>
+    </message>
+    <message>
+        <source>“%1” is on a disk without a Trash (a network share, for example). %2 never deletes files permanently, so nothing was deleted.</source>
+        <translation>“%1” está num disco sem Lixeira (um compartilhamento de rede, por exemplo). O %2 nunca apaga arquivos de vez, então nada foi excluído.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Moving %n photo(s)…</source>
+        <translation>
+            <numerusform>Movendo %n foto…</numerusform>
+            <numerusform>Movendo %n fotos…</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) moved.</source>
+        <translation>
+            <numerusform>%n foto movida.</numerusform>
+            <numerusform>%n fotos movidas.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 of %n photo(s) moved.</source>
+        <translation>
+            <numerusform>%1 de %n foto movida.</numerusform>
+            <numerusform>%1 de %n fotos movidas.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) moved to the Trash.</source>
+        <translation>
+            <numerusform>%n foto mandada para a Lixeira.</numerusform>
+            <numerusform>%n fotos mandadas para a Lixeira.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%1 of %n photo(s) moved to the Trash.</source>
+        <translation>
+            <numerusform>%1 de %n foto mandada para a Lixeira.</numerusform>
+            <numerusform>%1 de %n fotos mandadas para a Lixeira.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Folder “%1” moved.</source>
+        <translation>Pasta “%1” movida.</translation>
+    </message>
+    <message>
+        <source>Folder “%1” moved to the Trash.</source>
+        <translation>Pasta “%1” mandada para a Lixeira.</translation>
     </message>
 </context>
 <context>

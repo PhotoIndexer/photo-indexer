@@ -3,6 +3,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Templates as T
 import QtCore
+import QtQuick.Dialogs
 import PhotoIDX
 
 // A biblioteca: à esquerda o painel lateral (abas Pastas, Datas, Categorias,
@@ -42,6 +43,8 @@ Item {
     readonly property bool hasFolders: App.folders.length > 0
     /// No álbum privado (ou num de dentro): as ações viram "tornar pública".
     readonly property bool inPrivate: App.library.privateNode
+    /// Aba Pastas: a grade age também sobre os arquivos (mover, renomear, Lixeira).
+    readonly property bool fileMode: App.library.tab === "folders" && !page.inPrivate && !page.copies
     /// A grade mostra as cópias de uma foto (LibraryController::findCopies).
     readonly property bool copies: App.library.copiesOf !== ""
     readonly property bool privateLocked: page.inPrivate && !App.privacy.unlocked
@@ -77,7 +80,56 @@ Item {
                 page.makeSelectionPrivate();
             else
                 keep ? App.library.addToAlbum([], id) : App.library.moveToAlbum([], id);
+        } else if (key.startsWith("dir:")) {
+            page.moveSelectionTo(id);
         }
+    }
+
+    // ---- Modo Pastas: os arquivos mudam de lugar (App.files) ----------- //
+
+    function selection() {
+        return App.library.grid.selectedIds(grid.currentIndex);
+    }
+
+    function folderName(dir) {
+        return dir.replace(/\//g, Qt.platform.os === "windows" ? "\\" : "/");
+    }
+
+    function moveSelectionTo(dir, chosen) {
+        const ids = chosen || page.selection();
+        if (ids.length === 0)
+            return;
+        Dialogs.confirm({
+            title: qsTr("Move photos?"),
+            description: qsTr("Move %n photo(s) to <b>%1</b>? The files change place on the disk.", "", ids.length)
+                .arg(Messages.escapeHtml(page.folderName(dir))),
+            variant: "warning",
+            iconName: "folder-open",
+            confirmLabel: qsTr("Move")
+        }, () => App.files.movePhotos(ids, dir));
+    }
+
+    function trashSelection() {
+        const ids = page.selection();
+        if (ids.length === 0)
+            return;
+        Dialogs.confirm({
+            title: qsTr("Move to the Trash?"),
+            description: qsTr("%n photo(s) go to the system Trash (you can restore them from there) and leave the catalog.", "", ids.length),
+            variant: "danger",
+            confirmLabel: qsTr("Move to Trash")
+        }, () => App.files.trashPhotos(ids));
+    }
+
+    function moveFolderTo(from, to) {
+        Dialogs.confirm({
+            title: qsTr("Move folder?"),
+            description: qsTr("Move <b>%1</b> and everything in it into <b>%2</b>? The files change place on the disk.")
+                .arg(Messages.escapeHtml(from.substring(from.lastIndexOf("/") + 1))).arg(Messages.escapeHtml(page.folderName(to))),
+            variant: "warning",
+            iconName: "folder-open",
+            confirmLabel: qsTr("Move")
+        }, () => App.files.moveFolder(from, to));
     }
 
     // O filtro (Ctrl+Shift+F) e o Esc da grade valem só aqui.
@@ -254,6 +306,7 @@ Item {
                 }
                 onPhotosDropped: (key) => page.dropOnNode(key)
                 // Pessoa solta num grupo; em "Com nome"/"Sem nome", sai do grupo.
+                onFolderDropped: (folderKey, key) => page.moveFolderTo(folderKey.substring(4), key.substring(4))
                 onPersonDropped: (personKey, key) => App.library.setPersonGroup(personKey.substring(7),
                                                                                 key.startsWith("pgroup:") ? key.substring(7) : "")
                 onContextRequested: (key, kind, row) => {
@@ -358,6 +411,33 @@ Item {
             height: visible ? implicitHeight : 0
             text: qsTr("Show in file manager")
             onTriggered: App.revealInFolder(nodeMenu.id)
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "dir"
+            height: visible ? implicitHeight : 0
+            text: qsTr("New folder…")
+            onTriggered: page.names.ask({ title: qsTr("New folder"), label: qsTr("Folder name"), confirmLabel: qsTr("Create") },
+                                        (name) => App.files.createFolder(nodeMenu.id, name))
+        }
+        AppMenuItem {
+            visible: nodeMenu.kind === "dir"
+            height: visible ? implicitHeight : 0
+            text: qsTr("Rename folder…")
+            onTriggered: page.names.ask({ title: qsTr("Rename folder"), label: qsTr("Folder name"),
+                                          text: nodeMenu.label, confirmLabel: qsTr("Rename") },
+                                        (name) => App.files.renameFolder(nodeMenu.id, name))
+        }
+        AppMenuItem {
+            visible: nodeMenu.kind === "dir"
+            height: visible ? implicitHeight : 0
+            text: qsTr("Move folder to Trash…")
+            onTriggered: Dialogs.confirm({
+                title: qsTr("Move folder to the Trash?"),
+                description: qsTr("<b>%1</b> and everything in it go to the system Trash (you can restore them from there). Its photos leave the catalog.")
+                    .arg(Messages.escapeHtml(nodeMenu.label)),
+                variant: "danger",
+                confirmLabel: qsTr("Move to Trash")
+            }, () => App.files.trashFolder(nodeMenu.id))
         }
         AppMenuItem {
             visible: nodeMenu.type === "disk"
@@ -842,6 +922,41 @@ Item {
             text: qsTr("Find faces now")
             onTriggered: App.library.findFacesNow([])
         }
+        // Modo Pastas: o arquivo em si.
+        AppMenuSeparator {
+            visible: page.fileMode
+            height: visible ? implicitHeight : 0
+        }
+        AppMenuItem {
+            visible: page.fileMode
+            height: visible ? implicitHeight : 0
+            text: qsTr("Move to folder…")
+            onTriggered: {
+                moveDialog.ids = page.selection();
+                moveDialog.open();
+            }
+        }
+        AppMenuItem {
+            visible: page.fileMode && App.library.grid.selectedCount <= 1
+            height: visible ? implicitHeight : 0
+            text: qsTr("Rename file…")
+            onTriggered: {
+                const id = photoMenu.firstId;
+                const name = App.photoPath(id).split(/[\\/]/).pop();
+                page.names.ask({ title: qsTr("Rename file"), label: qsTr("File name"), text: name, confirmLabel: qsTr("Rename") },
+                               (newName) => App.files.renamePhoto(id, newName));
+            }
+        }
+        AppMenuItem {
+            visible: page.fileMode
+            height: visible ? implicitHeight : 0
+            text: qsTr("Move to Trash…")
+            onTriggered: page.trashSelection()
+        }
+        AppMenuSeparator {
+            visible: page.fileMode
+            height: visible ? implicitHeight : 0
+        }
         AppMenuItem {
             // A mesma imagem em outras pastas e discos, com tolerância
             // (tamanho, compressão, marca d'água).
@@ -893,5 +1008,15 @@ Item {
                                                 App.library.addToAlbum([], id);
                                         })
         }
+    }
+
+    // "Mover para pasta…": escolher a pasta (seletor do sistema é permitido —
+    // é escolha de arquivo, não aviso). Tem de estar dentro de uma indexada.
+    FolderDialog {
+        id: moveDialog
+        property var ids: []
+        title: qsTr("Move to folder")
+        onAccepted: page.moveSelectionTo(decodeURIComponent(String(selectedFolder).replace(/^file:\/\//, "")
+                                                                .replace(/^\/([A-Za-z]:)/, "$1")), moveDialog.ids)
     }
 }

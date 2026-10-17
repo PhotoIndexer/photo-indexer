@@ -44,6 +44,33 @@ QtObject {
         case "group.emptyName":
         case "filter.emptyName":
             return qsTr("Enter a name.");
+        case "files.busy":
+            return qsTr("Another file operation is still running. Wait for it to finish.");
+        case "files.scanRunning":
+            return qsTr("A folder scan is running. Wait for it to finish before moving or deleting files.");
+        case "files.outsideCatalog":
+            return qsTr("“%1” is not inside an indexed folder. Photos can only be moved to folders of the catalog.").arg(p.name || "");
+        case "files.rootFolder":
+            return qsTr("“%1” is an indexed folder. Manage it in Folders and disks.").arg(p.name || "");
+        case "files.intoItself":
+            return qsTr("A folder cannot go inside itself or one of its subfolders.");
+        case "files.exists":
+            return qsTr("There is already a file or folder called “%1”.").arg(p.name || "");
+        case "files.badName":
+            return qsTr("“%1” is not a valid name.").arg(p.name || "");
+        case "files.sourceMissing":
+            return qsTr("“%1” is no longer on the disk (or the disk is disconnected).").arg(p.name || "");
+        case "files.targetMissing":
+            return qsTr("The destination folder is not available (is the disk connected?).");
+        case "files.readFailed":
+        case "files.writeFailed":
+        case "files.moveFailed":
+            return qsTr("“%1” could not be moved. Check that the disk is connected and writable.").arg(p.name || "");
+        case "files.verifyFailed":
+            return qsTr("The copy of “%1” did not match the original, so the original was kept where it was.").arg(p.name || "");
+        case "files.noTrash":
+            return qsTr("“%1” is on a disk without a Trash (a network share, for example). %2 never deletes files permanently, so nothing was deleted.")
+                .arg(p.name || "").arg(App.brandName);
         case "group.notFound":
             return qsTr("This group no longer exists.");
         case "category.cycle":
@@ -140,6 +167,18 @@ QtObject {
             return qsTr("“%1” was disconnected. Its photos stay browsable through the thumbnails.").arg(p.label || "");
         case "vault.keyCopied":
             return qsTr("Key copied. The clipboard is cleared in 2 minutes — paste it somewhere safe now.");
+        case "files.moving":
+            return qsTr("Moving %n photo(s)…", "", Number(p.count || 0));
+        case "files.moved":
+            return Number(p.count) === Number(p.total) ? qsTr("%n photo(s) moved.", "", Number(p.count || 0))
+                : qsTr("%1 of %n photo(s) moved.", "", Number(p.total || 0)).arg(p.count || 0);
+        case "files.trashed":
+            return Number(p.count) === Number(p.total) ? qsTr("%n photo(s) moved to the Trash.", "", Number(p.count || 0))
+                : qsTr("%1 of %n photo(s) moved to the Trash.", "", Number(p.total || 0)).arg(p.count || 0);
+        case "files.folderMoved":
+            return qsTr("Folder “%1” moved.").arg(p.name || "");
+        case "files.folderTrashed":
+            return qsTr("Folder “%1” moved to the Trash.").arg(p.name || "");
         case "vault.autoLocked":
             return qsTr("Private photos were locked after a period without use.");
         }

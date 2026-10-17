@@ -8,11 +8,13 @@ design e o modelo de build (CMake, Docker para compilar e empacotar, QML com
 tema em singleton) são os do `../photo-editor`; o reconhecimento facial e o
 hash de imagem são os do `../photoe`. As convenções abaixo são obrigatórias.
 
-**Não é um editor**: as fotos da pessoa **nunca** são alteradas, movidas nem
-apagadas. O app só lê as pastas indexadas; tudo o que ele gera fica em
-`~/.photo_indexer/`. Não há login, conta nem permissionamento. **Única
-exceção:** a pessoa pedir "tornar privada" — aí o original vira
-`<nome>.photoidxe` (cifrado) na mesma pasta (regra 11.1).
+**Não é um editor**: o conteúdo das fotos da pessoa **nunca** é alterado. O
+app lê as pastas indexadas; tudo o que ele gera fica em `~/.photo_indexer/`.
+Não há login, conta nem permissionamento. **Exceções, só a pedido explícito
+da pessoa:** "tornar privada" — o original vira `<nome>.photoidxe` (cifrado)
+na mesma pasta (regra 11.1) — e as operações de arquivo do modo Pastas
+(regra 10.1): mover, renomear, criar pasta e **excluir sempre para a
+Lixeira** do sistema. Apagar de vez é proibido.
 
 ## Estrutura
 
@@ -198,6 +200,17 @@ refaz os caminhos. Código de SO novo vai em `Disks.cpp`, atrás de `#if`.
 Arquivo que some no meio de uma etapa (disco saiu antes de o app perceber)
 **não é erro**: o resultado vem com `unreachable`, a foto volta para a fila
 (`Pipeline` `Stage::parked`, até os discos mudarem) e o app sonda os discos.
+
+### 10.1 Modo Pastas: mover, renomear, Lixeira — nunca apagar de vez
+- Operações de arquivo só em `src/core/FileOps.cpp`, fora da thread
+  principal; o catálogo (caminho, pasta, `folder_id`) é atualizado depois, na
+  principal. Mover entre volumes = copiar, conferir (tamanho + SHA-256) e só
+  então remover o original.
+- Excluir = `QFile::moveToTrash`. Sem Lixeira (compartilhamento de rede):
+  recusa com erro — nunca cai para apagar de vez.
+- Destino sempre dentro de uma pasta indexada (as fotos não saem do
+  catálogo); pasta indexada (raiz) e disco não se movem nem se excluem por
+  aqui; nada roda com uma varredura em andamento.
 
 ### 11. Hash e faces: os do `../photoe`
 - `picture_hash` = SHA-256 de `"<modo>:<L>x<A>:"` + pixels decodificados e

@@ -560,6 +560,13 @@ int Pipeline::threads(const QString &key) const
     return m_stages.count(key) ? stage(key).threads : 0;
 }
 
+void Pipeline::filesMoved()
+{
+    for (auto &[key, s] : m_stages)
+        s.parked.clear();
+    wake();
+}
+
 void Pipeline::findFacesNow(const QStringList &photoIds)
 {
     for (const QString &id : photoIds)

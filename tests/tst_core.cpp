@@ -10,6 +10,7 @@
 #include "core/Disks.h"
 #include "core/HashTree.h"
 #include "core/Paths.h"
+#include "core/FileOps.h"
 #include "core/Pipeline.h"
 #include "core/Places.h"
 #include "core/Privacy.h"
@@ -469,6 +470,72 @@ private slots:
         // Privada: nada.
         catalog.db().exec(QStringLiteral("UPDATE photo SET private = 1 WHERE id = ?"), {p[0]});
         QVERIFY(catalog.findCopies(p[0], 1).isEmpty());
+    }
+
+    void fileOps()
+    {
+        // Modo Pastas: mover nunca sobrescreve, pasta não entra nela mesma,
+        // nome livre "x (2).jpg".
+        const QString root = m_photos.path() + QStringLiteral("/fileops");
+        QDir().mkpath(root + QStringLiteral("/a/sub"));
+        QDir().mkpath(root + QStringLiteral("/b"));
+        QVERIFY(QFile::copy(data(QStringLiteral("sample.jpg")), root + QStringLiteral("/a/x.jpg")));
+        QVERIFY(QFile::copy(data(QStringLiteral("sample.jpg")), root + QStringLiteral("/b/x.jpg")));
+        QCOMPARE(fileops::moveFile(root + QStringLiteral("/a/x.jpg"), root + QStringLiteral("/b/x.jpg")), QStringLiteral("files.exists"));
+        const QString free = fileops::freeName(root + QStringLiteral("/b"), QStringLiteral("x.jpg"));
+        QCOMPARE(free, QStringLiteral("x (2).jpg"));
+        QCOMPARE(fileops::moveFile(root + QStringLiteral("/a/x.jpg"), root + QStringLiteral("/b/") + free), QString());
+        QVERIFY(!QFileInfo::exists(root + QStringLiteral("/a/x.jpg")));
+        QVERIFY(QFileInfo::exists(root + QStringLiteral("/b/x (2).jpg")));
+        QCOMPARE(fileops::moveDir(root + QStringLiteral("/a"), root + QStringLiteral("/a/sub/a"), nullptr), QStringLiteral("files.intoItself"));
+        QList<fileops::Moved> moved;
+        QCOMPARE(fileops::moveDir(root + QStringLiteral("/a"), root + QStringLiteral("/b/a"), &moved), QString());
+        QVERIFY(QFileInfo(root + QStringLiteral("/b/a/sub")).isDir());
+        QString created;
+        QCOMPARE(fileops::makeDir(root + QStringLiteral("/b"), QStringLiteral("../x"), &created), QStringLiteral("files.badName"));
+        QCOMPARE(fileops::makeDir(root + QStringLiteral("/b"), QStringLiteral("Nova"), &created), QString());
+        QVERIFY(fileops::isInside(root + QStringLiteral("/b/Nova/y.jpg"), root + QStringLiteral("/b")));
+        QVERIFY(!fileops::isInside(root + QStringLiteral("/bb/y.jpg"), root + QStringLiteral("/b")));
+    }
+
+    void catalogFollowsFiles()
+    {
+        // Modo Pastas: a foto continua a mesma (id) e o caminho acompanha.
+        Catalog catalog;
+        catalog.open(QString());
+        const QString root = m_photos.path() + QStringLiteral("/follow");
+        const QStringList photos = seedPhotos(catalog, 2, root);
+        QString created;
+        QCOMPARE(fileops::makeDir(root, QStringLiteral("b"), &created), QString());
+        catalog.addExtraDir(created);
+        auto keys = [&]() {
+            QStringList out;
+            for (const QVariant &v : catalog.tree(QStringLiteral("folders")))
+                out << v.toMap().value(QStringLiteral("key")).toString();
+            return out;
+        };
+        QVERIFY(keys().contains(QStringLiteral("dir:") + root + QStringLiteral("/b")));  // vazia, mas aparece
+        QVERIFY(catalog.isRootFolder(root));
+        QVERIFY(!catalog.rootFolderOf(root + QStringLiteral("/b")).isEmpty());
+        QVERIFY(catalog.rootFolderOf(m_home.path()).isEmpty());
+        // Foto para b/.
+        const QString from = catalog.photoPaths({photos[0]}).first().second;
+        const QString to = root + QStringLiteral("/b/p0.jpg");
+        QCOMPARE(fileops::moveFile(from, to), QString());
+        catalog.applyMoved({{from, to}});
+        QCOMPARE(catalog.photoPaths({photos[0]}).first().second, to);
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT dir FROM photo WHERE id = ?"), {photos[0]}).toString(), root + QStringLiteral("/b"));
+        // Renomear a pasta b -> c: a foto vai junto.
+        QList<fileops::Moved> moved;
+        QCOMPARE(fileops::moveDir(root + QStringLiteral("/b"), root + QStringLiteral("/c"), &moved), QString());
+        catalog.applyMoved(moved);
+        QCOMPARE(catalog.photoPaths({photos[0]}).first().second, root + QStringLiteral("/c/p0.jpg"));
+        QVERIFY(keys().contains(QStringLiteral("dir:") + root + QStringLiteral("/c")));
+        QVERIFY(!keys().contains(QStringLiteral("dir:") + root + QStringLiteral("/b")));
+        // Lixeira (aqui só o catálogo): a foto sai, a outra fica.
+        catalog.removePaths({root + QStringLiteral("/c")});
+        QVERIFY(catalog.photoPaths({photos[0]}).isEmpty());
+        QCOMPARE(catalog.photoPaths({photos[1]}).size(), 1);
     }
 
     void personGroups()

@@ -11,13 +11,14 @@ add_library(photoidx_core STATIC
     HashTree.h HashTree.cpp
     FaceIndex.h FaceIndex.cpp
     FaceClusterer.h FaceClusterer.cpp
+    FileOps.h FileOps.cpp
     Taxonomy.h Taxonomy.cpp
     Models.h
     Classifier.h Classifier.cpp
     Crypto.h Crypto.cpp
     Vault.h Vault.cpp
     Privacy.h Privacy.cpp
-    Catalog.h Catalog.cpp CatalogAi.cpp CatalogPeople.cpp CatalogQuery.cpp CatalogOrganize.cpp CatalogFilter.cpp
+    Catalog.h Catalog.cpp CatalogAi.cpp CatalogPeople.cpp CatalogQuery.cpp CatalogOrganize.cpp CatalogFilter.cpp CatalogFiles.cpp
     CatalogPrivate.cpp
     CatalogReader.h CatalogReader.cpp
     GridReader.h GridReader.cpp

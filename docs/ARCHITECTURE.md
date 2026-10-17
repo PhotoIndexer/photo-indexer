@@ -183,6 +183,22 @@ discos") o app reconhece os discos montados e, se um voltou em outro lugar,
 refaz os caminhos das fotos. Disco offline: as fotos continuam na grade (as
 miniaturas são locais) e o visualizador mostra a miniatura com um aviso.
 
+### Modo Pastas (gerenciador de arquivos)
+
+Na aba Pastas a grade e o painel agem sobre os arquivos (`App.files`,
+`app/FilesController`): arrastar fotos para uma pasta ou subpasta para outra,
+nova pasta, renomear pasta/arquivo e mandar para a Lixeira — sempre com
+confirmação. Os arquivos mudam em `core/FileOps` (thread própria, um pedido
+por vez): mesmo volume = rename; outro = copiar, conferir SHA-256 e só então
+remover o original. Excluir = `QFile::moveToTrash`; sem Lixeira (rede), recusa
+— nunca apaga de vez. O catálogo acompanha em `CatalogFiles.cpp`
+(`applyMoved`: mesmo id, faces, categorias e miniatura; só o caminho muda;
+`removePaths`: a foto sai do catálogo). Pastas indexadas (raiz) e discos não
+se movem por aqui; com varredura em andamento, nada começa; o destino tem de
+estar numa pasta indexada. Pastas vazias criadas/esvaziadas aqui ficam no
+painel (`setting files/extraDirs`). Uma etapa que pegou o arquivo no meio da
+mudança o estaciona e volta a ele depois (`Pipeline::filesMoved`).
+
 ### Busca e filtros
 
 - **Texto:** todas as palavras precisam casar em nome, pasta, câmera, lente,

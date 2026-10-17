@@ -60,6 +60,12 @@ public:
     /// ``total`` = universo da etapa no catálogo (-1 no Searcher).
     QVariantList status() const;
     bool busy() const;
+    /// Uma varredura de pasta está na fila ou rodando (o modo Pastas espera:
+    /// a varredura veria o arquivo sumir de um lugar e aparecer em outro).
+    bool scanning() const { return !m_scanQueue.isEmpty() || !m_scanning.isEmpty(); }
+    /// Arquivos mudaram de lugar pelo modo Pastas: as fotos estacionadas
+    /// (arquivo sumido no meio de uma etapa) voltam para a fila.
+    void filesMoved();
 
     /// Liga as etapas (e o despacho automático). Chamado ao abrir o app.
     void startAll();

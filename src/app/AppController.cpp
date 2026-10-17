@@ -96,6 +96,9 @@ AppController::AppController(QObject *parent)
     m_tasks = std::make_unique<TasksController>(m_catalog.get(), m_pipeline.get(), m_reader.get());
     m_privacy = std::make_unique<PrivacyController>(m_catalog.get());
     connect(m_privacy.get(), &PrivacyController::notice, this, &AppController::notice);
+    m_files = std::make_unique<FilesController>(m_catalog.get(), m_pipeline.get(), m_library.get());
+    connect(m_files.get(), &FilesController::notice, this, &AppController::notice);
+    connect(m_files.get(), &FilesController::failed, this, &AppController::failed);
     // Trancou com uma foto privada aberta: volta para a biblioteca.
     connect(m_catalog.get(), &Catalog::privacyChanged, this, [this]() {
         if (!m_catalog->privateUnlocked() && m_page == QLatin1String("viewer")

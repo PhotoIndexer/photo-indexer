@@ -6,9 +6,10 @@ import PhotoIDX
 // A árvore de uma aba do painel lateral (App.library.tree): uma linha por nó
 // visível, recuada pela profundidade. Clique escolhe o nó (a grade mostra as
 // fotos dele); a seta abre/fecha; o botão direito pede o menu do nó. Fotos
-// arrastadas da grade (PhotoGrid) podem cair numa categoria ou num álbum; uma
-// pessoa arrastada cai num grupo de pessoas (ou em "Com nome"/"Sem nome",
-// que a tira do grupo).
+// arrastadas da grade (PhotoGrid) podem cair numa categoria, num álbum ou numa
+// pasta (modo Pastas: o arquivo muda de lugar); uma pessoa arrastada cai num
+// grupo de pessoas (ou em "Com nome"/"Sem nome", que a tira do grupo); uma
+// subpasta arrastada cai em outra pasta.
 ListView {
     id: list
 
@@ -21,18 +22,20 @@ ListView {
     signal photosDropped(string key)
     /// Uma pessoa (person:<id>) solta num grupo (pgroup:<id>, people:named/unnamed).
     signal personDropped(string personKey, string key)
+    /// Uma subpasta (dir:<caminho>) solta em outra pasta (dir:<caminho>).
+    signal folderDropped(string folderKey, string key)
 
-    // O que voa com o mouse ao arrastar uma pessoa.
+    // O que voa com o mouse ao arrastar um nó (pessoa ou subpasta).
     Item {
-        id: personProxy
-        property string personKey: ""
+        id: nodeProxy
+        property string nodeKey: ""
         property string label: ""
         parent: T.Overlay.overlay
         width: proxyText.implicitWidth + 24
         height: 26
         z: 1000
         visible: Drag.active
-        Drag.keys: ["photoidx/person"]
+        Drag.keys: nodeKey.startsWith("person:") ? ["photoidx/person"] : ["photoidx/folder"]
         Drag.hotSpot.x: 12
         Drag.hotSpot.y: height / 2
         Rectangle {
@@ -44,7 +47,7 @@ ListView {
             Text {
                 id: proxyText
                 anchors.centerIn: parent
-                text: personProxy.label
+                text: nodeProxy.label
                 font.pixelSize: Theme.fontSm
                 color: Theme.foreground
             }
@@ -74,7 +77,9 @@ ListView {
         readonly property bool offline: kind === "offline"
         readonly property bool dropTarget: (key.startsWith("cat:") || key.startsWith("album:")) && kind !== "private-locked"
         readonly property bool personTarget: kind === "pgroup" || kind === "pbucket"
-        readonly property bool isPerson: key.startsWith("person:")
+        readonly property bool folderTarget: kind === "dir" || kind === "root"
+        /// Arrastável: pessoa (para um grupo) e subpasta (pasta indexada não se move).
+        readonly property bool draggable: key.startsWith("person:") || kind === "dir"
 
         width: ListView.view.width
         implicitHeight: 28
@@ -103,12 +108,20 @@ ListView {
         DropArea {
             id: drop
             anchors.fill: parent
-            enabled: row.dropTarget || row.personTarget
-            keys: row.personTarget ? ["photoidx/person"] : ["photoidx/photos"]
+            enabled: row.dropTarget || row.personTarget || row.folderTarget
+            keys: row.personTarget ? ["photoidx/person"] : row.folderTarget ? ["photoidx/photos", "photoidx/folder"] : ["photoidx/photos"]
+            // Pasta não entra nela mesma nem numa de dentro.
+            onEntered: (event) => {
+                if (event.keys.indexOf("photoidx/folder") >= 0
+                        && (row.key === nodeProxy.nodeKey || row.key.startsWith(nodeProxy.nodeKey + "/")))
+                    event.accepted = false;
+            }
             onDropped: (event) => {
                 event.accept(Qt.MoveAction);
                 if (row.personTarget)
-                    list.personDropped(personProxy.personKey, row.key);
+                    list.personDropped(nodeProxy.nodeKey, row.key);
+                else if (event.keys.indexOf("photoidx/folder") >= 0)
+                    list.folderDropped(nodeProxy.nodeKey, row.key);
                 else
                     list.photosDropped(row.key);
             }
@@ -167,25 +180,25 @@ ListView {
             }
         }
 
-        // Pessoa: arrastar leva para um grupo. O clique continua escolhendo
-        // o nó (o MouseArea fica por cima só nas linhas de pessoa).
+        // Pessoa ou subpasta: arrastar leva para um grupo/pasta. O clique
+        // continua escolhendo o nó (o MouseArea fica por cima só nessas).
         MouseArea {
             id: personMouse
             anchors.fill: parent
-            enabled: row.isPerson
+            enabled: row.draggable
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.PointingHandCursor
-            drag.target: personProxy
+            drag.target: nodeProxy
             drag.threshold: 8
             preventStealing: true
             onPressed: (event) => {
                 if (event.button !== Qt.LeftButton)
                     return;
-                const p = personMouse.mapToItem(personProxy.parent, event.x, event.y);
-                personProxy.x = p.x - 12;
-                personProxy.y = p.y - personProxy.height / 2;
-                personProxy.personKey = row.key;
-                personProxy.label = row.label;
+                const p = personMouse.mapToItem(nodeProxy.parent, event.x, event.y);
+                nodeProxy.x = p.x - 12;
+                nodeProxy.y = p.y - nodeProxy.height / 2;
+                nodeProxy.nodeKey = row.key;
+                nodeProxy.label = row.label;
             }
             onClicked: (event) => {
                 if (event.button === Qt.RightButton)
@@ -193,15 +206,16 @@ ListView {
                 else
                     list.picked(row.key);
             }
+            onDoubleClicked: if (row.hasChildren) App.library.tree.toggle(row.key)
         }
         Connections {
             target: personMouse.drag
             function onActiveChanged() {
                 if (personMouse.drag.active) {
-                    personProxy.Drag.active = true;
-                } else if (personProxy.Drag.active) {
-                    personProxy.Drag.drop();
-                    personProxy.Drag.active = false;
+                    nodeProxy.Drag.active = true;
+                } else if (nodeProxy.Drag.active) {
+                    nodeProxy.Drag.drop();
+                    nodeProxy.Drag.active = false;
                 }
             }
         }
