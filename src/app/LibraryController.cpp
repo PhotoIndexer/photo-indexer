@@ -2,11 +2,16 @@
 #include "LibraryController.h"
 
 #include "core/Catalog.h"
+#include "core/GridReader.h"
 #include "core/Pipeline.h"
 
 #include <QCoreApplication>
+#include <QFutureWatcher>
 #include <QLoggingCategory>
 #include <QSettings>
+#include <QtConcurrent/QtConcurrentRun>
+
+#include <utility>
 
 Q_LOGGING_CATEGORY(lcLibrary, "photoidx.library")
 
@@ -31,6 +36,10 @@ LibraryController::LibraryController(Catalog *catalog, Pipeline *pipeline, QObje
     m_sort = settings.value(QStringLiteral("library/sort"), QStringLiteral("date-desc")).toString();
     m_nodeLabel = tr("All photos");
 
+    // Uma thread só para ler a grade, que vive o app inteiro (a conexão de
+    // leitura é dela).
+    m_reader.setMaxThreadCount(1);
+    m_reader.setExpiryTimeout(-1);
     m_refreshTimer.setSingleShot(true);
     connect(&m_refreshTimer, &QTimer::timeout, this, &LibraryController::refresh);
     m_treeTimer.setSingleShot(true);
@@ -65,15 +74,17 @@ void LibraryController::scheduleRefresh()
 {
     // Indexando: no máximo um refresh a cada 5 s (refazer a grade de um
     // catálogo grande custa); parado, quase na hora.
-    if (!m_refreshTimer.isActive())
+    if (!m_refreshTimer.isActive()) {
+        m_backgroundRefresh = true;
         m_refreshTimer.start(m_pipeline->busy() ? 5000 : 150);
+    }
 }
 
 void LibraryController::scheduleTree(const QString &tab)
 {
     m_staleTabs.insert(tab);
     if (!m_treeTimer.isActive())
-        m_treeTimer.start(m_pipeline->busy() ? 10000 : 150);
+        m_treeTimer.start(m_pipeline->busy() ? 20000 : 150);
 }
 
 void LibraryController::setTab(const QString &tab)
@@ -124,6 +135,7 @@ void LibraryController::setSearch(const QString &search)
         return;
     m_search = search;
     emit searchChanged();
+    m_backgroundRefresh = false;
     m_refreshTimer.start(m_aiSearch ? 450 : 200);
 }
 
@@ -170,13 +182,38 @@ GridQuery LibraryController::query() const
 void LibraryController::refresh()
 {
     m_refreshTimer.stop();
+    const bool background = std::exchange(m_backgroundRefresh, false);
     const int serial = ++m_searchSerial;
     if (!m_aiSearch || m_search.trimmed().isEmpty() || !aiAvailable()) {
-        m_grid.setRows(m_catalog->photos(query()));
-        if (m_searching) {
-            m_searching = false;
-            emit searchingChanged();
+        const QString path = m_catalog->db().path();
+        if (path.isEmpty()) {
+            // Banco em memória (testes): não há segunda conexão; lê aqui.
+            m_grid.setRows(m_catalog->photos(query()), background);
+            return;
         }
+        // O SQL sai daqui (lista fechada); a leitura roda na thread do leitor
+        // com a conexão dela — a interface não espera a consulta.
+        QVariantList params;
+        const QString sql = m_catalog->photosSql(query(), params);
+        auto *watcher = new QFutureWatcher<QList<GridRow>>(this);
+        connect(watcher, &QFutureWatcher<QList<GridRow>>::finished, this, [this, watcher, serial, background]() {
+            watcher->deleteLater();
+            QList<GridRow> rows;
+            try {
+                rows = watcher->result();
+            } catch (const std::exception &e) {
+                qCWarning(lcLibrary) << "Grid query failed:" << e.what();
+                return;
+            }
+            if (serial != m_searchSerial)
+                return;  // outro pedido veio depois deste
+            m_grid.setRows(rows, background);
+            if (m_searching) {
+                m_searching = false;
+                emit searchingChanged();
+            }
+        });
+        watcher->setFuture(QtConcurrent::run(&m_reader, [path, sql, params]() { return readGridRows(path, sql, params); }));
         return;
     }
     // Busca por IA: o texto vira embedding fora da thread principal; as fotos
@@ -248,6 +285,7 @@ void LibraryController::updateRule(int index, const QVariantMap &rule)
     // nada de sinal — refazer a linha tiraria o foco do campo a cada tecla.
     if (rule.contains(QStringLiteral("field")) || rule.contains(QStringLiteral("op")))
         emit rulesChanged();
+    m_backgroundRefresh = false;
     m_refreshTimer.start(250);  // digitando um valor: espera parar
 }
 

@@ -16,6 +16,7 @@ add_library(photoidx_core STATIC
     Privacy.h Privacy.cpp
     Catalog.h Catalog.cpp CatalogAi.cpp CatalogPeople.cpp CatalogQuery.cpp CatalogOrganize.cpp CatalogFilter.cpp
     CatalogPrivate.cpp
+    GridReader.h GridReader.cpp
     Pipeline.h Pipeline.cpp
 )
 target_include_directories(photoidx_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

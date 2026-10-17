@@ -12,6 +12,7 @@ qt_add_executable(photoidx
     PeopleController.h PeopleController.cpp
     TasksController.h TasksController.cpp
     PrivacyController.h PrivacyController.cpp
+    SingleInstance.h SingleInstance.cpp
     PhotoGridModel.h PhotoGridModel.cpp
     TreeModel.h TreeModel.cpp
     ImageProviders.h ImageProviders.cpp
@@ -46,7 +47,7 @@ target_compile_definitions(photoidx PRIVATE
     PHOTOIDX_REPO_URL="${PHOTOIDX_REPO_URL}")
 target_link_libraries(photoidx PRIVATE
     photoidx_core
-    Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Concurrent)
+    Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Concurrent Qt6::Network)
 
 # Traduções: o código está em inglês; photoidx_en.ts guarda só os plurais.
 # Atualize os .ts com: make translations

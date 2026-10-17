@@ -366,7 +366,9 @@ QString Catalog::nodeFilter(const QString &key, QVariantList &params) const
         cond = QStringLiteral("p.folder_id IN (SELECT id FROM folder WHERE disk_id = ?)");
         params << value;
     } else if (type == QLatin1String("dir")) {
-        cond = QStringLiteral("(p.dir = ? OR substr(p.dir, 1, length(?) + 1) = ? || '/')");
+        // A pasta e as de dentro: faixa [dir/, dir0) — '0' vem logo depois de
+        // '/' — usa o índice de ``dir`` (o substr() varria a tabela).
+        cond = QStringLiteral("(p.dir = ? OR (p.dir >= ? || '/' AND p.dir < ? || '0'))");
         params << value << value << value;
     } else if (type == QLatin1String("year")) {
         cond = QStringLiteral("p.year = ?");
@@ -496,9 +498,7 @@ QString Catalog::searchFilter(const QString &search, QVariantList &params) const
     return clauses.join(QStringLiteral(" AND "));
 }
 
-namespace {
-
-GridRow rowFrom(const QSqlQuery &q)
+GridRow Catalog::gridRow(const QSqlQuery &q)
 {
     GridRow r;
     r.id = q.value(0).toString();
@@ -513,6 +513,8 @@ GridRow rowFrom(const QSqlQuery &q)
     return r;
 }
 
+namespace {
+
 const char *const kGridColumns = "p.id, p.name, p.thumb_path, p.width, p.height, p.is_raw, p.taken_at, p.state, p.private";
 
 } // namespace
@@ -520,6 +522,15 @@ const char *const kGridColumns = "p.id, p.name, p.thumb_path, p.width, p.height,
 QList<GridRow> Catalog::photos(const GridQuery &query) const
 {
     QVariantList params;
+    QSqlQuery q = m_db.exec(photosSql(query, params), params);
+    QList<GridRow> out;
+    while (q.next())
+        out.append(gridRow(q));
+    return out;
+}
+
+QString Catalog::photosSql(const GridQuery &query, QVariantList &params) const
+{
     QString where = nodeFilter(query.node, params);
     const QString search = searchFilter(query.search, params);
     if (!search.isEmpty())
@@ -537,13 +548,7 @@ QList<GridRow> Catalog::photos(const GridQuery &query) const
         {QStringLiteral("folder"), QStringLiteral("p.dir, p.name COLLATE NOCASE")},
     };
     const QString order = orders.value(query.sort, orders.value(QStringLiteral("date-desc")));
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1 FROM photo p WHERE %2 ORDER BY %3")
-                                .arg(QLatin1String(kGridColumns), where, order),
-                            params);
-    QList<GridRow> out;
-    while (q.next())
-        out.append(rowFrom(q));
-    return out;
+    return QStringLiteral("SELECT %1 FROM photo p WHERE %2 ORDER BY %3").arg(QLatin1String(kGridColumns), where, order);
 }
 
 QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) const
@@ -558,7 +563,7 @@ QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) 
                                     .arg(QLatin1String(kGridColumns), QStringList(n, QStringLiteral("?")).join(u',')),
                                 params);
         while (q.next()) {
-            GridRow r = rowFrom(q);
+            GridRow r = gridRow(q);
             rows.insert(r.id, r);
         }
     }
@@ -581,6 +586,19 @@ QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) 
 QString Catalog::photoPath(const QString &photoId) const
 {
     return m_db.scalar(QStringLiteral("SELECT path FROM photo WHERE id = ?"), {photoId}).toString();
+}
+
+QString Catalog::photoIdByPath(const QString &path) const
+{
+    const QString clean = QDir::fromNativeSeparators(QDir::cleanPath(QFileInfo(path).absoluteFilePath()));
+    QString id = m_db.scalar(QStringLiteral("SELECT id FROM photo WHERE path = ?"), {clean}).toString();
+    if (id.isEmpty()) {
+        // Pelo caminho canônico (link simbólico, /private/var no macOS...).
+        const QString canonical = QDir::fromNativeSeparators(QFileInfo(path).canonicalFilePath());
+        if (!canonical.isEmpty() && canonical != clean)
+            id = m_db.scalar(QStringLiteral("SELECT id FROM photo WHERE path = ?"), {canonical}).toString();
+    }
+    return id;
 }
 
 QVariantMap Catalog::photoDetail(const QString &photoId) const

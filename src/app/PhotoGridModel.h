@@ -16,6 +16,9 @@ class PhotoGridModel : public QAbstractListModel
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int selectedCount READ selectedCount NOTIFY selectionChanged)
+    /// A última troca de linhas foi uma atualização de fundo (indexando): a
+    /// grade mantém a rolagem em vez de voltar ao topo.
+    Q_PROPERTY(bool keepPosition READ keepPosition CONSTANT)
 
 public:
     enum Role {
@@ -38,7 +41,10 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     /// Troca as linhas, mantendo a seleção das fotos que continuam.
-    void setRows(const QList<pix::GridRow> &rows);
+    /// Mesma ordem de fotos: só as células que mudaram (miniatura que
+    /// chegou, estado) são redesenhadas — sem reset, sem perder a rolagem.
+    void setRows(const QList<pix::GridRow> &rows, bool keepPosition = false);
+    bool keepPosition() const { return m_keepPosition; }
     int count() const { return int(m_rows.size()); }
     int selectedCount() const { return int(m_selected.size()); }
 
@@ -63,4 +69,5 @@ private:
     QHash<QString, int> m_index;
     QSet<QString> m_selected;
     int m_anchor = -1;
+    bool m_keepPosition = false;
 };

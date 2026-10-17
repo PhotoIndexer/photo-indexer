@@ -40,6 +40,23 @@ GridView {
     currentIndex: -1
     T.ScrollBar.vertical: ThinScrollBar {}
 
+    // Atualização de fundo (indexando) que mudou a ordem: a grade é refeita,
+    // mas fica onde a pessoa estava (o reset voltaria ao topo).
+    property real _savedY: 0
+    Connections {
+        target: grid.photos
+        function onModelAboutToBeReset() {
+            grid._savedY = grid.contentY;
+        }
+        function onModelReset() {
+            if (!grid.photos.keepPosition)
+                return;
+            const y = grid._savedY;
+            Qt.callLater(() => grid.contentY = Math.max(grid.originY,
+                                                       Math.min(y, grid.originY + grid.contentHeight - grid.height)));
+        }
+    }
+
     Keys.onReturnPressed: if (currentIndex >= 0) grid.opened(photos.idAt(currentIndex))
     Keys.onEnterPressed: if (currentIndex >= 0) grid.opened(photos.idAt(currentIndex))
     Keys.onSpacePressed: if (currentIndex >= 0) photos.click(currentIndex, Qt.ControlModifier)
@@ -82,7 +99,9 @@ GridView {
                 sourceSize: Qt.size(grid.cellWidth * Screen.devicePixelRatio, grid.cellHeight * Screen.devicePixelRatio)
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
-                cache: false
+                // Cache para as comuns (rolar não relê do disco); a cifrada
+                // (image://private) não fica na memória depois de trancar.
+                cache: !cell.thumbUrl.startsWith("image://private")
                 smooth: true
                 opacity: status === Image.Ready ? 1 : 0
                 Behavior on opacity { NumberAnimation { duration: Theme.animationFast } }

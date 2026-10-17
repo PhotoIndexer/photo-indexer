@@ -436,6 +436,39 @@ private slots:
         QCOMPARE(catalog.stats().value(QStringLiteral("missing")).toInt(), 0);
     }
 
+    void nestedTransactions()
+    {
+        // O lote do Indexer é uma transação com uma por foto dentro: a de
+        // dentro que falha volta sozinha; a de fora grava o resto.
+        Catalog catalog;
+        catalog.open(QString());
+        Database &db = catalog.db();
+        {
+            Transaction outer(db);
+            catalog.setSetting(QStringLiteral("t/a"), 1);
+            {
+                Transaction inner(db);
+                catalog.setSetting(QStringLiteral("t/b"), 2);
+            }  // sem commit: desfeita
+            {
+                Transaction inner(db);
+                catalog.setSetting(QStringLiteral("t/c"), 3);
+                inner.commit();
+            }
+            outer.commit();
+        }
+        QCOMPARE(catalog.setting(QStringLiteral("t/a")).toInt(), 1);
+        QVERIFY(!catalog.setting(QStringLiteral("t/b")).isValid());
+        QCOMPARE(catalog.setting(QStringLiteral("t/c")).toInt(), 3);
+        // As filas usam os índices parciais (schema/0003.sql).
+        QSqlQuery plan = db.exec(QStringLiteral("EXPLAIN QUERY PLAN SELECT p.id FROM photo p WHERE p.state = 'pending' "
+                                                "AND (p.private = 0 OR 0) ORDER BY p.added_at LIMIT 4"));
+        QString detail;
+        while (plan.next())
+            detail += plan.value(3).toString() + u' ';
+        QVERIFY2(detail.contains(QLatin1String("photo_queue_index")), qPrintable(detail));
+    }
+
     void cryptoFormat()
     {
         const QByteArray key = crypto::randomBytes(crypto::kKeyBytes);

@@ -49,6 +49,12 @@ Acima das threads de cada etapa há um **teto global** (`tasks/max`), repartido
 em rodízio; a decodificação completa reserva memória no
 `imaging::MemoryBudget`; exceção num worker vira o erro da foto (`guarded()`).
 
+A thread principal (banco + interface) fica leve: o despacho é agrupado
+(`schedulePump`, 100 ms), os resultados do Indexer vão em lote numa transação
+(transações aninham por SAVEPOINT), as filas usam índices parciais
+(`schema/0003.sql`: < 1 ms com 70 mil fotos, antes ~40 ms por pedido) e a
+grade é lida numa conexão só de leitura em outra thread (`core/GridReader`).
+
 ### Fotos privadas
 
 - **Chave:** 256 bits aleatórios, gerada no primeiro `Catalog::open`. Em claro

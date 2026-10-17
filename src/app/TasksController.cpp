@@ -37,8 +37,9 @@ TasksController::TasksController(Catalog *catalog, Pipeline *pipeline, QObject *
     , m_pipeline(pipeline)
 {
     connect(pipeline, &Pipeline::statusChanged, this, &TasksController::update);
-    // Os totais do catálogo custam algumas contagens: no máximo 1x por segundo.
-    m_statsTimer.setInterval(1000);
+    // Os totais do catálogo varrem a tabela (~60 ms com 70 mil fotos): no
+    // máximo a cada 3 s.
+    m_statsTimer.setInterval(3000);
     m_statsTimer.setSingleShot(true);
     connect(&m_statsTimer, &QTimer::timeout, this, [this]() {
         m_stats = m_catalog->stats();

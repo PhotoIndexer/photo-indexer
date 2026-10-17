@@ -9,4 +9,5 @@ Exec=PhotoIDX %F
 Icon=photoidx
 Terminal=false
 Categories=Graphics;Photography;Viewer;Qt;
+MimeType=application/x-photoidxe;inode/directory;
 StartupWMClass=PhotoIDX

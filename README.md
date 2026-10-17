@@ -27,7 +27,7 @@ Baixe o instalador do seu sistema na página de
 | macOS (Intel) | `PhotoIDX-<versão>-macos-x64.dmg` | idem |
 | Windows 10/11 (Intel/AMD) | `PhotoIDX-<versão>-windows-x64.msi` | abra o `.msi`; o atalho aparece no Menu Iniciar e na Área de Trabalho |
 | Windows 11 em ARM | `PhotoIDX-<versão>-windows-arm64.msi` | idem |
-| Linux x64 / arm64 | `PhotoIDX-<versão>-linux-*.tar.gz` | descompacte e rode `bin/PhotoIDX` |
+| Linux x64 / arm64 | `PhotoIDX-<versão>-linux-*.tar.gz` | descompacte e rode `bin/PhotoIDX`; `./install-desktop.sh` põe o app no menu e associa os `.photoidxe` |
 
 Requisitos mínimos: macOS 14, Windows 10/11 64 bits, ou Linux com glibc 2.39
 (Ubuntu 24.04).
@@ -162,8 +162,10 @@ aparecem no álbum **Privado**, com a senha.
   e conferida. O SHA-256 de antes e de depois fica guardado no catálogo.
 - A miniatura também é criptografada; as faces saem de Pessoas.
 - **Tornar pública** devolve o arquivo com o nome e os bytes originais.
-- Abrir uma foto privada pede a senha; o app tranca sozinho depois de um
-  tempo sem uso (ajustável) e sempre que é fechado.
+- Abrir uma foto privada pede a senha — inclusive com **dois cliques no
+  `.photoidxe`** no Finder, no Explorer ou no gerenciador de arquivos do
+  Linux. O app tranca sozinho depois de um tempo sem uso (ajustável) e sempre
+  que é fechado.
 
 **A chave.** Na instalação o PhotoIDX gera uma chave de criptografia
 aleatória (256 bits), guardada no catálogo protegida pela sua senha

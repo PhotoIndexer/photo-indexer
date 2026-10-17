@@ -321,6 +321,12 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
     m_interactive.setMaxThreadCount(1);
     // Os pendentes de cada etapa são contagens no banco: no máximo a cada 2 s.
     m_pendingTimer.start();
+    m_pumpTimer.setSingleShot(true);
+    m_pumpTimer.setInterval(100);
+    connect(&m_pumpTimer, &QTimer::timeout, this, &Pipeline::pump);
+    m_flushTimer.setSingleShot(true);
+    m_flushTimer.setInterval(250);
+    connect(&m_flushTimer, &QTimer::timeout, this, &Pipeline::flushIndexResults);
     m_timer.setInterval(2000);
     connect(&m_timer, &QTimer::timeout, this, &Pipeline::pump);
     m_statusTimer.setSingleShot(true);
@@ -573,7 +579,7 @@ void Pipeline::pump()
                                                << "images," << missing << "missing" << (wasCancelled ? "(cancelled)" : "");
                             emit p.scanFinished(folderId, found, queued, missing);
                         }
-                        p.pump();
+                        p.schedulePump();
                         p.emitStatus();
                     },
                     Qt::QueuedConnection);
@@ -745,14 +751,42 @@ void Pipeline::dispatchIndex(const IndexJob &job)
             [self, r = std::move(r), path = job.path]() {
                 if (!self)
                     return;
-                self->m_catalog->applyIndex(r);
-                if (!r.ok)
-                    qCWarning(lcPipeline) << "Index failed:" << path << "-" << r.error;
-                self->finished(self->stage(QStringLiteral("index")), r.photoId, r.ok, QFileInfo(path).fileName());
-                self->pump();
+                // Gravado em lote (flushIndexResults): uma transação para
+                // vários resultados em vez de uma por foto.
+                self->m_indexResults.append({r, path});
+                if (!self->m_flushTimer.isActive())
+                    self->m_flushTimer.start();
             },
             Qt::QueuedConnection);
     });
+}
+
+void Pipeline::flushIndexResults()
+{
+    if (m_indexResults.isEmpty())
+        return;
+    const auto batch = std::exchange(m_indexResults, {});
+    m_catalog->applyIndexBatch([&batch]() {
+        QList<IndexResult> results;
+        results.reserve(batch.size());
+        for (const auto &[r, path] : batch)
+            results.append(r);
+        return results;
+    }());
+    Stage &s = stage(QStringLiteral("index"));
+    for (const auto &[r, path] : batch) {
+        if (!r.ok)
+            qCWarning(lcPipeline) << "Index failed:" << path << "-" << r.error;
+        finished(s, r.photoId, r.ok, QFileInfo(path).fileName());
+    }
+    schedulePump();
+}
+
+void Pipeline::schedulePump()
+{
+    // Vários resultados chegando juntos: um despacho só, logo depois.
+    if (!m_pumpTimer.isActive())
+        m_pumpTimer.start();
 }
 
 void Pipeline::invalidatePrompts()
@@ -796,7 +830,7 @@ void Pipeline::preparePrompts()
                 self->m_promptCache = computed;
                 self->m_preparingPrompts = false;
                 qCInfo(lcPipeline) << "Category prompts ready:" << prompts->size();
-                self->pump();
+                self->schedulePump();
             },
             Qt::QueuedConnection);
     });
@@ -829,7 +863,7 @@ void Pipeline::dispatchCategorize(const CategorizeJob &job)
                 if (!skip)
                     self->m_catalog->applyCategorize(r);
                 self->finished(self->stage(QStringLiteral("categorize")), id, !skip && r.ok, {});
-                self->pump();
+                self->schedulePump();
             },
             Qt::QueuedConnection);
     });
@@ -862,7 +896,7 @@ void Pipeline::dispatchFaces(const FaceJob &job)
                     }
                 }
                 self->finished(self->stage(QStringLiteral("faces")), id, !skip && r.ok, QFileInfo(path).fileName());
-                self->pump();
+                self->schedulePump();
             },
             Qt::QueuedConnection);
     });
@@ -893,7 +927,7 @@ void Pipeline::dispatchPrivacy(const PrivacyJob &job)
                         qCWarning(lcPipeline) << "Privacy" << r.op << "failed:" << path << "-" << r.error;
                 }
                 self->finished(self->stage(QStringLiteral("privacy")), id, !skip && r.ok, QFileInfo(path).fileName());
-                self->pump();
+                self->schedulePump();
             },
             Qt::QueuedConnection);
     });

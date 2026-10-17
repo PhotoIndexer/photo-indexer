@@ -7,6 +7,8 @@ põe por cima o produto, os atalhos e o upgrade:
 
 * instala por máquina em ``C:\\Program Files\\PhotoIDX`` (pede elevação);
 * atalhos no Menu Iniciar e na Área de Trabalho para o ``PhotoIDX.exe``;
+* a foto privada ``.photoidxe`` abre no PhotoIDX (dois cliques), com o ícone
+  do app;
 * aparece em "Aplicativos instalados" com ícone, versão e link;
 * ``MajorUpgrade``: instalar uma versão nova remove a anterior; instalar uma
   mais velha por cima é recusado.
@@ -40,6 +42,8 @@ ABOUT_URL = 'https://photoe.com.br/'
 UPGRADE_CODE = '706E99CD-1472-472D-9CBB-6F4945894927'
 START_MENU_COMPONENT = 'CC4AAB61-4487-4A41-854B-778F968E70B1'
 DESKTOP_COMPONENT = '0571D1B9-3F93-4856-A163-074759139CC6'
+FILE_TYPE_COMPONENT = '93C83EBD-C925-4B69-B305-F96BC55E803D'
+FILE_PROGID = 'PhotoIDX.EncryptedPhoto'
 
 WIXL = os.environ.get('WIXL', 'wixl')
 WIXL_HEAT = os.environ.get('WIXL_HEAT', 'wixl-heat')
@@ -103,10 +107,23 @@ def _main_wxs(version: str, icon: Path) -> str:
 {shortcut('StartMenuShortcut', START_MENU_COMPONENT, 'ProgramMenuFolder', 'StartMenuShortcut')}
 {shortcut('DesktopShortcut', DESKTOP_COMPONENT, 'DesktopFolder', 'DesktopShortcut')}
 
+    <!-- .photoidxe -> PhotoIDX (RegistryValue: o wixl não monta ProgId/Extension). -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="FileTypeAssociation" Guid="{FILE_TYPE_COMPONENT}">
+        <RegistryValue Root="HKLM" Key="Software\\Classes\\.photoidxe" Type="string" Value="{FILE_PROGID}" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\\Classes\\.photoidxe" Name="Content Type" Type="string" Value="application/x-photoidxe" />
+        <RegistryValue Root="HKLM" Key="Software\\Classes\\{FILE_PROGID}" Type="string" Value="PhotoIDX encrypted photo" />
+        <RegistryValue Root="HKLM" Key="Software\\Classes\\{FILE_PROGID}\\DefaultIcon" Type="string" Value="[INSTALLDIR]{APP_NAME}.exe,0" />
+        <RegistryValue Root="HKLM" Key="Software\\Classes\\{FILE_PROGID}\\shell\\open\\command" Type="string"
+                       Value="&quot;[INSTALLDIR]{APP_NAME}.exe&quot; &quot;%1&quot;" />
+      </Component>
+    </DirectoryRef>
+
     <Feature Id="Main" Title="{APP_NAME}" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="StartMenuShortcut" />
       <ComponentRef Id="DesktopShortcut" />
+      <ComponentRef Id="FileTypeAssociation" />
     </Feature>
   </Product>
 </Wix>

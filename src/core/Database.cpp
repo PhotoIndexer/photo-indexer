@@ -17,7 +17,7 @@ namespace {
 
 // Passos do esquema (src/core/schema). Acrescente o próximo; nunca edite um
 // já publicado.
-constexpr int kSchemaSteps = 2;
+constexpr int kSchemaSteps = 3;
 
 /// Comandos de um passo: linhas acumuladas até uma que termina em ';'
 /// (comentários "--" e linhas vazias fora).
@@ -62,6 +62,7 @@ Database::~Database()
 void Database::open(const QString &path)
 {
     close();
+    m_path = path;
     static std::atomic<int> counter{0};
     m_connection = QStringLiteral("photoidx-%1").arg(counter++);
     QSqlDatabase db = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), m_connection);
@@ -143,21 +144,39 @@ QVariant Database::scalar(const QString &sql, const QVariantList &params) const
     return q.next() ? q.value(0) : QVariant();
 }
 
+// Transações aninham: a de fora é BEGIN/COMMIT; as de dentro, SAVEPOINTs
+// (um lote de resultados numa transação só, com cada applyX abrindo a sua).
 void Database::transaction()
 {
-    if (!handle().transaction())
-        throw DatabaseError(handle().lastError().text().toStdString());
+    if (m_depth == 0) {
+        if (!handle().transaction())
+            throw DatabaseError(handle().lastError().text().toStdString());
+    } else {
+        exec(QStringLiteral("SAVEPOINT tx%1").arg(m_depth));
+    }
+    ++m_depth;
 }
 
 void Database::commit()
 {
-    if (!handle().commit())
-        throw DatabaseError(handle().lastError().text().toStdString());
+    --m_depth;
+    if (m_depth == 0) {
+        if (!handle().commit())
+            throw DatabaseError(handle().lastError().text().toStdString());
+    } else {
+        exec(QStringLiteral("RELEASE tx%1").arg(m_depth));
+    }
 }
 
 void Database::rollback()
 {
-    handle().rollback();
+    --m_depth;
+    if (m_depth == 0) {
+        handle().rollback();
+    } else {
+        exec(QStringLiteral("ROLLBACK TO tx%1").arg(m_depth));
+        exec(QStringLiteral("RELEASE tx%1").arg(m_depth));
+    }
 }
 
 QString Database::newId()

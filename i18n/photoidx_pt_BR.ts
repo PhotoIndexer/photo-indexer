@@ -1592,6 +1592,22 @@
         <source>All files (*)</source>
         <translation>Todos os arquivos (*)</translation>
     </message>
+    <message>
+        <source>Photo not in the catalog</source>
+        <translation>Foto fora do catálogo</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1&lt;/b&gt; is not in your catalog yet. Add the folder &lt;b&gt;%2&lt;/b&gt; so it can be opened?</source>
+        <translation>&lt;b&gt;%1&lt;/b&gt; ainda não está no seu catálogo. Adicionar a pasta &lt;b&gt;%2&lt;/b&gt; para poder abri-la?</translation>
+    </message>
+    <message>
+        <source>An encrypted photo (.photoidxe) only opens with the key of the catalog that encrypted it.</source>
+        <translation>Uma foto criptografada (.photoidxe) só abre com a chave do catálogo que a criptografou.</translation>
+    </message>
+    <message>
+        <source>Add folder</source>
+        <translation>Adicionar pasta</translation>
+    </message>
 </context>
 <context>
     <name>Messages</name>

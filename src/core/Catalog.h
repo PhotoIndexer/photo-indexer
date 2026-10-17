@@ -24,6 +24,7 @@
 
 #include <QHash>
 #include <QObject>
+#include <QSqlQuery>
 #include <QSet>
 #include <QVariantList>
 #include <QVariantMap>
@@ -145,6 +146,8 @@ public:
     int requeue(const QString &stage, const QString &scope);
 
     void applyIndex(const IndexResult &result);
+    /// Vários resultados numa transação (um commit só).
+    void applyIndexBatch(const QList<IndexResult> &results);
 
     // ------------------------------------------------------------------ //
     // Categorizer (CatalogAi.cpp)
@@ -199,11 +202,19 @@ public:
     /// hasChildren, icon, detail, kind}].
     QVariantList tree(const QString &tab) const;
     QList<GridRow> photos(const GridQuery &query) const;
+    /// O SQL da grade (montado aqui, da lista fechada; os valores vão em
+    /// ``params``): o app o roda numa conexão de leitura fora da thread
+    /// principal (GridReader).
+    QString photosSql(const GridQuery &query, QVariantList &params) const;
+    /// Uma linha da grade a partir de uma consulta com as colunas de photosSql.
+    static GridRow gridRow(const QSqlQuery &query);
     QList<GridRow> photosByIds(const QList<QPair<QString, float>> &ranked) const;
     /// Tudo da foto: arquivo, disco, datas, câmera, lugar, categorias,
     /// álbuns, faces e as tags EXIF.
     QVariantMap photoDetail(const QString &photoId) const;
     QString photoPath(const QString &photoId) const;
+    /// A foto deste arquivo (caminho absoluto), se o catálogo a conhece.
+    QString photoIdByPath(const QString &path) const;
     /// Fotos com os mesmos pixels (picture_hash) e parecidas (árvore de hashes).
     QVariantList similarPhotos(const QString &photoId, int maxDistance) const;
     /// {photos, indexed, raw, errors, missing, categorized, faces, people, folders, disks}

@@ -13,6 +13,7 @@
 #include "TreeModel.h"
 
 #include <QObject>
+#include <QThreadPool>
 #include <QTimer>
 #include <QVariantList>
 #include <QVariantMap>
@@ -148,6 +149,8 @@ private:
     bool m_searching = false;
     int m_searchSerial = 0;
     QTimer m_refreshTimer;
+    bool m_backgroundRefresh = false;   ///< o refresh pendente é de fundo (mantém a rolagem)
+    QThreadPool m_reader;               ///< lê a grade fora da thread principal (GridReader)
     QTimer m_treeTimer;
     QSet<QString> m_staleTabs;
 };

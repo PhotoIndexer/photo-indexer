@@ -92,6 +92,13 @@ abrem threads próprias dentro de cada foto.
   acima de `kMaxDecodePixels` a imagem não é decodificada.
 - **Exceção nunca escapa de um worker** (o `QThreadPool` derruba o app):
   todo trabalho de foto passa por `guarded()` e a exceção vira o erro da foto.
+- **Thread principal leve:** o despacho das etapas é agrupado
+  (`schedulePump`, no máximo a cada 100 ms), os resultados do Indexer são
+  gravados em lote numa transação (`applyIndexBatch`), e as filas e contagens
+  usam índices parciais (`schema/0003.sql`) — consulta que roda a cada
+  resultado tem de responder em ~1 ms com 100 mil fotos. A grade é lida fora
+  da thread principal (`core/GridReader`) e uma atualização de fundo com a
+  mesma ordem não refaz o modelo (`PhotoGridModel::setRows`).
 
 ## Internacionalização (i18n)
 
@@ -153,7 +160,9 @@ O catálogo é dado real e persiste entre versões: o esquema mora em
   nada de trigger.
 
 ### 9. Banco só na thread principal; o pesado roda fora dela
-`QSqlDatabase` não cruza threads. O `Catalog` monta na thread principal os
+`QSqlDatabase` não cruza threads. Única exceção: a leitura da grade, numa
+conexão **só de leitura** da thread do `GridReader` (WAL), com o SQL montado
+pelo `Catalog` (`photosSql`). O `Catalog` monta na thread principal os
 pedidos (`IndexJob`, `CategorizeJob`, `FaceJob`), o `Pipeline` os roda no
 pool de cada etapa e grava o resultado de volta por `invokeMethod` em fila.
 A fila de cada etapa **é o estado da foto no banco** (`state`, `ai_state`,

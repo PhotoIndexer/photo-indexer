@@ -43,6 +43,10 @@ bool isInside(const QString &path, const QString &root)
     return path == root || path.startsWith(root.endsWith(u'/') ? root : root + u'/');
 }
 
+/// Pastas de discos conectados. As filas filtram por ``+p.folder_id IN``
+/// (o "+" deixa o SQLite usar o índice parcial da fila, schema/0003.sql).
+constexpr const char *kOnlineFolders = "(SELECT f.id FROM folder f JOIN disk d ON d.id = f.disk_id WHERE d.online = 1)";
+
 QVariant nullable(double value, bool present)
 {
     return present ? QVariant(value) : QVariant();
@@ -465,9 +469,8 @@ QList<IndexJob> Catalog::nextIndexJobs(int limit, const QSet<QString> &busy) con
     QList<IndexJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral(
                                 "SELECT p.id, p.path, p.thumb_path, p.file_created_at, p.file_modified_at, p.private FROM photo p "
-                                "JOIN folder f ON f.id = p.folder_id JOIN disk d ON d.id = f.disk_id "
-                                "WHERE p.state = 'pending' AND d.online = 1 AND (p.private = 0 OR ?) "
-                                "ORDER BY p.added_at, p.path LIMIT ?"),
+                                "WHERE p.state = 'pending' AND (p.private = 0 OR ?) AND +p.folder_id IN %1 "
+                                "ORDER BY p.added_at LIMIT ?").arg(QLatin1String(kOnlineFolders)),
                             {privateUnlocked() ? 1 : 0, limit + int(busy.size())});
     while (q.next() && out.size() < limit) {
         const QString id = q.value(0).toString();
@@ -508,9 +511,8 @@ QList<FaceJob> Catalog::nextFaceJobs(int limit, const QSet<QString> &busy) const
     QList<FaceJob> out;
     QSqlQuery q = m_db.exec(QStringLiteral(
                                 "SELECT p.id, p.path, p.year, p.month, p.day FROM photo p "
-                                "JOIN folder f ON f.id = p.folder_id JOIN disk d ON d.id = f.disk_id "
-                                "WHERE p.state = 'indexed' AND p.faces_state = 'pending' AND p.thumb_path != '' "
-                                "AND p.private = 0 AND d.online = 1 ORDER BY p.indexed_at LIMIT ?"),
+                                "WHERE p.state = 'indexed' AND p.faces_state = 'pending' AND p.private = 0 AND p.thumb_path != '' "
+                                "AND +p.folder_id IN %1 ORDER BY p.indexed_at LIMIT ?").arg(QLatin1String(kOnlineFolders)),
                             {limit + int(busy.size())});
     while (q.next() && out.size() < limit) {
         const QString id = q.value(0).toString();
@@ -529,21 +531,20 @@ QList<FaceJob> Catalog::nextFaceJobs(int limit, const QSet<QString> &busy) const
 int Catalog::pendingCount(const QString &stage) const
 {
     if (stage == QLatin1String("index"))
-        return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id "
-                                          "JOIN disk d ON d.id = f.disk_id WHERE p.state = 'pending' AND d.online = 1 "
-                                          "AND (p.private = 0 OR ?)"),
+        return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p WHERE p.state = 'pending' AND (p.private = 0 OR ?) "
+                                          "AND +p.folder_id IN %1").arg(QLatin1String(kOnlineFolders)),
                            {privateUnlocked() ? 1 : 0})
             .toInt();
     if (stage == QLatin1String("categorize"))
         return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE state = 'indexed' AND ai_state = 'pending' "
-                                          "AND thumb_path != '' AND private = 0"))
+                                          "AND private = 0 AND thumb_path != ''"))
             .toInt();
     if (stage == QLatin1String("privacy"))
         return pendingPrivacy();
     if (stage == QLatin1String("faces"))
-        return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p JOIN folder f ON f.id = p.folder_id "
-                                          "JOIN disk d ON d.id = f.disk_id WHERE p.state = 'indexed' "
-                                          "AND p.faces_state = 'pending' AND p.thumb_path != '' AND p.private = 0 AND d.online = 1"))
+        return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p WHERE p.state = 'indexed' AND p.faces_state = 'pending' "
+                                          "AND p.private = 0 AND p.thumb_path != '' AND +p.folder_id IN %1")
+                               .arg(QLatin1String(kOnlineFolders)))
             .toInt();
     return 0;
 }
@@ -673,6 +674,19 @@ void Catalog::applyIndex(const IndexResult &r)
         m_hashes.insert(r.photoId, phash);
     markDuplicates(r.photoId, r.pictureHash, ok ? phash : 0);
     emit photosChanged();
+}
+
+void Catalog::applyIndexBatch(const QList<IndexResult> &results)
+{
+    Transaction tx(m_db);
+    for (const IndexResult &r : results) {
+        try {
+            applyIndex(r);
+        } catch (const std::exception &e) {
+            qCWarning(lcCatalog) << "Index result not stored:" << r.photoId << e.what();
+        }
+    }
+    tx.commit();
 }
 
 void Catalog::markDuplicates(const QString &photoId, const QString &pictureHash, quint64 phash)

@@ -113,6 +113,9 @@ private:
     Stage &stage(const QString &key);
     const Stage &stage(const QString &key) const;
     void pump();
+    /// pump() logo depois (junta os pedidos de vários resultados).
+    void schedulePump();
+    void flushIndexResults();
     /// Reparte as vagas do teto entre as etapas (uma de cada por vez).
     void dispatchWork();
     void dispatchIndex(const IndexJob &job);
@@ -131,6 +134,9 @@ private:
     QThreadPool m_interactive;
     QTimer m_timer;
     QTimer m_statusTimer;
+    QTimer m_pumpTimer;
+    QTimer m_flushTimer;
+    QList<QPair<IndexResult, QString>> m_indexResults;  ///< à espera do lote
     QElapsedTimer m_clock;
 
     // Searcher: pastas na fila e em varredura.

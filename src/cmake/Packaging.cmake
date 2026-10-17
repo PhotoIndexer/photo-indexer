@@ -136,6 +136,11 @@ function(photoidx_install target)
     if(UNIX AND NOT APPLE)
         install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/photoidx.desktop"
                 DESTINATION "${CMAKE_INSTALL_DATADIR}/applications")
+        # .photoidxe (foto privada) -> PhotoIDX; o install-desktop.sh na raiz
+        # do pacote registra no menu do usuário (o .tar.gz não tem instalador).
+        install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/photoidx-mime.xml"
+                DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages" RENAME photoidx.xml)
+        install(PROGRAMS "${CMAKE_SOURCE_DIR}/packaging/linux/install-desktop.sh" DESTINATION ".")
         if(EXISTS "${PHOTOIDX_ART_DIR}/PhotoIDX.png")
             install(FILES "${PHOTOIDX_ART_DIR}/PhotoIDX.png"
                     DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/256x256/apps" RENAME photoidx.png)

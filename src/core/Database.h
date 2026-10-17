@@ -37,6 +37,8 @@ public:
 
     /// Abre (cria e migra, se preciso). ``path`` vazio = banco em memória.
     void open(const QString &path);
+    /// O arquivo do banco ("" = em memória).
+    QString path() const { return m_path; }
     void close();
     bool isOpen() const;
 
@@ -67,6 +69,8 @@ private:
     void migrate();
 
     QString m_connection;
+    int m_depth = 0;
+    QString m_path;            ///< transações abertas (as de dentro são SAVEPOINTs)
 };
 
 /// Transação RAII: desfaz se sair do escopo sem commit().

@@ -40,6 +40,8 @@ LC_BUILD_VERSION = 0x32
 RPATH = '@executable_path/../Frameworks'
 APP_NAME = 'PhotoIDX'
 BUNDLE_ID = 'br.com.photoidx.desktop'      # nunca trocar (regra 18)
+# Tipo da foto cifrada (.photoidxe), declarado pelo app.
+ENCRYPTED_UTI = 'br.com.photoidx.encrypted-photo'
 
 # Plugins do Qt que o app usa: janela (cocoa), formatos de imagem e ícones
 # SVG, o driver SQLite (catálogo do evento) e o estilo nativo.
@@ -212,6 +214,25 @@ class Bundler:
             'NSSupportsAutomaticGraphicsSwitching': True,
             'NSRequiresAquaSystemAppearance': False,
             'NSHumanReadableCopyright': 'BSD 2-Clause — Helvio Junior / PhotoE',
+            # A foto privada (.photoidxe): o Finder a mostra com o ícone do
+            # app e a abre no PhotoIDX (QFileOpenEvent -> pede a senha).
+            'UTExportedTypeDeclarations': [{
+                'UTTypeIdentifier': ENCRYPTED_UTI,
+                'UTTypeDescription': 'PhotoIDX encrypted photo',
+                'UTTypeConformsTo': ['public.data'],
+                'UTTypeIconFile': APP_NAME,
+                'UTTypeTagSpecification': {
+                    'public.filename-extension': ['photoidxe'],
+                    'public.mime-type': ['application/x-photoidxe'],
+                },
+            }],
+            'CFBundleDocumentTypes': [{
+                'CFBundleTypeName': 'PhotoIDX encrypted photo',
+                'CFBundleTypeRole': 'Viewer',
+                'LSHandlerRank': 'Owner',
+                'LSItemContentTypes': [ENCRYPTED_UTI],
+                'CFBundleTypeIconFile': APP_NAME,
+            }],
         })
         if self.arch == 'arm64':
             info['LSRequiresNativeExecution'] = True

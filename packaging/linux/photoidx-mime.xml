@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- A foto privada do PhotoIDX (original cifrado com AES-256-GCM). -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-photoidxe">
+    <comment>PhotoIDX encrypted photo</comment>
+    <comment xml:lang="pt_BR">Foto criptografada do PhotoIDX</comment>
+    <icon name="photoidx"/>
+    <magic priority="80">
+      <match type="string" offset="0" value="PHOTOIDXE"/>
+    </magic>
+    <glob pattern="*.photoidxe"/>
+  </mime-type>
+</mime-info>

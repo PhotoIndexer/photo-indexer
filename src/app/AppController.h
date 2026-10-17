@@ -93,12 +93,18 @@ public:
 
     // Pastas
     Q_INVOKABLE bool addFolder(const QUrl &folder);
+    Q_INVOKABLE bool addFolderPath(const QString &path) { return addFolder(QUrl::fromLocalFile(path)); }
     Q_INVOKABLE void removeFolder(const QString &folderId);
     Q_INVOKABLE void rescanFolder(const QString &folderId);
     Q_INVOKABLE void refreshDisks();
 
     // Foto aberta
     Q_INVOKABLE void openPhoto(const QString &photoId);
+    /// Caminhos vindos de fora (linha de comando, outra instância, o SO
+    /// abrindo um .photoidxe): pasta = adicionar; foto do catálogo = abrir
+    /// (a privada pede a senha no QML); arquivo fora do catálogo = oferecer
+    /// adicionar a pasta dele.
+    void openPaths(const QStringList &paths);
     /// Caminho (no formato do SO) do arquivo de uma foto.
     Q_INVOKABLE QString photoPath(const QString &photoId) const;
 
@@ -128,6 +134,12 @@ signals:
     void failed(const QString &key, const QVariantMap &params);
     /// Aviso curto (o QML mostra numa faixa que some sozinha).
     void notice(const QString &key, const QVariantMap &params);
+    /// Abrir esta foto (vinda de fora); ``isPrivate``: pedir a senha antes.
+    void photoRequested(const QString &photoId, bool isPrivate);
+    /// Arquivo que o catálogo não conhece: perguntar se adiciona ``folder``.
+    void unknownFileRequested(const QString &path, const QString &folder);
+    /// Trazer a janela para a frente.
+    void raiseRequested();
 
 private:
     std::unique_ptr<pix::Catalog> m_catalog;

@@ -196,6 +196,39 @@ QQC.ApplicationWindow {
         function onFailed(key, params) {
             Dialogs.alert(Messages.errorDialog(key, params));
         }
+
+        function onNotice(key, params) {
+            const text = Messages.notice(key, params);
+            if (text !== "")
+                toast.show(text);
+        }
+
+        // Uma foto aberta de fora (dois cliques num .photoidxe, outra instância).
+        function onPhotoRequested(photoId, isPrivate) {
+            if (isPrivate)
+                passwordDialog.gate(() => App.openPhoto(photoId));
+            else
+                App.openPhoto(photoId);
+        }
+
+        function onUnknownFileRequested(path, folder) {
+            Dialogs.confirm({
+                title: qsTr("Photo not in the catalog"),
+                description: qsTr("<b>%1</b> is not in your catalog yet. Add the folder <b>%2</b> so it can be opened?")
+                    .arg(Messages.escapeHtml(Messages.baseName(path))).arg(Messages.escapeHtml(folder))
+                    + "<br><br>" + qsTr("An encrypted photo (.photoidxe) only opens with the key of the catalog that encrypted it."),
+                variant: "info",
+                iconName: "folder-plus",
+                confirmLabel: qsTr("Add folder")
+            }, () => App.addFolderPath(folder));
+        }
+
+        function onRaiseRequested() {
+            if (window.visibility === Window.Minimized)
+                window.showNormal();
+            window.raise();
+            window.requestActivate();
+        }
     }
 
     // Erros da senha: dentro do modal da senha se ele estiver aberto
@@ -205,12 +238,6 @@ QQC.ApplicationWindow {
         function onFailed(key, params) {
             if (!passwordDialog.opened)
                 Dialogs.alert(Messages.errorDialog(key, params));
-        }
-
-        function onNotice(key, params) {
-            const text = Messages.notice(key, params);
-            if (text !== "")
-                toast.show(text);
         }
     }
 

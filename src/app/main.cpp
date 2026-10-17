@@ -2,10 +2,12 @@
 //
 // PhotoIDX — catálogo de fotos com categorias por IA, faces e lugares (C++/Qt Quick).
 //
-//   PhotoIDX [PASTA...] [--debug] [--screenshot ARQUIVO [--page PAGINA] [--wait MS]]
+//   PhotoIDX [PASTA|ARQUIVO...] [--debug] [--screenshot ARQUIVO [--page PAGINA] [--wait MS]]
 //
 // PASTA: pastas para indexar (como o "Adicionar pasta"; as já cadastradas
-// são ignoradas).
+// são ignoradas). ARQUIVO: uma foto para abrir — é assim que o SO abre um
+// .photoidxe com dois cliques (no macOS, pelo QFileOpenEvent). Com o app já
+// aberto, os caminhos vão para ele (SingleInstance) e este processo sai.
 //
 // --screenshot abre o app, espera a primeira tela carregar, salva a imagem da
 // janela e sai: teste de fumaça sem ninguém olhando.
@@ -14,11 +16,14 @@
 #include "ImageProviders.h"
 #include "Language.h"
 #include "Logging.h"
+#include "SingleInstance.h"
 
 #include "core/Paths.h"
 
 #include <QCommandLineParser>
 #include <QDir>
+#include <QFileInfo>
+#include <QFileOpenEvent>
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QIcon>
@@ -31,6 +36,35 @@
 
 Q_LOGGING_CATEGORY(lcMain, "photoidx.main")
 
+namespace {
+
+/// macOS: o Finder abre um .photoidxe com o app mandando um evento, não argv.
+class FileOpenFilter : public QObject
+{
+public:
+    explicit FileOpenFilter(AppController *controller)
+        : m_controller(controller)
+    {
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override
+    {
+        if (event->type() == QEvent::FileOpen) {
+            const QString file = static_cast<QFileOpenEvent *>(event)->file();
+            if (!file.isEmpty())
+                m_controller->openPaths({file});
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    AppController *m_controller;
+};
+
+} // namespace
+
 int main(int argc, char *argv[])
 {
     QGuiApplication app(argc, argv);
@@ -40,7 +74,9 @@ int main(int argc, char *argv[])
     QGuiApplication::setOrganizationDomain(QStringLiteral("photoe.com.br"));
     QGuiApplication::setApplicationVersion(QStringLiteral(PHOTOIDX_VERSION));
     QGuiApplication::setApplicationDisplayName(QStringLiteral(PHOTOIDX_BRAND_NAME));
-    QGuiApplication::setDesktopFileName(QStringLiteral("br.com.photoidx.desktop"));
+    // O nome do .desktop instalado (photoidx.desktop): o Wayland liga a janela
+    // ao ícone e ao nome por ele.
+    QGuiApplication::setDesktopFileName(QStringLiteral("photoidx"));
 #ifndef Q_OS_MACOS
     // No macOS o Dock usa o ícone do pacote (PhotoIDX.icns); definir outro
     // aqui o trocaria enquanto o app roda. favicon.png = o mesmo desenho do
@@ -94,6 +130,17 @@ int main(int argc, char *argv[])
     pix::app::setupLogging(parser.isSet(debugOption));
     qCInfo(lcMain) << "PhotoIDX" << PHOTOIDX_VERSION << "starting; data in" << pix::AppPaths::dataDir();
 
+    QStringList paths;
+    for (const QString &arg : parser.positionalArguments())
+        paths << QFileInfo(arg).absoluteFilePath();
+    // Um app por catálogo: se já houver um aberto, os caminhos vão para ele.
+    SingleInstance instance(pix::AppPaths::dataDir());
+    if (!parser.isSet(screenshotOption)) {
+        if (instance.forward(paths))
+            return 0;
+        instance.listen();
+    }
+
     pix::app::installLanguage(pix::app::savedLanguage());
 
     // Inter vai no próprio binário: nada da interface depende de rede.
@@ -107,14 +154,20 @@ int main(int argc, char *argv[])
     AppController controller(nullptr);
     if (parser.isSet(pageOption))
         controller.setPage(parser.value(pageOption));
-    for (const QString &folder : parser.positionalArguments()) {
-        const QString path = QDir(folder).absolutePath();
-        bool known = false;
-        for (const QVariant &f : controller.folders())
-            known = known || QDir::fromNativeSeparators(f.toMap().value(QStringLiteral("path")).toString()) == path;
-        if (!known)
-            controller.addFolder(QUrl::fromLocalFile(path));
+    // Pastas da linha de comando entram já (o teste de captura conta com elas).
+    QStringList files;
+    for (const QString &path : paths) {
+        if (QFileInfo(path).isDir())
+            controller.openPaths({path});
+        else
+            files << path;
     }
+    QObject::connect(&instance, &SingleInstance::received, &controller, [&controller](const QStringList &more) {
+        controller.openPaths(more);
+        emit controller.raiseRequested();
+    });
+    FileOpenFilter fileOpen(&controller);
+    app.installEventFilter(&fileOpen);
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("photo"), new PhotoImageProvider);
@@ -127,6 +180,9 @@ int main(int argc, char *argv[])
     engine.loadFromModule("PhotoIDX", "Main");
     if (engine.rootObjects().isEmpty())
         return 1;
+    // Arquivos: com a janela pronta (a privada pede a senha num modal).
+    if (!files.isEmpty())
+        QTimer::singleShot(0, &controller, [&controller, files]() { controller.openPaths(files); });
 
     if (parser.isSet(screenshotOption)) {
         const QString file = parser.value(screenshotOption);

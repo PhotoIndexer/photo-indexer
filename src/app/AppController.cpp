@@ -224,6 +224,36 @@ void AppController::openPhoto(const QString &photoId)
     setPage(QStringLiteral("viewer"));
 }
 
+void AppController::openPaths(const QStringList &paths)
+{
+    for (const QString &raw : paths) {
+        const QFileInfo fi(raw);
+        if (!fi.exists())
+            continue;
+        if (fi.isDir()) {
+            // Pasta já cadastrada: addFolder avisa (folder.alreadyAdded) — aqui
+            // só cadastra as novas, em silêncio.
+            bool known = false;
+            for (const QVariant &f : folders())
+                known = known
+                    || QDir::fromNativeSeparators(f.toMap().value(QStringLiteral("path")).toString())
+                           == QDir::fromNativeSeparators(fi.absoluteFilePath());
+            if (!known)
+                addFolder(QUrl::fromLocalFile(fi.absoluteFilePath()));
+            continue;
+        }
+        const QString id = m_catalog->photoIdByPath(fi.absoluteFilePath());
+        emit raiseRequested();
+        if (id.isEmpty()) {
+            emit unknownFileRequested(QDir::toNativeSeparators(fi.absoluteFilePath()),
+                                      QDir::toNativeSeparators(fi.absolutePath()));
+            continue;
+        }
+        const bool isPrivate = m_catalog->db().scalar(QStringLiteral("SELECT private FROM photo WHERE id = ?"), {id}).toInt() == 1;
+        emit photoRequested(id, isPrivate);
+    }
+}
+
 QString AppController::photoPath(const QString &photoId) const
 {
     return QDir::toNativeSeparators(m_catalog->photoPath(photoId));

@@ -42,7 +42,7 @@ set(PHOTOIDX_REPO_URL "https://github.com/PhotoIndexer/photo-indexer" CACHE STRI
 
 find_package(Qt6 6.7 REQUIRED COMPONENTS Core Gui Sql Concurrent)
 if(PHOTOIDX_BUILD_APP)
-    find_package(Qt6 6.7 REQUIRED COMPONENTS Quick QuickControls2 Svg LinguistTools)
+    find_package(Qt6 6.7 REQUIRED COMPONENTS Quick QuickControls2 Svg Network LinguistTools)
 endif()
 qt_standard_project_setup(REQUIRES 6.7)
 

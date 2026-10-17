@@ -41,8 +41,38 @@ QHash<int, QByteArray> PhotoGridModel::roleNames() const
             {IsPrivateRole, "isPrivate"}};
 }
 
-void PhotoGridModel::setRows(const QList<pix::GridRow> &rows)
+namespace {
+
+bool sameCell(const pix::GridRow &a, const pix::GridRow &b)
 {
+    return a.thumbPath == b.thumbPath && a.name == b.name && a.width == b.width && a.height == b.height
+        && a.state == b.state && a.takenAt == b.takenAt && a.score == b.score && a.isPrivate == b.isPrivate;
+}
+
+} // namespace
+
+void PhotoGridModel::setRows(const QList<pix::GridRow> &rows, bool keepPosition)
+{
+    m_keepPosition = keepPosition;
+    // As mesmas fotos na mesma ordem (o caso comum de uma atualização de
+    // fundo): troca os dados e avisa só as células diferentes.
+    bool sameOrder = rows.size() == m_rows.size();
+    for (qsizetype i = 0; sameOrder && i < rows.size(); ++i)
+        sameOrder = rows[i].id == m_rows[i].id;
+    if (sameOrder) {
+        int first = -1, last = -1;
+        for (qsizetype i = 0; i < rows.size(); ++i) {
+            if (sameCell(rows[i], m_rows[i]))
+                continue;
+            m_rows[i] = rows[i];
+            if (first < 0)
+                first = int(i);
+            last = int(i);
+        }
+        if (first >= 0)
+            emit dataChanged(index(first), index(last));
+        return;
+    }
     const qsizetype oldCount = m_rows.size();
     QString anchorId = idAt(m_anchor);
     beginResetModel();
