@@ -7,6 +7,7 @@
 
 #include "PeopleListModel.h"
 #include "PhotoGridModel.h"
+#include "VariantListModel.h"
 
 #include <QObject>
 #include <QTimer>
@@ -34,6 +35,9 @@ class PeopleController : public QObject
     /// Faces da pessoa aberta (ou as sem pessoa): [{id, photoId, cropUrl, score,
     /// similarity, assignment, photoName}]
     Q_PROPERTY(QVariantList faces READ faces NOTIFY personChanged)
+    /// As mesmas faces como modelo (a grade não volta ao topo quando elas
+    /// são relidas durante a indexação).
+    Q_PROPERTY(VariantListModel *faceModel READ faceModel CONSTANT)
     /// Menos parecidas primeiro: os falsos positivos aparecem no topo.
     Q_PROPERTY(bool leastSimilarFirst READ leastSimilarFirst WRITE setLeastSimilarFirst NOTIFY personChanged)
 
@@ -46,6 +50,7 @@ class PeopleController : public QObject
     Q_PROPERTY(double threshold READ threshold WRITE setThreshold NOTIFY searchChanged)
     /// Pessoas do catálogo que casam: [{id, label, coverUrl, similarity, faces}]
     Q_PROPERTY(QVariantList matchedPeople READ matchedPeople NOTIFY searchChanged)
+    Q_PROPERTY(VariantListModel *matchedModel READ matchedModel CONSTANT)
     Q_PROPERTY(PhotoGridModel *results READ results CONSTANT)
     Q_PROPERTY(QString searchError READ searchError NOTIFY searchChanged)
     Q_PROPERTY(bool facesAvailable READ facesAvailable CONSTANT)
@@ -63,6 +68,8 @@ public:
 
     QVariantList people() const { return m_people; }
     PeopleListModel *list() { return &m_list; }
+    VariantListModel *faceModel() { return &m_faceModel; }
+    VariantListModel *matchedModel() { return &m_matchedModel; }
     int unassignedCount() const { return m_unassignedCount; }
     QString personId() const { return m_personId; }
     QVariantMap person() const { return m_person; }
@@ -132,6 +139,8 @@ private:
     pix::Pipeline *m_pipeline;
     QVariantList m_people;
     PeopleListModel m_list;
+    VariantListModel m_faceModel{QStringLiteral("id")};
+    VariantListModel m_matchedModel{QStringLiteral("id")};
     pix::CatalogReader *m_reader;
     QTimer m_reloadTimer;   ///< junta as mudanças (indexando, uma por foto com rosto)
     int m_reloadSerial = 0;

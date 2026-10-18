@@ -102,7 +102,7 @@ void TimelineController::setFrequency(const QString &frequency)
     m_frequency = frequency;
     QSettings().setValue(QStringLiteral("timeline/frequency"), frequency);
     m_selected.clear();
-    emit selectionChanged();
+    selectionUpdated();
     reload();
 }
 
@@ -147,8 +147,9 @@ void TimelineController::open(const QString &personId, const QString &label)
         m_groups.clear();
         m_entries.clear();
         m_entryList.clear();
+        m_entryModel.setItems({});
         m_selected.clear();
-        emit selectionChanged();
+        selectionUpdated();
     }
     m_personId = personId;
     m_personLabel = label;
@@ -234,8 +235,15 @@ void TimelineController::rebuild()
     }
     if (!m_selected.isEmpty() && entryIndex(m_selected) < 0)
         m_selected.clear();
+    m_entryModel.setItems(m_entryList);
     emit changed();
     emit layoutChanged();
+    selectionUpdated();
+}
+
+void TimelineController::selectionUpdated()
+{
+    m_candidateModel.setItems(candidates());
     emit selectionChanged();
 }
 
@@ -248,7 +256,7 @@ void TimelineController::setSelected(const QString &period)
     if (period == m_selected)
         return;
     m_selected = period;
-    emit selectionChanged();
+    selectionUpdated();
 }
 
 QVariantMap TimelineController::selectedEntry() const

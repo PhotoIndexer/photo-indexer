@@ -260,7 +260,7 @@ Item {
             clip: true
             boundsBehavior: Flickable.StopAtBounds
             T.ScrollBar.vertical: ThinScrollBar {}
-            model: App.people.faces
+            model: App.people.faceModel
             reuseItems: true
             ScrollWatch {
                 id: faceScroll

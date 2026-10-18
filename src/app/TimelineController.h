@@ -10,6 +10,7 @@
 // mostra a mesma montagem. As faces vêm pelo CatalogReader; os recortes de
 // retrato, de um provider assíncrono; a exportação, de uma thread própria.
 
+#include "VariantListModel.h"
 #include "core/Timeline.h"
 
 #include <QObject>
@@ -38,6 +39,10 @@ class TimelineController : public QObject
     /// Os períodos em ordem: [{period, label, faceId, photoId, photoName,
     /// imageUrl, user, hidden, candidates}]
     Q_PROPERTY(QVariantList entries READ entries NOTIFY changed)
+    /// Os mesmos períodos e candidatas como modelos: trocar uma foto não
+    /// manda as grades de volta ao topo.
+    Q_PROPERTY(VariantListModel *entryModel READ entryModel CONSTANT)
+    Q_PROPERTY(VariantListModel *candidateModel READ candidateModel CONSTANT)
     /// Quantos entram na montagem (os não tirados).
     Q_PROPERTY(int shownCount READ shownCount NOTIFY changed)
     /// O período aberto no painel de troca ("" = nenhum).
@@ -62,6 +67,8 @@ public:
     void setLabels(bool on);
     bool loading() const { return m_loading; }
     QVariantList entries() const { return m_entryList; }
+    VariantListModel *entryModel() { return &m_entryModel; }
+    VariantListModel *candidateModel() { return &m_candidateModel; }
     int shownCount() const;
     QString selected() const { return m_selected; }
     void setSelected(const QString &period);
@@ -116,4 +123,8 @@ private:
     QList<pix::timeline::Entry> m_entries;
     QVariantList m_entryList;
     QString m_selected;
+    VariantListModel m_entryModel{QStringLiteral("period")};
+    VariantListModel m_candidateModel{QStringLiteral("faceId")};
+    /// Atualiza o modelo das candidatas e avisa a seleção.
+    void selectionUpdated();
 };

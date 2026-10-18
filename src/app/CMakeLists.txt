@@ -17,6 +17,7 @@ qt_add_executable(photoidx
     FilesController.h FilesController.cpp
     SingleInstance.h SingleInstance.cpp
     PhotoGridModel.h PhotoGridModel.cpp
+    KeyedListModel.h VariantListModel.h
     PeopleListModel.h PeopleListModel.cpp
     TreeModel.h TreeModel.cpp
     ImageProviders.h ImageProviders.cpp

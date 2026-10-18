@@ -1871,6 +1871,10 @@
         <source>Not %1</source>
         <translation>Não é %1</translation>
     </message>
+    <message>
+        <source>Over the years</source>
+        <translation>Ao longo dos anos</translation>
+    </message>
 </context>
 <context>
     <name>Main</name>

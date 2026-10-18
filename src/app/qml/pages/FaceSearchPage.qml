@@ -200,7 +200,7 @@ Item {
                     }
                 }
                 Repeater {
-                    model: App.people.matchedPeople
+                    model: App.people.matchedModel
                     T.ItemDelegate {
                         id: who
                         required property var modelData

@@ -3,6 +3,7 @@
 // o pipeline inteiro (Searcher -> Indexer) numa pasta temporária; fotos
 // privadas (criptografia, cofre, cifrar/decifrar os arquivos de verdade).
 
+#include "app/KeyedListModel.h"
 #include "core/Catalog.h"
 #include "core/CatalogReader.h"
 #include "core/Classifier.h"
@@ -17,7 +18,9 @@
 #include "core/Taxonomy.h"
 #include "core/Vault.h"
 
+#include <QAbstractItemModelTester>
 #include <QBuffer>
+#include <QRandomGenerator>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QFile>
@@ -97,6 +100,22 @@ int runPrivacyJobs(Catalog &catalog)
     }
     return ok;
 }
+
+/// KeyedListModel mínimo: linhas "chave=valor" (a chave antes do "=").
+class KeyedStrings : public KeyedListModel
+{
+public:
+    int rowCount(const QModelIndex &parent = {}) const override { return parent.isValid() ? 0 : int(rows.size()); }
+    QVariant data(const QModelIndex &index, int role) const override
+    {
+        return index.isValid() && role == Qt::DisplayRole ? QVariant(rows.at(index.row())) : QVariant();
+    }
+    void set(const QStringList &next)
+    {
+        updateRows(rows, QList<QString>(next), [](const QString &r) { return r.section(u'=', 0, 0); });
+    }
+    QList<QString> rows;
+};
 
 } // namespace
 
@@ -652,6 +671,38 @@ private slots:
         catalog.reclusterPeople();
         QCOMPARE(catalog.personFaces(person).size(), 1);
         QCOMPARE(catalog.rejectPersonInPhotos(person, {photos[0]}), 0);  // já não é dela
+    }
+
+    void keyedListModelUpdates()
+    {
+        // Atualização sem reset (as grades não voltam ao topo): qualquer
+        // troca termina nas linhas novas, com sinais coerentes (o tester do
+        // Qt confere cada begin/end) e sem reset no meio.
+        KeyedStrings model;
+        QAbstractItemModelTester tester(&model, QAbstractItemModelTester::FailureReportingMode::QtTest);
+        QSignalSpy resets(&model, &QAbstractItemModel::modelReset);
+        QSignalSpy changes(&model, &QAbstractItemModel::dataChanged);
+        model.set({QStringLiteral("a=1"), QStringLiteral("b=1"), QStringLiteral("c=1")});
+        QCOMPARE(resets.size(), 1);  // a primeira carga pode
+        model.set({QStringLiteral("c=1"), QStringLiteral("a=2"), QStringLiteral("d=1")});
+        QCOMPARE(model.rows, (QList<QString>{QStringLiteral("c=1"), QStringLiteral("a=2"), QStringLiteral("d=1")}));
+        QCOMPARE(changes.size(), 1);  // só o "a" mudou de valor
+        QRandomGenerator rng(42);
+        for (int round = 0; round < 200; ++round) {
+            QStringList keys;
+            for (int k = 0; k < 30; ++k)
+                if (rng.bounded(3) != 0)
+                    keys << QString::number(k);
+            std::shuffle(keys.begin(), keys.end(), rng);
+            QStringList next;
+            for (const QString &k : std::as_const(keys))
+                next << k + u'=' + QString::number(rng.bounded(2));
+            if (next.isEmpty())
+                next << QStringLiteral("x=0");
+            model.set(next);
+            QCOMPARE(model.rows, QList<QString>(next));
+        }
+        QCOMPARE(resets.size(), 1);
     }
 
     void personTimeline()

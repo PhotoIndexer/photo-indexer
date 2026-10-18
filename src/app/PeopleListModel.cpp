@@ -18,7 +18,7 @@ QString fold(const QString &text)
 } // namespace
 
 PeopleListModel::PeopleListModel(QObject *parent)
-    : QAbstractListModel(parent)
+    : KeyedListModel(parent)
 {
 }
 
@@ -68,9 +68,8 @@ void PeopleListModel::rebuild()
         rows.append(std::move(p));
     }
     const qsizetype before = m_rows.size();
-    beginResetModel();
-    m_rows = std::move(rows);
-    endResetModel();
+    // Sem reset: a grade não volta ao topo a cada atualização de fundo.
+    updateRows(m_rows, std::move(rows), [](const QVariantMap &p) { return p.value(QStringLiteral("id")).toString(); });
     if (before != m_rows.size())
         emit countChanged();
 }

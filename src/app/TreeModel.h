@@ -5,11 +5,12 @@
 // Catalog devolve em pré-ordem, mostrando só os que têm todos os ancestrais
 // abertos. O que está aberto é lembrado por aba enquanto o app roda.
 
-#include <QAbstractListModel>
+#include "KeyedListModel.h"
+
 #include <QSet>
 #include <QVariantList>
 
-class TreeModel : public QAbstractListModel
+class TreeModel : public KeyedListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)
@@ -35,7 +36,7 @@ public:
 
     /// Nós novos da aba (mantém o que estava aberto).
     void setNodes(const QVariantList &nodes);
-    int count() const { return int(m_visible.size()); }
+    int count() const { return int(m_rows.size()); }
 
     Q_INVOKABLE void toggle(const QString &key);
     /// Abre os ancestrais de ``key`` (para mostrar um nó escolhido de fora).
@@ -52,7 +53,8 @@ private:
     void rebuild();
 
     QVariantList m_nodes;
-    QList<int> m_visible;           ///< índices em m_nodes
+    /// Os nós visíveis (com "expanded" dentro: abrir/fechar avisa a linha).
+    QList<QVariantMap> m_rows;
     QSet<QString> m_expanded;
     QSet<QString> m_known;      ///< chaves já vistas (o "open" só vale na primeira vez)
     bool m_seeded = false;

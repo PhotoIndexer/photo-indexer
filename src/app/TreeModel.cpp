@@ -5,27 +5,27 @@
 #include <QVariantMap>
 
 TreeModel::TreeModel(QObject *parent)
-    : QAbstractListModel(parent)
+    : KeyedListModel(parent)
 {
 }
 
 int TreeModel::rowCount(const QModelIndex &parent) const
 {
-    return parent.isValid() ? 0 : int(m_visible.size());
+    return parent.isValid() ? 0 : int(m_rows.size());
 }
 
 QVariant TreeModel::data(const QModelIndex &index, int role) const
 {
-    if (!index.isValid() || index.row() >= m_visible.size())
+    if (!index.isValid() || index.row() >= m_rows.size())
         return {};
-    const QVariantMap n = m_nodes.at(m_visible.at(index.row())).toMap();
+    const QVariantMap &n = m_rows.at(index.row());
     switch (role) {
     case KeyRole: return n.value(QStringLiteral("key"));
     case LabelRole: return n.value(QStringLiteral("label"));
     case CountRole: return n.value(QStringLiteral("count"));
     case DepthRole: return n.value(QStringLiteral("depth"));
     case HasChildrenRole: return n.value(QStringLiteral("hasChildren"));
-    case ExpandedRole: return m_expanded.contains(n.value(QStringLiteral("key")).toString());
+    case ExpandedRole: return n.value(QStringLiteral("expanded"));
     case IconRole: return n.value(QStringLiteral("icon"));
     case DetailRole: return n.value(QStringLiteral("detail"));
     case KindRole: return n.value(QStringLiteral("kind"));
@@ -69,22 +69,27 @@ void TreeModel::setNodes(const QVariantList &nodes)
 
 void TreeModel::rebuild()
 {
-    const qsizetype old = m_visible.size();
-    beginResetModel();
-    m_visible.clear();
+    const qsizetype old = m_rows.size();
+    QList<QVariantMap> rows;
     // Pré-ordem: um nó aparece se o pai aparece e está aberto.
     QHash<QString, bool> shown;
     for (int i = 0; i < m_nodes.size(); ++i) {
-        const QVariantMap n = m_nodes.at(i).toMap();
+        QVariantMap n = m_nodes.at(i).toMap();
         const QString key = n.value(QStringLiteral("key")).toString();
         const QString parent = n.value(QStringLiteral("parent")).toString();
         const bool visible = parent.isEmpty() || (shown.value(parent) && m_expanded.contains(parent));
         shown.insert(key, visible);
-        if (visible)
-            m_visible.append(i);
+        if (visible) {
+            n.insert(QStringLiteral("expanded"), m_expanded.contains(key));
+            rows.append(std::move(n));
+        }
     }
-    endResetModel();
-    if (old != m_visible.size())
+    // Sem reset: o painel não volta ao topo quando a árvore se atualiza
+    // (contagens mudando durante a indexação, abrir/fechar um nó).
+    updateRows(m_rows, std::move(rows), [](const QVariantMap &n) {
+        return n.value(QStringLiteral("parent")).toString() + u'\x1f' + n.value(QStringLiteral("key")).toString();
+    });
+    if (old != m_rows.size())
         emit countChanged();
 }
 
@@ -124,8 +129,8 @@ void TreeModel::expandAll(bool expanded)
 
 int TreeModel::indexOfKey(const QString &key) const
 {
-    for (int i = 0; i < m_visible.size(); ++i)
-        if (m_nodes.at(m_visible.at(i)).toMap().value(QStringLiteral("key")).toString() == key)
+    for (int i = 0; i < m_rows.size(); ++i)
+        if (m_rows.at(i).value(QStringLiteral("key")).toString() == key)
             return i;
     return -1;
 }

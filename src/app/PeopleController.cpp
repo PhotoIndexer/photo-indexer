@@ -114,6 +114,7 @@ void PeopleController::closePerson()
     m_unassignedOpen = false;
     m_person.clear();
     m_faces.clear();
+    m_faceModel.setItems(m_faces);
     emit personChanged();
 }
 
@@ -137,6 +138,7 @@ void PeopleController::loadPerson()
             // Sumiu (juntada em outra, apagada): volta à lista.
             m_personId.clear();
             m_faces.clear();
+            m_faceModel.setItems(m_faces);
             emit personChanged();
             return;
         }
@@ -152,6 +154,7 @@ void PeopleController::loadPerson()
         f.insert(QStringLiteral("cropUrl"), fileUrl(f.value(QStringLiteral("cropPath")).toString()));
         m_faces << f;
     }
+    m_faceModel.setItems(m_faces);
     emit personChanged();
 }
 
@@ -265,6 +268,7 @@ void PeopleController::searchByPhoto(const QUrl &file)
     m_matched.clear();
     m_results.setRows({});
     m_queryUrl = QUrl::fromLocalFile(path).toString();
+    m_matchedModel.setItems(m_matched);
     emit searchChanged();
     m_pipeline->detectFaces(path, [this, serial](QList<imaging::DetectedFace> faces, QString error) {
         if (serial != m_searchSerial)
@@ -358,6 +362,7 @@ void PeopleController::runSearch(bool refresh)
     m_matched.clear();
     if (m_queryFace < 0 || m_queryFace >= int(m_queryEmbeddings.size())) {
         m_results.setRows({});
+        m_matchedModel.setItems(m_matched);
         emit searchChanged();
         return;
     }
@@ -396,5 +401,6 @@ void PeopleController::runSearch(bool refresh)
     std::sort(m_matched.begin(), m_matched.end(), [](const QVariant &a, const QVariant &b) {
         return a.toMap().value(QStringLiteral("similarity")).toFloat() > b.toMap().value(QStringLiteral("similarity")).toFloat();
     });
+    m_matchedModel.setItems(m_matched);
     emit searchChanged();
 }

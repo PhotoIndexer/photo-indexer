@@ -576,6 +576,16 @@ Item {
         AppMenuItem {
             visible: nodeMenu.type === "person"
             height: visible ? implicitHeight : 0
+            text: qsTr("Over the years")
+            onTriggered: {
+                App.people.openPerson(nodeMenu.id);
+                App.timeline.open(nodeMenu.id, App.people.labelOf(nodeMenu.id));
+                App.page = "timeline";
+            }
+        }
+        AppMenuItem {
+            visible: nodeMenu.type === "person"
+            height: visible ? implicitHeight : 0
             text: qsTr("Open in People")
             onTriggered: {
                 App.people.openPerson(nodeMenu.id);

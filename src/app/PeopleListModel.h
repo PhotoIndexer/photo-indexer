@@ -6,10 +6,11 @@
 // num objeto JS a cada mudança e prendia a interface por segundos; aqui o
 // filtro por nome é em C++ e a grade só cria as células visíveis.
 
-#include <QAbstractListModel>
+#include "KeyedListModel.h"
+
 #include <QVariantList>
 
-class PeopleListModel : public QAbstractListModel
+class PeopleListModel : public KeyedListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ count NOTIFY countChanged)

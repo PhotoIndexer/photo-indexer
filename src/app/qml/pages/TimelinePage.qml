@@ -169,7 +169,7 @@ Rectangle {
                     clip: true
                     boundsBehavior: Flickable.StopAtBounds
                     T.ScrollBar.vertical: ThinScrollBar {}
-                    model: App.timeline.entries
+                    model: App.timeline.entryModel
                     reuseItems: true
 
                     ScrollWatch {
@@ -364,7 +364,7 @@ Rectangle {
                         clip: true
                         boundsBehavior: Flickable.StopAtBounds
                         T.ScrollBar.vertical: ThinScrollBar {}
-                        model: App.timeline.candidates
+                        model: App.timeline.candidateModel
                         reuseItems: true
 
                         ScrollWatch {
