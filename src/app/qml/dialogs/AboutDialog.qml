@@ -42,6 +42,23 @@ Modal {
             horizontalAlignment: Text.AlignHCenter
         }
 
+        // Versão nova: o que a verificação ao abrir achou, e o liga/desliga.
+        Text {
+            Layout.fillWidth: true
+            visible: App.updates.available
+            text: qsTr("Version %1 is available.").arg(App.updates.latestVersion)
+            font.pixelSize: Theme.fontSm
+            font.weight: Font.Medium
+            color: Theme.success
+            horizontalAlignment: Text.AlignHCenter
+        }
+        Toggle {
+            Layout.alignment: Qt.AlignHCenter
+            label: qsTr("Check for a new version when the app opens")
+            checked: App.updates.enabled
+            onToggled: (value) => App.updates.enabled = value
+        }
+
         // Site e código-fonte: abrem no navegador do sistema.
         Repeater {
             model: [

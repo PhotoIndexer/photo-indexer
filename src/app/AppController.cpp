@@ -93,6 +93,10 @@ AppController::AppController(QObject *parent)
     });
     m_viewer = std::make_unique<ViewerController>(m_catalog.get(), m_library->grid());
     m_people = std::make_unique<PeopleController>(m_catalog.get(), m_pipeline.get(), m_reader.get());
+    m_timeline = std::make_unique<TimelineController>(m_catalog.get(), m_reader.get());
+    connect(m_timeline.get(), &TimelineController::notice, this, &AppController::notice);
+    connect(m_timeline.get(), &TimelineController::failed, this, &AppController::failed);
+    m_updates = std::make_unique<UpdateChecker>(QStringLiteral(PHOTOIDX_REPO_URL), version());
     m_tasks = std::make_unique<TasksController>(m_catalog.get(), m_pipeline.get(), m_reader.get());
     m_privacy = std::make_unique<PrivacyController>(m_catalog.get());
     connect(m_privacy.get(), &PrivacyController::notice, this, &AppController::notice);

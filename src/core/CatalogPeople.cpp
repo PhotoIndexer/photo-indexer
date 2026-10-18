@@ -4,6 +4,7 @@
 
 #include "imaging/Faces.h"
 
+#include <QDate>
 #include <QFile>
 #include <QLoggingCategory>
 #include <QSqlQuery>
@@ -748,6 +749,94 @@ void Catalog::rejectFaces(const QStringList &faceIds)
         refreshPerson(p);
     tx.commit();
     emit peopleChanged();
+}
+
+int Catalog::rejectPersonInPhotos(const QString &personId, const QStringList &photoIds)
+{
+    if (personId.isEmpty())
+        return 0;
+    QStringList faceIds;
+    for (const QString &photoId : photoIds) {
+        QSqlQuery q = m_db.exec(QStringLiteral("SELECT id FROM face WHERE photo_id = ? AND person_id = ?"), {photoId, personId});
+        while (q.next())
+            faceIds << q.value(0).toString();
+    }
+    if (!faceIds.isEmpty())
+        rejectFaces(faceIds);
+    return int(faceIds.size());
+}
+
+// --------------------------------------------------------------------------- //
+// Ao longo dos anos
+// --------------------------------------------------------------------------- //
+
+QList<timeline::Face> Catalog::timelineFaces(const QString &personId) const
+{
+    PIX_PERF("Catalog::timelineFaces");
+    QList<timeline::Face> out;
+    // Datas impossíveis (relógio da câmera errado: 1970, 2076) ficam fora.
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.id, f.photo_id, p.path, p.thumb_path, f.crop_path, p.name, p.year, "
+                                           "COALESCE(p.month, 0), f.x, f.y, f.w, f.h, p.width, p.height, f.score, "
+                                           "COALESCE(f.similarity, 0.5) FROM face f JOIN photo p ON p.id = f.photo_id "
+                                           "WHERE f.person_id = ? AND p.private = 0 AND p.year BETWEEN 1900 AND ?"),
+                            {personId, QDate::currentDate().year()});
+    while (q.next()) {
+        timeline::Face f;
+        f.faceId = q.value(0).toString();
+        f.photoId = q.value(1).toString();
+        f.path = q.value(2).toString();
+        f.thumbPath = q.value(3).toString();
+        f.cropPath = q.value(4).toString();
+        f.photoName = q.value(5).toString();
+        f.year = q.value(6).toInt();
+        f.month = q.value(7).toInt();
+        f.x = q.value(8).toDouble();
+        f.y = q.value(9).toDouble();
+        f.w = q.value(10).toDouble();
+        f.h = q.value(11).toDouble();
+        f.width = q.value(12).toInt();
+        f.height = q.value(13).toInt();
+        f.score = q.value(14).toDouble();
+        f.similarity = q.value(15).toDouble();
+        out.append(f);
+    }
+    return out;
+}
+
+QHash<QString, timeline::Pick> Catalog::timelinePicks(const QString &personId, const QString &frequency) const
+{
+    QHash<QString, timeline::Pick> out;
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT period, COALESCE(face_id, ''), chosen_by, hidden FROM person_timeline "
+                                           "WHERE person_id = ? AND frequency = ?"),
+                            {personId, frequency});
+    while (q.next()) {
+        timeline::Pick p;
+        p.period = q.value(0).toString();
+        p.faceId = q.value(1).toString();
+        p.user = q.value(2).toString() == QLatin1String("user");
+        p.hidden = q.value(3).toInt() != 0;
+        out.insert(p.period, p);
+    }
+    return out;
+}
+
+void Catalog::saveTimelinePicks(const QString &personId, const QString &frequency, const QList<timeline::Pick> &picks)
+{
+    if (picks.isEmpty() || personId.isEmpty() || !timeline::validFrequency(frequency))
+        return;
+    Transaction tx(m_db);
+    for (const timeline::Pick &p : picks)
+        m_db.exec(QStringLiteral("INSERT INTO person_timeline(person_id, frequency, period, face_id, chosen_by, hidden) "
+                                 "VALUES(?, ?, ?, ?, ?, ?) ON CONFLICT(person_id, frequency, period) DO UPDATE SET "
+                                 "face_id = excluded.face_id, chosen_by = excluded.chosen_by, hidden = excluded.hidden"),
+                  {personId, frequency, p.period, p.faceId.isEmpty() ? QVariant() : QVariant(p.faceId),
+                   p.user ? QStringLiteral("user") : QStringLiteral("auto"), p.hidden ? 1 : 0});
+    tx.commit();
+}
+
+void Catalog::resetTimeline(const QString &personId, const QString &frequency)
+{
+    m_db.exec(QStringLiteral("DELETE FROM person_timeline WHERE person_id = ? AND frequency = ?"), {personId, frequency});
 }
 
 } // namespace pix

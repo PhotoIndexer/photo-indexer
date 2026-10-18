@@ -634,6 +634,103 @@ private slots:
         QCOMPARE(vanished.size(), 1);  // estacionada: não tenta de novo em laço
     }
 
+    void notThisPerson()
+    {
+        // Grade de uma pessoa, "Não é a pessoa": as faces dela nas fotos
+        // escolhidas saem e não voltam com o reagrupamento.
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
+        const QStringList photos = seedPhotos(catalog, 3, m_photos.path() + QStringLiteral("/notperson"));
+        for (const QString &photo : photos)
+            catalog.applyFaces(faces(photo, {vec({1, 0.05f})}));
+        const QString person = catalog.people().value(0).toMap().value(QStringLiteral("id")).toString();
+        QCOMPARE(catalog.personFaces(person).size(), 3);
+        catalog.renamePerson(person, QStringLiteral("Ana"));  // com nome, o id sobrevive ao reagrupar
+        QCOMPARE(catalog.rejectPersonInPhotos(person, {photos[0], photos[1]}), 2);
+        QCOMPARE(catalog.personFaces(person).size(), 1);
+        catalog.reclusterPeople();
+        QCOMPARE(catalog.personFaces(person).size(), 1);
+        QCOMPARE(catalog.rejectPersonInPhotos(person, {photos[0]}), 0);  // já não é dela
+    }
+
+    void personTimeline()
+    {
+        // "Ao longo dos anos" (schema/0008.sql, core/Timeline): uma foto por
+        // período, a melhor automática; a escolha da pessoa e o período tirado
+        // ficam guardados; privadas e datas impossíveis ficam fora.
+        Catalog catalog;
+        catalog.open(QString());
+        catalog.setSetting(QStringLiteral("people/minPhotos"), 1);
+        const QStringList photos = seedPhotos(catalog, 6, m_photos.path() + QStringLiteral("/timeline"));
+        for (int i = 0; i < photos.size(); ++i)
+            catalog.applyFaces(faces(photos[i], {vec({1, 0.02f * float(i)})}));
+        const QString person = catalog.people().value(0).toMap().value(QStringLiteral("id")).toString();
+        QVERIFY(!person.isEmpty());
+        QCOMPARE(catalog.personFaces(person).size(), 6);
+        const int dates[6][2] = {{2015, 2}, {2015, 11}, {2016, 3}, {2016, 4}, {2076, 1}, {2017, 8}};
+        for (int i = 0; i < photos.size(); ++i)
+            catalog.db().exec(QStringLiteral("UPDATE photo SET year = ?, month = ?, width = 1000, height = 1000 WHERE id = ?"),
+                              {dates[i][0], dates[i][1], photos[i]});
+        catalog.db().exec(QStringLiteral("UPDATE photo SET private = 1 WHERE id = ?"), {photos[5]});
+        // A foto 1 é a "melhor" de 2015 (mais parecida com a pessoa).
+        catalog.db().exec(QStringLiteral("UPDATE face SET similarity = 0.9 WHERE photo_id = ?"), {photos[1]});
+        catalog.db().exec(QStringLiteral("UPDATE face SET similarity = 0.6 WHERE photo_id <> ?"), {photos[1]});
+
+        QList<timeline::Face> list = catalog.timelineFaces(person);
+        QCOMPARE(list.size(), 4);  // sem a de 2076 e sem a privada
+        auto groups = timeline::group(list, QStringLiteral("year"));
+        QCOMPARE(groups.size(), 2);
+        QCOMPARE(groups[0].first, QStringLiteral("2015"));
+        QList<timeline::Pick> toSave;
+        QList<timeline::Entry> entries = timeline::resolve(list, groups, catalog.timelinePicks(person, QStringLiteral("year")), &toSave);
+        QCOMPARE(toSave.size(), 2);
+        const auto faceOf = [&](const QString &photoId) {
+            for (const auto &f : list)
+                if (f.photoId == photoId)
+                    return f.faceId;
+            return QString();
+        };
+        QCOMPARE(entries[0].faceId, faceOf(photos[1]));
+        QCOMPARE(entries[0].candidates, 2);
+        catalog.saveTimelinePicks(person, QStringLiteral("year"), toSave);
+
+        // A pessoa troca 2015 e tira 2016; relido do banco, nada muda.
+        catalog.saveTimelinePicks(person, QStringLiteral("year"), {{QStringLiteral("2015"), faceOf(photos[0]), true, false},
+                                                                   {QStringLiteral("2016"), entries[1].faceId, false, true}});
+        toSave.clear();
+        entries = timeline::resolve(list, groups, catalog.timelinePicks(person, QStringLiteral("year")), &toSave);
+        QVERIFY(toSave.isEmpty());
+        QCOMPARE(entries[0].faceId, faceOf(photos[0]));
+        QVERIFY(entries[0].user);
+        QVERIFY(entries[1].hidden);
+        // Cada frequência tem as suas escolhas.
+        QVERIFY(catalog.timelinePicks(person, QStringLiteral("quarter")).isEmpty());
+        QCOMPARE(timeline::group(list, QStringLiteral("quarter")).size(), 4);
+        QCOMPARE(timeline::periodOf(QStringLiteral("semester"), 2016, 7), QStringLiteral("2016-S2"));
+        QCOMPARE(timeline::periodOf(QStringLiteral("month"), 2016, 3), QStringLiteral("2016-03"));
+
+        // A foto escolhida fica privada: o período volta à escolha automática.
+        catalog.db().exec(QStringLiteral("UPDATE photo SET private = 1 WHERE id = ?"), {photos[0]});
+        list = catalog.timelineFaces(person);
+        groups = timeline::group(list, QStringLiteral("year"));
+        toSave.clear();
+        entries = timeline::resolve(list, groups, catalog.timelinePicks(person, QStringLiteral("year")), &toSave);
+        QCOMPARE(entries[0].faceId, faceOf(photos[1]));
+        QVERIFY(!entries[0].user);
+        QCOMPARE(toSave.size(), 1);
+
+        // "Escolher de novo" esquece tudo; apagar a pessoa apaga as escolhas.
+        catalog.resetTimeline(person, QStringLiteral("year"));
+        QVERIFY(catalog.timelinePicks(person, QStringLiteral("year")).isEmpty());
+        catalog.saveTimelinePicks(person, QStringLiteral("year"), toSave);
+        catalog.deletePerson(person);
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT count(*) FROM person_timeline")).toInt(), 0);
+        QCOMPARE(timeline::autoColumns(9), 3);
+        QCOMPARE(timeline::autoColumns(8), 3);
+        QCOMPARE(timeline::autoColumns(4), 2);
+    }
+
     void facesUnreadableRequeued()
     {
         // schema/0006.sql: o "image unreadable" das faces (disco fora) volta

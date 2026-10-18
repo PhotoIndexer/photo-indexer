@@ -182,6 +182,44 @@ Rectangle {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 8
 
+        // Versão nova publicada: abre a recomendação de atualizar.
+        T.AbstractButton {
+            id: updateChip
+            visible: App.updates.available
+            implicitHeight: 28
+            implicitWidth: updateRow.implicitWidth + 20
+            hoverEnabled: true
+            onClicked: window.recommendUpdate()
+            Accessible.name: updateText.text
+            background: Rectangle {
+                radius: height / 2
+                color: updateChip.hovered ? Theme.muted : Theme.alpha(Theme.success, 0.16)
+            }
+            contentItem: RowLayout {
+                id: updateRow
+                spacing: 6
+                Icon {
+                    Layout.leftMargin: 10
+                    name: "download"
+                    size: 14
+                    color: Theme.success
+                }
+                Text {
+                    id: updateText
+                    Layout.rightMargin: 10
+                    text: qsTr("Update available")
+                    font.pixelSize: Theme.fontSm
+                    font.weight: Font.Medium
+                    color: Theme.foreground
+                }
+            }
+            Tip {
+                text: qsTr("Version %1 is available — you have %2").arg(App.updates.latestVersion).arg(App.version)
+                visible: updateChip.hovered
+                x: updateChip.width - implicitWidth
+            }
+        }
+
         T.AbstractButton {
             id: progress
             visible: App.tasks.pending > 0

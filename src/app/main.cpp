@@ -34,6 +34,7 @@
 #include <QQuickWindow>
 #include <QThreadPool>
 #include <QTimer>
+#include <QUrl>
 
 Q_LOGGING_CATEGORY(lcMain, "photoidx.main")
 
@@ -133,8 +134,14 @@ int main(int argc, char *argv[])
     const QCommandLineOption aiSearchOption(QStringLiteral("ai-search"), QStringLiteral("Search with the AI (screenshot, with --search)."));
     const QCommandLineOption similarOption(QStringLiteral("similar"),
                                            QStringLiteral("Find faces similar to the Nth person (screenshot)."), QStringLiteral("n"));
+    const QCommandLineOption frequencyOption(QStringLiteral("timeline-frequency"),
+                                             QStringLiteral("Over the years: month, quarter, semester or year (with --page timeline)."),
+                                             QStringLiteral("frequency"));
+    const QCommandLineOption timelineExportOption(QStringLiteral("timeline-export"),
+                                                  QStringLiteral("Over the years: also export the image to this file (with --page timeline)."),
+                                                  QStringLiteral("file"));
     parser.addOptions({debugOption, screenshotOption, pageOption, waitOption, tabOption, copiesOption, nodeOption, searchOption,
-                       aiSearchOption, similarOption});
+                       aiSearchOption, similarOption, frequencyOption, timelineExportOption});
     // O Finder às vezes passa -psn_0_12345: ignorado.
     QStringList args = QCoreApplication::arguments();
     args.erase(std::remove_if(args.begin(), args.end(), [](const QString &a) { return a.startsWith(QLatin1String("-psn_")); }),
@@ -201,6 +208,10 @@ int main(int argc, char *argv[])
     // Arquivos: com a janela pronta (a privada pede a senha num modal).
     if (!files.isEmpty())
         QTimer::singleShot(0, &controller, [&controller, files]() { controller.openPaths(files); });
+    // Versão nova: em segundo plano, depois que a janela abriu (nunca nas
+    // capturas de tela — elas não podem depender da rede).
+    if (!parser.isSet(screenshotOption))
+        controller.updates()->checkLater(5000);
 
     if (parser.isSet(screenshotOption)) {
         const QString file = parser.value(screenshotOption);
@@ -248,11 +259,26 @@ int main(int argc, char *argv[])
             });
         }
         if (parser.isSet(personOption)) {
-            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, n = parser.value(personOption).toInt()]() {
+            // Com --page timeline: a pessoa ao longo dos anos.
+            const bool timeline = parser.value(pageOption) == QLatin1String("timeline");
+            QTimer::singleShot(std::max(0, wait - 3000), &controller, [&controller, timeline, frequency = parser.value(frequencyOption),
+                                                                           exportTo = parser.value(timelineExportOption),
+                                                                           n = parser.value(personOption).toInt()]() {
                 const QVariantList people = controller.people()->people();
                 if (n >= 0 && n < people.size()) {
-                    controller.people()->openPerson(people[n].toMap().value(QStringLiteral("id")).toString());
-                    controller.setPage(QStringLiteral("people"));
+                    const QVariantMap person = people[n].toMap();
+                    controller.people()->openPerson(person.value(QStringLiteral("id")).toString());
+                    if (timeline) {
+                        if (!frequency.isEmpty())
+                            controller.timeline()->setFrequency(frequency);
+                        controller.timeline()->open(person.value(QStringLiteral("id")).toString(),
+                                                    person.value(QStringLiteral("label")).toString());
+                        if (!exportTo.isEmpty())
+                            QTimer::singleShot(1500, &controller, [&controller, exportTo]() {
+                                controller.timeline()->exportImage(QUrl::fromLocalFile(exportTo));
+                            });
+                    }
+                    controller.setPage(timeline ? QStringLiteral("timeline") : QStringLiteral("people"));
                 }
             });
         }

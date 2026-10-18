@@ -616,6 +616,17 @@ void LibraryController::removeFromAlbum(const QStringList &photoIds, const QStri
     act([&]() { m_catalog->removePhotosFromAlbum(orSelection(photoIds), albumId); });
 }
 
+void LibraryController::notThisPerson(const QStringList &photoIds, const QString &personId)
+{
+    act([&]() {
+        const int count = m_catalog->rejectPersonInPhotos(personId, orSelection(photoIds));
+        if (count > 0) {
+            m_grid.clearSelection();
+            refresh();
+        }
+    });
+}
+
 void LibraryController::addToCategory(const QStringList &photoIds, const QString &categoryId)
 {
     act([&]() { m_catalog->addPhotosToCategory(orSelection(photoIds), categoryId); });

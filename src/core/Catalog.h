@@ -21,6 +21,7 @@
 #include "core/FileOps.h"
 #include "core/FaceIndex.h"
 #include "core/HashTree.h"
+#include "core/Timeline.h"
 #include "core/Models.h"
 #include "core/Vault.h"
 
@@ -293,6 +294,17 @@ public:
     QVariantMap person(const QString &personId) const;
     /// [{id, photoId, cropPath, score, similarity, assignment, x, y, w, h}]
     QVariantList personFaces(const QString &personId) const;
+    /// "Não é esta pessoa" (grade de uma pessoa): as faces dela nestas fotos
+    /// saem dela e nunca voltam (rejectFaces). Devolve quantas.
+    int rejectPersonInPhotos(const QString &personId, const QStringList &photoIds);
+    /// "Ao longo dos anos": as faces da pessoa em fotos datadas e públicas
+    /// (só leitura — roda no CatalogReader).
+    QList<timeline::Face> timelineFaces(const QString &personId) const;
+    /// As escolhas guardadas de cada período (person_timeline), por período.
+    QHash<QString, timeline::Pick> timelinePicks(const QString &personId, const QString &frequency) const;
+    void saveTimelinePicks(const QString &personId, const QString &frequency, const QList<timeline::Pick> &picks);
+    /// Esquece as escolhas da frequência: a montagem é refeita automática.
+    void resetTimeline(const QString &personId, const QString &frequency);
     /// Faces que a pessoa tirou de alguém e ainda não pôs em ninguém.
     QVariantList unassignedFaces() const;
     QString createPerson(const QString &name, const QStringList &faceIds);

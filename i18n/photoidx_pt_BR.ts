@@ -43,6 +43,14 @@
         <source>Source code and releases on GitHub</source>
         <translation>Código-fonte e versões no GitHub</translation>
     </message>
+    <message>
+        <source>Version %1 is available.</source>
+        <translation>A versão %1 está disponível.</translation>
+    </message>
+    <message>
+        <source>Check for a new version when the app opens</source>
+        <translation>Procurar versão nova ao abrir o app</translation>
+    </message>
 </context>
 <context>
     <name>ActivityRail</name>
@@ -151,6 +159,14 @@
     <message>
         <source>Index a folder and its subfolders</source>
         <translation>Indexar uma pasta e as subpastas dela</translation>
+    </message>
+    <message>
+        <source>Update available</source>
+        <translation>Atualização disponível</translation>
+    </message>
+    <message>
+        <source>Version %1 is available — you have %2</source>
+        <translation>A versão %1 está disponível — você tem a %2</translation>
     </message>
 </context>
 <context>
@@ -1284,6 +1300,10 @@
         <source>Private photos</source>
         <translation>Fotos privadas</translation>
     </message>
+    <message>
+        <source>Move selected photos to the Trash</source>
+        <translation>Mover as fotos selecionadas para a Lixeira</translation>
+    </message>
 </context>
 <context>
     <name>LibraryController</name>
@@ -1843,6 +1863,14 @@
         <source>Find this person in other photos</source>
         <translation>Achar esta pessoa em outras fotos</translation>
     </message>
+    <message>
+        <source>Move the selected photos to the system Trash</source>
+        <translation>Mover as fotos selecionadas para a Lixeira do sistema</translation>
+    </message>
+    <message>
+        <source>Not %1</source>
+        <translation>Não é %1</translation>
+    </message>
 </context>
 <context>
     <name>Main</name>
@@ -1945,6 +1973,22 @@
     <message>
         <source>Every subfolder is searched too. A dropped photo opens in the viewer.</source>
         <translation>As subpastas também são vasculhadas. Uma foto solta abre no visualizador.</translation>
+    </message>
+    <message>
+        <source>A new version is available</source>
+        <translation>Há uma versão nova</translation>
+    </message>
+    <message>
+        <source>%1 &lt;b&gt;%2&lt;/b&gt; is available (you have %3). We recommend updating: download the installer and run it over this one. Your catalog, thumbnails and settings are kept.</source>
+        <translation>O %1 &lt;b&gt;%2&lt;/b&gt; está disponível (você tem a %3). Recomendamos atualizar: baixe o instalador e instale por cima deste. Seu catálogo, miniaturas e preferências continuam.</translation>
+    </message>
+    <message>
+        <source>Later</source>
+        <translation>Depois</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Baixar</translation>
     </message>
 </context>
 <context>
@@ -2744,6 +2788,18 @@
         <source>Folder “%1” moved to the Trash.</source>
         <translation>Pasta “%1” mandada para a Lixeira.</translation>
     </message>
+    <message>
+        <source>The image could not be saved. Check that the folder exists and you can write to it.</source>
+        <translation>Não foi possível salvar a imagem. Confira se a pasta existe e se você pode gravar nela.</translation>
+    </message>
+    <message>
+        <source>Over the years</source>
+        <translation>Ao longo dos anos</translation>
+    </message>
+    <message>
+        <source>Image saved to “%1”.</source>
+        <translation>Imagem salva em “%1”.</translation>
+    </message>
 </context>
 <context>
     <name>Modal</name>
@@ -3090,6 +3146,10 @@
     <message>
         <source>Find similar faces</source>
         <translation>Procurar rostos parecidos</translation>
+    </message>
+    <message>
+        <source>Over the years</source>
+        <translation>Ao longo dos anos</translation>
     </message>
 </context>
 <context>
@@ -3523,6 +3583,152 @@
     <message>
         <source>More tasks</source>
         <translation>Mais tarefas</translation>
+    </message>
+</context>
+<context>
+    <name>TimelineController</name>
+    <message>
+        <source>Q%1 %2</source>
+        <translation>%1º tri. %2</translation>
+    </message>
+    <message>
+        <source>H1 %1</source>
+        <translation>1º sem. %1</translation>
+    </message>
+    <message>
+        <source>H2 %1</source>
+        <translation>2º sem. %1</translation>
+    </message>
+    <message>
+        <source>%1 over the years</source>
+        <translation>%1 ao longo dos anos</translation>
+    </message>
+</context>
+<context>
+    <name>TimelinePage</name>
+    <message>
+        <source>%1 over the years</source>
+        <translation>%1 ao longo dos anos</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n period(s)</source>
+        <translation>
+            <numerusform>%n período</numerusform>
+            <numerusform>%n períodos</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n in the image</source>
+        <translation>
+            <numerusform>%n na imagem</numerusform>
+            <numerusform>%n na imagem</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Every month</source>
+        <translation>Por mês</translation>
+    </message>
+    <message>
+        <source>Every quarter</source>
+        <translation>Por trimestre</translation>
+    </message>
+    <message>
+        <source>Every semester</source>
+        <translation>Por semestre</translation>
+    </message>
+    <message>
+        <source>Every year</source>
+        <translation>Por ano</translation>
+    </message>
+    <message>
+        <source>Columns: auto</source>
+        <translation>Colunas: automático</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n column(s)</source>
+        <translation>
+            <numerusform>%n coluna</numerusform>
+            <numerusform>%n colunas</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Labels</source>
+        <translation>Rótulos</translation>
+    </message>
+    <message>
+        <source>Choose again</source>
+        <translation>Escolher de novo</translation>
+    </message>
+    <message>
+        <source>Choose the photos again?</source>
+        <translation>Escolher as fotos de novo?</translation>
+    </message>
+    <message>
+        <source>The photos you picked and the periods you removed go back to the automatic choice.</source>
+        <translation>As fotos que você escolheu e os períodos que você tirou voltam para a escolha automática.</translation>
+    </message>
+    <message>
+        <source>Pick the best photo of each period automatically again</source>
+        <translation>Escolher de novo, automaticamente, a melhor foto de cada período</translation>
+    </message>
+    <message>
+        <source>Export image…</source>
+        <translation>Exportar imagem…</translation>
+    </message>
+    <message>
+        <source>Not in the image</source>
+        <translation>Fora da imagem</translation>
+    </message>
+    <message>
+        <source>Your pick</source>
+        <translation>Sua escolha</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) in this period</source>
+        <translation>
+            <numerusform>%n foto neste período</numerusform>
+            <numerusform>%n fotos neste período</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>click to change the photo</source>
+        <translation>clique para trocar a foto</translation>
+    </message>
+    <message>
+        <source>No dated photos of this person yet. Photos need a date (from the camera or the file) to show up here.</source>
+        <translation>Ainda não há fotos datadas desta pessoa. A foto precisa de uma data (da câmera ou do arquivo) para aparecer aqui.</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Fechar</translation>
+    </message>
+    <message>
+        <source>Show in the image</source>
+        <translation>Mostrar na imagem</translation>
+    </message>
+    <message>
+        <source>Open the chosen photo</source>
+        <translation>Abrir a foto escolhida</translation>
+    </message>
+    <message>
+        <source>Pick another photo for this period:</source>
+        <translation>Escolha outra foto para este período:</translation>
+    </message>
+    <message>
+        <source>Click to use this photo · double-click to open it</source>
+        <translation>Clique para usar esta foto · clique duplo para abri-la</translation>
+    </message>
+    <message>
+        <source>Export image</source>
+        <translation>Exportar imagem</translation>
+    </message>
+    <message>
+        <source>JPEG image (*.jpg *.jpeg)</source>
+        <translation>Imagem JPEG (*.jpg *.jpeg)</translation>
+    </message>
+    <message>
+        <source>PNG image (*.png)</source>
+        <translation>Imagem PNG (*.png)</translation>
     </message>
 </context>
 <context>

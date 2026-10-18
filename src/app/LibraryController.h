@@ -144,6 +144,9 @@ public:
     /// Para o álbum; vindo de outro álbum (o nó atual), sai dele.
     Q_INVOKABLE void moveToAlbum(const QStringList &photoIds, const QString &albumId);
     Q_INVOKABLE void removeFromCategory(const QStringList &photoIds, const QString &categoryId);
+    /// "Não é esta pessoa": as fotos saem da pessoa (as faces dela nelas
+    /// viram desconhecidas e nunca voltam para ela).
+    Q_INVOKABLE void notThisPerson(const QStringList &photoIds, const QString &personId);
     Q_INVOKABLE QString createAlbum(const QString &parentId, const QString &name);
     Q_INVOKABLE void renameAlbum(const QString &albumId, const QString &name);
     Q_INVOKABLE void deleteAlbum(const QString &albumId);

@@ -10,6 +10,8 @@ qt_add_executable(photoidx
     LibraryController.h LibraryController.cpp
     ViewerController.h ViewerController.cpp
     PeopleController.h PeopleController.cpp
+    TimelineController.h TimelineController.cpp
+    UpdateChecker.h UpdateChecker.cpp
     TasksController.h TasksController.cpp
     PrivacyController.h PrivacyController.cpp
     FilesController.h FilesController.cpp

@@ -158,6 +158,12 @@ Item {
         enabled: page.visible && App.library.grid.selectedCount > 0 && Dialogs.current === null
         onActivated: App.library.grid.clearSelection()
     }
+    Shortcut {
+        sequences: Keymap.keys("trash")
+        enabled: page.visible && grid.activeFocus && !page.inPrivate && !page.copies
+                 && App.library.grid.selectedCount > 0 && Dialogs.current === null
+        onActivated: page.trashSelection()
+    }
 
     // ------------------------------------------------------------------ //
     // Painel lateral
@@ -680,6 +686,30 @@ Item {
                     onClicked: page.inPrivate ? page.makeSelectionPublic() : page.makeSelectionPrivate()
                 }
                 Button {
+                    id: trashButton
+                    visible: App.library.grid.selectedCount > 0 && !page.inPrivate && !page.copies
+                    size: "sm"
+                    implicitHeight: 30
+                    variant: "outline"
+                    iconName: "trash-2"
+                    text: qsTr("Delete")
+                    onClicked: page.trashSelection()
+                    Tip {
+                        text: qsTr("Move the selected photos to the system Trash") + Keymap.hint("trash")
+                        visible: trashButton.hovered
+                    }
+                }
+                // Grade de uma pessoa: o reconhecimento errou nestas fotos.
+                Button {
+                    visible: App.library.grid.selectedCount > 0 && !page.copies && page.nodeType === "person" && page.nodeId !== ""
+                    size: "sm"
+                    implicitHeight: 30
+                    variant: "ghost"
+                    iconName: "user-x"
+                    text: qsTr("Not %1").arg(App.library.nodeLabel)
+                    onClicked: App.library.notThisPerson([], page.nodeId)
+                }
+                Button {
                     visible: App.library.grid.selectedCount > 0 && !page.copies && (page.nodeType === "album" || page.nodeType === "cat")
                                 && !(page.inPrivate && page.nodeId === App.privacy.albumNode.substring(6))
                     size: "sm"
@@ -741,6 +771,11 @@ Item {
                 T.Slider {
                     id: sizeSlider
                     Layout.preferredWidth: 110
+                    // Sem altura própria o trilho e a bola (alturas fixas, sem
+                    // implicit) deixavam o controle com 0 px: o clique não pegava.
+                    implicitWidth: 110
+                    implicitHeight: 24
+                    padding: 4
                     from: 80
                     to: 480
                     stepSize: 10
@@ -998,12 +1033,6 @@ Item {
                                (newName) => App.files.renamePhoto(id, newName));
             }
         }
-        AppMenuItem {
-            visible: page.fileMode
-            height: visible ? implicitHeight : 0
-            text: qsTr("Move to Trash…")
-            onTriggered: page.trashSelection()
-        }
         AppMenuSeparator {
             visible: page.fileMode
             height: visible ? implicitHeight : 0
@@ -1043,6 +1072,13 @@ Item {
             text: qsTr("Remove from this album")
             onTriggered: App.library.removeFromAlbum([], page.nodeId)
         }
+        // Grade de uma pessoa: o reconhecimento errou nestas fotos.
+        AppMenuItem {
+            visible: !page.copies && page.nodeType === "person" && page.nodeId !== ""
+            height: visible ? implicitHeight : 0
+            text: qsTr("Not %1").arg(App.library.nodeLabel)
+            onTriggered: App.library.notThisPerson([], page.nodeId)
+        }
         AppMenuItem {
             visible: !page.copies && page.nodeType === "cat"
             height: visible ? implicitHeight : 0
@@ -1058,6 +1094,18 @@ Item {
                                             if (id)
                                                 App.library.addToAlbum([], id);
                                         })
+        }
+        // Excluir vale em qualquer aba (sempre para a Lixeira do sistema).
+        AppMenuSeparator {
+            visible: !page.inPrivate
+            height: visible ? implicitHeight : 0
+        }
+        AppMenuItem {
+            visible: !page.inPrivate
+            height: visible ? implicitHeight : 0
+            text: qsTr("Move to Trash…")
+            shortcutText: Keymap.label("trash")
+            onTriggered: page.trashSelection()
         }
     }
 

@@ -10,6 +10,8 @@
 
 #include "LibraryController.h"
 #include "PeopleController.h"
+#include "TimelineController.h"
+#include "UpdateChecker.h"
 #include "FilesController.h"
 #include "PrivacyController.h"
 #include "TasksController.h"
@@ -45,7 +47,7 @@ class AppController : public QObject
     Q_PROPERTY(QString language READ language NOTIFY languageChanged)
     Q_PROPERTY(QVariantList languages READ languages CONSTANT)
     Q_PROPERTY(bool darkTheme READ darkTheme WRITE setDarkTheme NOTIFY darkThemeChanged)
-    /// "library" | "viewer" | "people" | "faceSearch" | "folders" | "tasks"
+    /// "library" | "viewer" | "people" | "faceSearch" | "timeline" | "folders" | "tasks"
     Q_PROPERTY(QString page READ page WRITE setPage NOTIFY pageChanged)
     /// Erro ao abrir o catálogo ("" = aberto).
     Q_PROPERTY(QString catalogError READ catalogError CONSTANT)
@@ -57,6 +59,8 @@ class AppController : public QObject
     Q_PROPERTY(LibraryController *library READ library CONSTANT)
     Q_PROPERTY(ViewerController *viewer READ viewer CONSTANT)
     Q_PROPERTY(PeopleController *people READ people CONSTANT)
+    Q_PROPERTY(TimelineController *timeline READ timeline CONSTANT)
+    Q_PROPERTY(UpdateChecker *updates READ updates CONSTANT)
     Q_PROPERTY(TasksController *tasks READ tasks CONSTANT)
     Q_PROPERTY(PrivacyController *privacy READ privacy CONSTANT)
     Q_PROPERTY(FilesController *files READ files CONSTANT)
@@ -94,6 +98,8 @@ public:
     /// O chaveiro da sessão (o provider image://private decifra com ele).
     std::shared_ptr<const pix::crypto::KeyRing> keyRing() const;
     PeopleController *people() { return m_people.get(); }
+    TimelineController *timeline() { return m_timeline.get(); }
+    UpdateChecker *updates() { return m_updates.get(); }
     TasksController *tasks() { return m_tasks.get(); }
     QString logsDir() const;
     QString dataDir() const;
@@ -171,6 +177,8 @@ private:
     std::unique_ptr<LibraryController> m_library;
     std::unique_ptr<ViewerController> m_viewer;
     std::unique_ptr<PeopleController> m_people;
+    std::unique_ptr<TimelineController> m_timeline;
+    std::unique_ptr<UpdateChecker> m_updates;
     std::unique_ptr<TasksController> m_tasks;
     std::unique_ptr<PrivacyController> m_privacy;
     std::unique_ptr<FilesController> m_files;

@@ -105,6 +105,8 @@ QtObject {
             return qsTr("Face recognition is not available in this copy of the app (the model is missing).");
         case "faces.noneFound":
             return qsTr("No face was found in this photo. Try a photo where the face is larger and well lit.");
+        case "timeline.exportFailed":
+            return qsTr("The image could not be saved. Check that the folder exists and you can write to it.");
         case "error.unexpected":
         case "error.generic":
             return qsTr("Something went wrong. Please try again.");
@@ -126,6 +128,8 @@ QtObject {
             return qsTr("Albums");
         if (k.startsWith("vault."))
             return qsTr("Private photos");
+        if (k.startsWith("timeline."))
+            return qsTr("Over the years");
         return qsTr("Something went wrong");
     }
 
@@ -179,6 +183,8 @@ QtObject {
             return qsTr("Folder “%1” moved.").arg(p.name || "");
         case "files.folderTrashed":
             return qsTr("Folder “%1” moved to the Trash.").arg(p.name || "");
+        case "timeline.exported":
+            return qsTr("Image saved to “%1”.").arg(p.path || "");
         case "vault.autoLocked":
             return qsTr("Private photos were locked after a period without use.");
         }

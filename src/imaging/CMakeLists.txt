@@ -13,6 +13,7 @@ add_library(photoidx_imaging STATIC
     Onnx.h Onnx.cpp
     Clip.h Clip.cpp
     Faces.h Faces.cpp
+    Collage.h Collage.cpp
 )
 target_include_directories(photoidx_imaging PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
 target_link_libraries(photoidx_imaging PUBLIC Qt6::Core Qt6::Gui ${OpenCV_LIBS} photoidx_libraw)

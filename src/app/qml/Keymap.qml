@@ -53,6 +53,7 @@ QtObject {
         { id: "filter", group: qsTr("Library"), name: qsTr("Show or hide the filter"), icon: "sliders-horizontal", keys: ["Ctrl+Shift+F"] },
         { id: "selectAll", group: qsTr("Library"), name: qsTr("Select all photos"), icon: "check", keys: ["Ctrl+A"] },
         { id: "clearSelection", group: qsTr("Library"), name: qsTr("Clear selection / back"), icon: "x", keys: ["Esc"] },
+        { id: "trash", group: qsTr("Library"), name: qsTr("Move selected photos to the Trash"), icon: "trash-2", keys: _mac ? ["Ctrl+Backspace", "Del"] : ["Del"] },
         { id: "zoomIn", group: qsTr("Library"), name: qsTr("Larger thumbnails"), icon: "zoom-in", keys: ["Ctrl+="] },
         { id: "zoomOut", group: qsTr("Library"), name: qsTr("Smaller thumbnails"), icon: "zoom-out", keys: ["Ctrl+-"] },
         { id: "newAlbum", group: qsTr("Library"), name: qsTr("New album"), icon: "book-image", keys: ["Ctrl+Shift+N"] },

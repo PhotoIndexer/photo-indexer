@@ -155,6 +155,17 @@ Item {
                     visible: !detail.unassignedOpen
                     size: "sm"
                     variant: "outline"
+                    iconName: "history"
+                    text: qsTr("Over the years")
+                    onClicked: {
+                        App.timeline.open(App.people.person.id, App.people.person.label || "");
+                        App.page = "timeline";
+                    }
+                }
+                Button {
+                    visible: !detail.unassignedOpen
+                    size: "sm"
+                    variant: "outline"
                     iconName: "images"
                     text: qsTr("Photos")
                     onClicked: {

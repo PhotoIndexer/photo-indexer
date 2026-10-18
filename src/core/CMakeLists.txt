@@ -11,6 +11,7 @@ add_library(photoidx_core STATIC
     HashTree.h HashTree.cpp
     FaceIndex.h FaceIndex.cpp
     FaceClusterer.h FaceClusterer.cpp
+    Timeline.h Timeline.cpp
     FileOps.h FileOps.cpp
     Taxonomy.h Taxonomy.cpp
     Models.h

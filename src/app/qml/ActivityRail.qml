@@ -35,7 +35,7 @@ Rectangle {
     function isActive(key) {
         switch (key) {
         case "library": return App.page === "library" || App.page === "viewer";
-        case "people": return App.page === "people" || App.page === "faceSearch";
+        case "people": return App.page === "people" || App.page === "faceSearch" || App.page === "timeline";
         case "folders": return App.page === "folders";
         case "tasks": return App.page === "tasks";
         case "privacy": return App.page === "privacy";

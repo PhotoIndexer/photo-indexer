@@ -259,4 +259,35 @@
         </translation>
     </message>
 </context>
+<context>
+    <name>TimelinePage</name>
+    <message numerus="yes">
+        <source>%n period(s)</source>
+        <translation>
+            <numerusform>%n period</numerusform>
+            <numerusform>%n periods</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n in the image</source>
+        <translation>
+            <numerusform>%n in the image</numerusform>
+            <numerusform>%n in the image</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n column(s)</source>
+        <translation>
+            <numerusform>%n column</numerusform>
+            <numerusform>%n columns</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n photo(s) in this period</source>
+        <translation>
+            <numerusform>%n photo in this period</numerusform>
+            <numerusform>%n photos in this period</numerusform>
+        </translation>
+    </message>
+</context>
 </TS>

@@ -2,6 +2,7 @@
 // Leitura de imagens: formatos, EXIF, hashes. O picture_hash é comparado com o
 // do ../photoe (Pillow), em tests/data/faces/expected.json.
 
+#include "imaging/Collage.h"
 #include "imaging/Exif.h"
 #include "imaging/Formats.h"
 #include "imaging/Hashes.h"
@@ -12,6 +13,7 @@
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QThread>
 
@@ -82,6 +84,50 @@ class TestImaging : public QObject
     Q_OBJECT
 
 private slots:
+    void collageCropAndExif()
+    {
+        // Recorte de retrato: do tamanho pedido, com o rosto dentro, sem sair
+        // da foto mesmo com o rosto na borda.
+        cv::Mat src(1000, 1500, CV_8UC3, cv::Scalar(0, 0, 0));
+        cv::rectangle(src, cv::Rect(1300, 50, 150, 150), cv::Scalar(255, 255, 255), cv::FILLED);
+        const cv::Mat crop = cropPortrait(src, QRectF(1300.0 / 1500, 0.05, 0.1, 0.15), cv::Size(300, 360));
+        QCOMPARE(crop.cols, 300);
+        QCOMPARE(crop.rows, 360);
+        QVERIFY(cv::mean(crop)[0] > 20);  // o rosto (branco) aparece
+        QCOMPARE(cropPortrait(cv::Mat(), QRectF(0, 0, 1, 1), cv::Size(10, 10)).empty(), true);
+
+        // EXIF da imagem exportada: legível pelo nosso leitor.
+        ExportInfo info{QStringLiteral("Ana over the years"), QStringLiteral("PhotoIDX 1.2.3"), QStringLiteral("https://photoindexer.github.io/")};
+        const ExifTags tags = readExifTags(buildExif(info));
+        QMap<quint16, QString> text;
+        for (const ExifTag &t : tags)
+            if (t.type == 2)
+                text.insert(t.tag, QString::fromUtf8(t.data).remove(QChar(0)));
+        QCOMPARE(text.value(0x0131), info.software);
+        QCOMPARE(text.value(0x010e), info.title);
+        QCOMPARE(text.value(0x013c), info.url);
+        bool comment = false;
+        for (const ExifTag &t : tags)
+            comment |= t.ifd == QLatin1String("Exif") && t.tag == 0x9286 && t.data.contains(info.url.toUtf8());
+        QVERIFY(comment);
+
+        // Gravado em JPEG: o APP1 está lá e a imagem continua abrindo.
+        QTemporaryDir dir;
+        QImage image(64, 48, QImage::Format_RGB32);
+        image.fill(Qt::red);
+        const QString path = dir.filePath(QStringLiteral("out.jpg"));
+        QCOMPARE(saveExport(image, path, info), QString());
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::ReadOnly));
+        const QByteArray bytes = f.readAll();
+        QVERIFY(bytes.contains(QByteArray("Exif\0\0", 6)));
+        QVERIFY(bytes.contains(info.software.toUtf8()));
+        QCOMPARE(QImage::fromData(bytes).size(), QSize(64, 48));
+        const QString png = dir.filePath(QStringLiteral("out.png"));
+        QCOMPARE(saveExport(image, png, info), QString());
+        QCOMPARE(QImage(png).text(QStringLiteral("Software")), info.software);
+    }
+
     void formats()
     {
         QVERIFY(isImageFile(QStringLiteral("/a/b/IMG_0001.JPG")));

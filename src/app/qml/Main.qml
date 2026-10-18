@@ -11,6 +11,7 @@ import PhotoIDX
 //   "viewer"      pages/ViewerPage.qml     a foto aberta
 //   "people"      pages/PeoplePage.qml     pessoas e as faces de cada uma
 //   "faceSearch"  pages/FaceSearchPage.qml busca pela foto de uma pessoa
+//   "timeline"    pages/TimelinePage.qml   uma pessoa ao longo dos anos
 //   "folders"     pages/FoldersPage.qml    pastas indexadas e discos
 //   "tasks"       pages/TasksPage.qml      as etapas da indexação
 //   "privacy"     pages/PrivacyPage.qml    fotos privadas: senha, chave, trancar
@@ -231,6 +232,28 @@ QQC.ApplicationWindow {
         }
     }
 
+    // Versão nova (App.updates, verificada ao abrir): recomenda atualizar uma
+    // vez por versão; depois fica o aviso no cabeçalho.
+    Connections {
+        target: App.updates
+        function onUpdateFound(version) {
+            App.updates.markNotified();
+            window.recommendUpdate();
+        }
+    }
+
+    function recommendUpdate() {
+        Dialogs.confirm({
+            title: qsTr("A new version is available"),
+            description: qsTr("%1 <b>%2</b> is available (you have %3). We recommend updating: download the installer and run it over this one. Your catalog, thumbnails and settings are kept.")
+                .arg(App.brandName).arg(Messages.escapeHtml(App.updates.latestVersion)).arg(Messages.escapeHtml(App.version)),
+            variant: "info",
+            iconName: "download",
+            cancelLabel: qsTr("Later"),
+            confirmLabel: qsTr("Download")
+        }, () => App.openUrl(App.updates.releaseUrl));
+    }
+
     // Erros da senha: dentro do modal da senha se ele estiver aberto
     // (PasswordDialog), senão o modal de erro de sempre.
     Connections {
@@ -300,6 +323,13 @@ QQC.ApplicationWindow {
                 names: nameDialog
                 onChooseFileRequested: faceFileDialog.open()
             }
+        }
+
+        Loader {
+            anchors.fill: parent
+            active: App.page === "timeline"
+            visible: active
+            sourceComponent: TimelinePage {}
         }
 
         Loader {
