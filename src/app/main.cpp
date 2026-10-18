@@ -151,6 +151,11 @@ int main(int argc, char *argv[])
     pix::app::setupLogging(parser.isSet(debugOption));
     // Onde a interface trava: ~/.photo_indexer/logs/perf.log (core/Perf.h).
     pix::perf::startWatchdog();
+    // Toda saída do main (inclusive as que voltam cedo) para o vigia.
+    struct WatchdogStop
+    {
+        ~WatchdogStop() { pix::perf::stopWatchdog(); }
+    } watchdogStop;
     qCInfo(lcMain) << "PhotoIDX" << PHOTOIDX_VERSION << "starting; data in" << pix::AppPaths::dataDir();
 
     QStringList paths;
@@ -342,7 +347,7 @@ int main(int argc, char *argv[])
     }
 
     const int code = QGuiApplication::exec();
-    pix::perf::stopWatchdog();
+    pix::perf::stopWatchdog();  // já: o encerramento não conta como travada
     QThreadPool::globalInstance()->waitForDone();
     qCInfo(lcMain) << "PhotoIDX exiting with" << code;
     return code;

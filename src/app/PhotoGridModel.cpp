@@ -35,6 +35,7 @@ QVariant PhotoGridModel::data(const QModelIndex &index, int role) const
     case StateRole: return r.state;
     case FolderRole: return r.dir.isEmpty() ? QString() : QDir::toNativeSeparators(r.dir + u'/');
     case SizeTextRole: return r.width > 0 ? QStringLiteral("%1×%2").arg(r.width).arg(r.height) : QString();
+    case LockedRole: return r.locked;
     }
     return {};
 }
@@ -44,7 +45,8 @@ QHash<int, QByteArray> PhotoGridModel::roleNames() const
     return {{PhotoIdRole, "photoId"},   {NameRole, "name"},         {ThumbUrlRole, "thumbUrl"},
             {AspectRole, "aspect"},     {IsRawRole, "isRaw"},       {TakenAtRole, "takenAt"},
             {SelectedRole, "selected"}, {ScoreRole, "score"},       {StateRole, "state"},
-            {IsPrivateRole, "isPrivate"}, {FolderRole, "folder"},   {SizeTextRole, "sizeText"}};
+            {IsPrivateRole, "isPrivate"}, {FolderRole, "folder"},   {SizeTextRole, "sizeText"},
+            {LockedRole, "locked"}};
 }
 
 namespace {
@@ -52,7 +54,7 @@ namespace {
 bool sameCell(const pix::GridRow &a, const pix::GridRow &b)
 {
     return a.thumbPath == b.thumbPath && a.name == b.name && a.width == b.width && a.height == b.height
-        && a.state == b.state && a.takenAt == b.takenAt && a.score == b.score && a.isPrivate == b.isPrivate;
+        && a.state == b.state && a.takenAt == b.takenAt && a.score == b.score && a.isPrivate == b.isPrivate && a.locked == b.locked;
 }
 
 } // namespace
@@ -102,6 +104,12 @@ void PhotoGridModel::setRows(const QList<pix::GridRow> &rows, bool keepPosition)
 QString PhotoGridModel::idAt(int index) const
 {
     return index >= 0 && index < m_rows.size() ? m_rows.at(index).id : QString();
+}
+
+bool PhotoGridModel::isLocked(const QString &photoId) const
+{
+    const int i = indexOf(photoId);
+    return i >= 0 && m_rows.at(i).locked;
 }
 
 int PhotoGridModel::indexOf(const QString &photoId) const

@@ -95,6 +95,8 @@ QtObject {
             return qsTr("A password is already set. Use “Change password”.");
         case "vault.invalidKey":
             return qsTr("This is not a valid key. Check it was copied completely (14 groups of 4 characters).");
+        case "vault.keyUnused":
+            return qsTr("This key is valid, but no photo in the catalog was encrypted with it.");
         case "vault.wrongKey":
             return qsTr("This key is valid but is not the key of this catalog.");
         case "vault.failed":
@@ -169,6 +171,8 @@ QtObject {
             return qsTr("“%1” is connected again. Looking for new and changed photos…").arg(p.label || "");
         case "disk.offline":
             return qsTr("“%1” was disconnected. Its photos stay browsable through the thumbnails.").arg(p.label || "");
+        case "vault.keyAdded":
+            return qsTr("Key accepted: %n photo(s) are being opened and re-encrypted with the key of this catalog. They will show up in Private photos.", "", Number(p.count || 0));
         case "vault.keyCopied":
             return qsTr("Key copied. The clipboard is cleared in 2 minutes — paste it somewhere safe now.");
         case "files.moving":

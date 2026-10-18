@@ -318,6 +318,21 @@ QString PrivacyController::rotateKey()
     }
 }
 
+void PrivacyController::addKey(const QString &keyText)
+{
+    const QByteArray key = crypto::parseKey(keyText);
+    if (key.isEmpty()) {
+        emit failed(QStringLiteral("vault.invalidKey"), {});
+        return;
+    }
+    try {
+        const int count = m_catalog->addKey(key);
+        emit notice(QStringLiteral("vault.keyAdded"), {{QStringLiteral("count"), count}});
+    } catch (const ActionError &e) {
+        emit failed(e.key(), e.params());
+    }
+}
+
 void PrivacyController::lock()
 {
     m_catalog->lockVault();

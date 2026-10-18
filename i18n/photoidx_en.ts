@@ -172,6 +172,13 @@
             <numerusform>%1 of %n photos moved to the Trash.</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>Key accepted: %n photo(s) are being opened and re-encrypted with the key of this catalog. They will show up in Private photos.</source>
+        <translation>
+            <numerusform>Key accepted: %n photo is being opened and re-encrypted with the key of this catalog. It will show up in Private photos.</numerusform>
+            <numerusform>Key accepted: %n photos are being opened and re-encrypted with the key of this catalog. They will show up in Private photos.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>PeoplePage</name>

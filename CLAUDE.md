@@ -240,6 +240,11 @@ Arquivo que some no meio de uma etapa (disco saiu antes de o app perceber)
 - Consulta nova sobre fotos (árvore, grade, contagem, busca, IA, faces)
   precisa filtrar `p.private = 0` (salvo os nós de álbum privado com o cofre
   aberto). Teste em `tst_core::privatePhotoLifecycle`.
+- Exceção: o `.photoidxe` "trancado" (`kLockedPhotoSql`: cifrado por outro
+  catálogo, nunca aberto, sem nada além do nome no catálogo) aparece na
+  pasta e no disco para a pessoa digitar a chave daquele catálogo
+  (`Catalog::addKey`); aberto, é recifrado com a chave atual e vira uma
+  privada comum. Teste em `tst_core::foreignKeyPhotos`.
 - A chave nasce no `Catalog::open`; com senha, só existe cifrada no banco
   (`core/Vault.h`). Formato e parâmetros (`core/Crypto.h`) não mudam sem
   versão nova do formato — arquivos antigos precisam continuar abrindo.

@@ -56,6 +56,14 @@ private:
 };
 
 /// Uma linha da grade de miniaturas.
+/// Foto "trancada" (alias ``p``): um .photoidxe cifrado com uma chave que
+/// não é a deste catálogo e que nunca foi aberto (sem miniatura). Não há nada
+/// dela no catálogo além do nome: aparece na pasta (para a pessoa digitar a
+/// chave), ao contrário das outras privadas.
+inline constexpr char kLockedPhotoSql[] =
+    "(p.private = 1 AND p.thumb_path = '' AND p.key_id != '' "
+    "AND p.key_id != COALESCE((SELECT value FROM setting WHERE key = 'vault/currentId'), ''))";
+
 struct GridRow
 {
     QString id;
@@ -65,6 +73,7 @@ struct GridRow
     int height = 0;
     bool isRaw = false;
     bool isPrivate = false;     ///< miniatura cifrada (.pidx): image://private
+    bool locked = false;        ///< .photoidxe de outra chave, nunca aberto
     QString takenAt;
     QString state;
     double score = 0.0;         ///< busca por IA / por rosto: a similaridade
@@ -415,6 +424,14 @@ public:
     /// Chave nova (a atual vai junto até as fotos serem recifradas).
     /// Devolve a chave nova. Lança vault.locked.
     QByteArray rotateKey();
+    /// A chave de outro catálogo (os .photoidxe que chegaram cifrados com
+    /// ela): entra no chaveiro, as fotos voltam à fila — o Indexer as abre e
+    /// a etapa "privacy" as recifra com a chave atual. Devolve quantas fotos.
+    /// Lança vault.locked e vault.keyUnused (nenhuma foto usa esta chave).
+    int addKey(const QByteArray &key);
+    /// Quantos .photoidxe "trancados": cifrados com uma chave que o chaveiro
+    /// não tem e nunca abertos.
+    int lockedCount() const;
     QString privateAlbumId() const;
     bool isPrivateAlbum(const QString &albumId) const;
     /// Esconde já e põe na fila da etapa "privacy" (cifrar o original e a

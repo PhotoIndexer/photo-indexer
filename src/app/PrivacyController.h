@@ -56,6 +56,11 @@ public:
     /// Chave nova (as privadas são recifradas pela etapa "privacy"); devolve
     /// a chave nova para a pessoa guardar.
     Q_INVOKABLE QString rotateKey();
+    /// A chave do catálogo que cifrou .photoidxe "trancados" (vindos de outro
+    /// catálogo): as fotos abrem e são recifradas com a chave atual. Avisa
+    /// por notice("vault.keyAdded", {count}) ou failed(vault.invalidKey,
+    /// vault.keyUnused, vault.locked).
+    Q_INVOKABLE void addKey(const QString &keyText);
     Q_INVOKABLE void lock();
 
 protected:

@@ -151,6 +151,52 @@ QByteArray Catalog::rotateKey()
     return fresh.current();
 }
 
+int Catalog::addKey(const QByteArray &key)
+{
+    if (!m_keys->isOpen())
+        throw ActionError(QStringLiteral("vault.locked"));
+    const QByteArray id = crypto::keyId(key);
+    const QString hex = hexId(id);
+    const int count = m_db.scalar(QStringLiteral("SELECT count(*) FROM photo WHERE private = 1 AND key_id = ?"), {hex}).toInt();
+    if (count == 0)
+        throw ActionError(QStringLiteral("vault.keyUnused"));
+    vault::Ring ring{m_keys->keys(), m_keys->currentId()};
+    if (!ring.keys.contains(id)) {
+        ring.keys.insert(id, key);
+        const vault::Record record = vaultRecord();
+        if (record.hasPassword()) {
+            if (m_passwordKey.isEmpty())
+                throw ActionError(QStringLiteral("vault.locked"));
+            storeVault(vault::rewrap(record, ring, m_passwordKey));
+        } else {
+            setSetting(QStringLiteral("vault/plain"), QString::fromLatin1(vault::serialize(ring).toBase64()));
+        }
+        m_keys->set(ring.keys, ring.currentId);
+    }
+    // De volta às filas: o Indexer abre (a miniatura sai com a chave atual)
+    // e a etapa "privacy" recifra o arquivo com a chave atual; depois disso a
+    // chave de fora sai do chaveiro (pruneKeys).
+    Transaction tx(m_db);
+    m_db.exec(QStringLiteral("UPDATE photo SET state = 'pending', error = '' WHERE private = 1 AND key_id = ? AND state = 'error'"),
+              {hex});
+    m_db.exec(QStringLiteral("UPDATE photo SET private_state = 'done', error = '' WHERE private = 1 AND key_id = ? "
+                             "AND private_state LIKE 'error:%'"),
+              {hex});
+    tx.commit();
+    qCInfo(lcCatalog) << "Key" << hex << "added for" << count << "photo(s) encrypted elsewhere";
+    emit privacyChanged();
+    emit photosChanged();
+    emit treeChanged(QStringLiteral("folders"));
+    return count;
+}
+
+int Catalog::lockedCount() const
+{
+    return m_db.scalar(QStringLiteral("SELECT count(*) FROM photo p WHERE p.state != 'missing' AND %1")
+                           .arg(QLatin1String(kLockedPhotoSql)))
+        .toInt();
+}
+
 void Catalog::pruneKeys()
 {
     if (!m_keys->isOpen() || m_passwordKey.isEmpty())
@@ -257,7 +303,7 @@ QList<PrivacyJob> Catalog::nextPrivacyJobs(int limit, const QSet<QString> &busy)
         return out;
     const KeySnapshot keys = keySnapshot();
     QSqlQuery q = m_db.exec(
-        QStringLiteral("SELECT p.id, p.path, p.thumb_path, p.private_state, p.file_sha256 FROM photo p "
+        QStringLiteral("SELECT p.id, p.path, p.thumb_path, p.private_state, p.file_sha256, p.key_id FROM photo p "
                        "JOIN folder f ON f.id = p.folder_id JOIN disk d ON d.id = f.disk_id "
                        "WHERE p.private = 1 AND d.online = 1 AND p.state != 'missing' "
                        "AND (p.private_state IN ('encrypt', 'decrypt') OR (p.private_state = 'done' AND p.key_id != '' AND p.key_id != ?)) "
@@ -266,6 +312,11 @@ QList<PrivacyJob> Catalog::nextPrivacyJobs(int limit, const QSet<QString> &busy)
     while (q.next() && out.size() < limit) {
         const QString id = q.value(0).toString();
         if (busy.contains(id))
+            continue;
+        // Cifrada com uma chave que o chaveiro não tem (outro catálogo):
+        // recifrar falharia; espera a pessoa digitar a chave (addKey).
+        const QString keyHex = q.value(5).toString();
+        if (q.value(3).toString() == QLatin1String("done") && !keys.keys.contains(QByteArray::fromHex(keyHex.toLatin1())))
             continue;
         PrivacyJob job;
         job.photoId = id;

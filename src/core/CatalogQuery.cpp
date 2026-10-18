@@ -121,7 +121,10 @@ QVariantList Catalog::tree(const QString &tab) const
     if (tab == QLatin1String("folders")) {
         // Disco -> pasta indexada -> subpastas (só as que têm foto, e os caminhos até elas).
         QHash<QString, int> ownCount;
-        QSqlQuery d = m_db.exec(QStringLiteral("SELECT dir, count(*) FROM photo WHERE state != 'missing' AND private = 0 GROUP BY dir"));
+        // As trancadas (outra chave) também: a pessoa acha a pasta e digita a chave.
+        QSqlQuery d = m_db.exec(QStringLiteral("SELECT p.dir, count(*) FROM photo p WHERE p.state != 'missing' "
+                                               "AND (p.private = 0 OR %1) GROUP BY p.dir")
+                                    .arg(QLatin1String(kLockedPhotoSql)));
         while (d.next())
             ownCount.insert(d.value(0).toString(), d.value(1).toInt());
         // Pastas sem foto criadas ou esvaziadas no modo Pastas: aparecem também.
@@ -474,6 +477,10 @@ QString Catalog::nodeFilter(const QString &key, QVariantList &params) const
     } else {
         cond = QStringLiteral("1 = 1");
     }
+    // Pasta e disco mostram também as trancadas (outra chave, sem conteúdo
+    // no catálogo); o resto, só as públicas.
+    if (type == QLatin1String("dir") || type == QLatin1String("disk"))
+        return QStringLiteral("p.state != 'missing' AND (p.private = 0 OR %1) AND ").arg(QLatin1String(kLockedPhotoSql)) + cond;
     return QStringLiteral("p.state != 'missing' AND p.private = 0 AND ") + cond;
 }
 
@@ -575,12 +582,14 @@ GridRow Catalog::gridRow(const QSqlQuery &q)
     r.takenAt = q.value(6).toString();
     r.state = q.value(7).toString();
     r.isPrivate = q.value(8).toBool();
+    r.locked = q.value(9).toBool();
     return r;
 }
 
 namespace {
 
-const char *const kGridColumns = "p.id, p.name, p.thumb_path, p.width, p.height, p.is_raw, p.taken_at, p.state, p.private";
+const QString kGridColumns = QStringLiteral("p.id, p.name, p.thumb_path, p.width, p.height, p.is_raw, p.taken_at, p.state, "
+                                            "p.private, %1").arg(QLatin1String(kLockedPhotoSql));
 
 } // namespace
 
@@ -615,7 +624,7 @@ QString Catalog::photosSql(const GridQuery &query, QVariantList &params) const
         {QStringLiteral("folder"), QStringLiteral("p.dir, p.name COLLATE NOCASE")},
     };
     const QString order = orders.value(query.sort, orders.value(QStringLiteral("date-desc")));
-    return QStringLiteral("SELECT %1 FROM photo p WHERE %2 ORDER BY %3").arg(QLatin1String(kGridColumns), where, order);
+    return QStringLiteral("SELECT %1 FROM photo p WHERE %2 ORDER BY %3").arg(kGridColumns, where, order);
 }
 
 QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) const
@@ -628,11 +637,11 @@ QList<GridRow> Catalog::photosByIds(const QList<QPair<QString, float>> &ranked) 
         for (qsizetype i = 0; i < n; ++i)
             params << ranked[start + i].first;
         QSqlQuery q = m_db.exec(QStringLiteral("SELECT %1, p.dir FROM photo p WHERE p.state != 'missing' AND p.private = 0 AND p.id IN (%2)")
-                                    .arg(QLatin1String(kGridColumns), QStringList(n, QStringLiteral("?")).join(u',')),
+                                    .arg(kGridColumns, QStringList(n, QStringLiteral("?")).join(u',')),
                                 params);
         while (q.next()) {
             GridRow r = gridRow(q);
-            r.dir = q.value(9).toString();
+            r.dir = q.value(10).toString();
             rows.insert(r.id, r);
         }
     }

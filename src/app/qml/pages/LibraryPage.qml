@@ -109,6 +109,17 @@ Item {
         }, () => App.files.movePhotos(ids, dir));
     }
 
+    /// .photoidxe "trancado" (cifrado por outro catálogo): a pessoa digita
+    /// a chave daquele catálogo; as fotos abrem e são recifradas com a deste.
+    function askKey() {
+        page.passwords.gate(() => page.names.ask({
+            title: qsTr("Key of the other catalog"),
+            label: qsTr("Key"),
+            help: qsTr("These files were encrypted by another %1 catalog. Enter the key of that catalog (14 groups of 4 characters). The photos are opened and re-encrypted with the key of this catalog.").arg(App.brandName),
+            confirmLabel: qsTr("Unlock")
+        }, (text) => App.privacy.addKey(text)));
+    }
+
     function trashSelection() {
         const ids = page.selection();
         if (ids.length === 0)
@@ -849,8 +860,16 @@ Item {
                 showScore: page.copies || (App.library.aiSearch && App.library.search !== "")
                 showFolder: page.copies
                 visible: App.library.grid.count > 0 && !page.copies
-                onOpened: (photoId) => App.openPhoto(photoId)
-                onContextRequested: (index, cell) => photoMenu.popup(cell, cell.width / 2, cell.height / 2)
+                onOpened: (photoId) => App.library.grid.isLocked(photoId) ? page.askKey() : App.openPhoto(photoId)
+                onContextRequested: (index, cell) => {
+                    const id = App.library.grid.idAt(index);
+                    if (App.library.grid.isLocked(id)) {
+                        lockedMenu.photoId = id;
+                        lockedMenu.popup(cell, cell.width / 2, cell.height / 2);
+                    } else {
+                        photoMenu.popup(cell, cell.width / 2, cell.height / 2);
+                    }
+                }
                 Connections {
                     target: App.library
                     function onFocusRequested(index) {
@@ -1127,6 +1146,25 @@ Item {
         title: qsTr("Move to folder")
         onAccepted: page.moveSelectionTo(decodeURIComponent(String(selectedFolder).replace(/^file:\/\//, "")
                                                                 .replace(/^\/([A-Za-z]:)/, "$1")), moveDialog.ids)
+    }
+
+    // Menu de um .photoidxe trancado (outra chave): só o que não precisa abrir.
+    AppMenu {
+        id: lockedMenu
+        property string photoId: ""
+        AppMenuItem {
+            text: qsTr("Enter the key…")
+            onTriggered: page.askKey()
+        }
+        AppMenuItem {
+            text: qsTr("Show in file manager")
+            onTriggered: App.revealInFolder(App.photoPath(lockedMenu.photoId))
+        }
+        AppMenuSeparator {}
+        AppMenuItem {
+            text: qsTr("Move to Trash…")
+            onTriggered: page.trashSelection()
+        }
     }
 
     // Menu de uma foto na vista de cópias: abrir, mostrar na pasta e, para

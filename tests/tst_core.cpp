@@ -1224,6 +1224,64 @@ private slots:
         QCOMPARE(vault::unwrap(record, vault::passwordKey(record, QStringLiteral("nova")))->current(), key);
     }
 
+    void foreignKeyPhotos()
+    {
+        // .photoidxe cifrado por OUTRO catálogo: entra "trancado" (aparece na
+        // pasta, não no resto), a etapa "privacy" não insiste nele; com a
+        // chave daquele catálogo, é recifrado com a chave deste.
+        Catalog other;
+        other.open(QString());
+        const QByteArray otherKey = other.currentRing()->current();
+        const QString folder = m_photos.path() + QStringLiteral("/foreign");
+        const QString file = folder + QStringLiteral("/image1.photoidxe");
+        const QByteArray plain = crypto::randomBytes(5000);
+        writeFile(file, crypto::encryptBytes(otherKey, plain, QStringLiteral("image1.jpg")));
+
+        Catalog catalog;
+        catalog.open(QString());
+        QByteArray kek;
+        const vault::Ring ring = *catalog.currentRing();
+        catalog.storeVault(vault::protect(ring, QStringLiteral("pw"), 1000, &kek));
+        catalog.openVault(ring, kek);
+        const QString folderId = catalog.addFolder(folder);
+        FoundFile f;
+        f.path = file;
+        f.size = QFileInfo(file).size();
+        f.mtimeMs = 1000;
+        f.keyId = QString::fromLatin1(crypto::keyId(otherKey).toHex());
+        QCOMPARE(catalog.ingest(folderId, {f}), 1);
+
+        auto rows = [&](const QString &node) {
+            GridQuery q;
+            q.node = node;
+            return catalog.photos(q);
+        };
+        const QList<GridRow> inFolder = rows(QStringLiteral("dir:") + folder);
+        QCOMPARE(inFolder.size(), 1);
+        QVERIFY(inFolder[0].locked);
+        QCOMPARE(rows(QStringLiteral("all")).size(), 0);  // só na pasta
+        QCOMPARE(catalog.lockedCount(), 1);
+        QVERIFY(catalog.nextPrivacyJobs(10, {}).isEmpty());  // sem a chave, não tenta
+
+        // Chave errada (de nenhuma foto) e a certa.
+        bool unused = false;
+        try {
+            catalog.addKey(crypto::randomBytes(32));
+        } catch (const ActionError &e) {
+            unused = e.key() == QLatin1String("vault.keyUnused");
+        }
+        QVERIFY(unused);
+        QCOMPARE(catalog.addKey(otherKey), 1);
+        QCOMPARE(runPrivacyJobs(catalog), 1);
+        // Recifrado com a chave deste catálogo: abre só com ela.
+        const QByteArray mineId = catalog.currentRing()->currentId;
+        QCOMPARE(catalog.db().scalar(QStringLiteral("SELECT key_id FROM photo")).toString(), QString::fromLatin1(mineId.toHex()));
+        const auto opened = crypto::decryptFile({{mineId, catalog.currentRing()->current()}}, file);
+        QVERIFY(opened.has_value());
+        QCOMPARE(*opened, plain);
+        QCOMPARE(catalog.lockedCount(), 0);
+    }
+
     void privatePhotoLifecycle()
     {
         Catalog catalog;

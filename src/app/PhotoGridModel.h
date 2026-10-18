@@ -34,6 +34,7 @@ public:
         IsPrivateRole,
         FolderRole,             ///< só nas listas ranqueadas (cópias, busca por IA)
         SizeTextRole,           ///< "6000×4000"
+        LockedRole,             ///< .photoidxe de outra chave, nunca aberto
     };
 
     explicit PhotoGridModel(QObject *parent = nullptr);
@@ -52,6 +53,8 @@ public:
 
     Q_INVOKABLE QString idAt(int index) const;
     Q_INVOKABLE int indexOf(const QString &photoId) const;
+    /// .photoidxe "trancado" (outra chave): abrir pede a chave.
+    Q_INVOKABLE bool isLocked(const QString &photoId) const;
     /// Clique numa foto com os modificadores do evento (Qt.KeyboardModifiers).
     Q_INVOKABLE void click(int index, int modifiers);
     Q_INVOKABLE void selectAll();

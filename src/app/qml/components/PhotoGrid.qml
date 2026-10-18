@@ -138,6 +138,7 @@ GridView {
         required property string state
         required property string folder
         required property string sizeText
+        required property bool locked
 
         width: grid.cellWidth
         height: grid.cellHeight
@@ -170,10 +171,35 @@ GridView {
                 Behavior on opacity { NumberAnimation { duration: Theme.animationFast } }
             }
 
+            // Trancada: .photoidxe de outra chave (outro catálogo). Abrir
+            // pede a chave; com ela, a foto é recifrada com a deste catálogo.
+            Column {
+                anchors.centerIn: parent
+                width: parent.width - 16
+                visible: cell.locked
+                spacing: 6
+                Icon {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    name: "key-round"
+                    size: 24
+                    color: Theme.warning
+                }
+                Text {
+                    width: parent.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: qsTr("Encrypted with another key")
+                    font.pixelSize: Theme.fontXs
+                    color: Theme.mutedForeground
+                }
+            }
+
             // Sem miniatura (formato sem prévia, ainda indexando).
             Icon {
                 anchors.centerIn: parent
-                visible: cell.thumbUrl === "" || thumb.status === Image.Error
+                visible: !cell.locked && (cell.thumbUrl === "" || thumb.status === Image.Error)
                 name: cell.state === "pending" ? "loader-circle" : "image-off"
                 size: 24
                 color: Theme.mutedForeground

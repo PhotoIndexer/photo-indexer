@@ -56,6 +56,16 @@ struct State
     std::thread watcher;
     QTimer *beat = nullptr;
     QTimer *summary = nullptr;
+
+    // Saída sem stopWatchdog() (o main volta cedo: outra instância já
+    // aberta, a interface não carregou): uma std::thread ainda "joinable"
+    // no destrutor estático chama std::terminate e o app cai ao sair.
+    ~State()
+    {
+        running.store(false);
+        if (watcher.joinable())
+            watcher.join();
+    }
 };
 
 State &state()

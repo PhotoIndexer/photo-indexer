@@ -1875,6 +1875,22 @@
         <source>Over the years</source>
         <translation>Ao longo dos anos</translation>
     </message>
+    <message>
+        <source>Key of the other catalog</source>
+        <translation>Chave do outro catálogo</translation>
+    </message>
+    <message>
+        <source>Key</source>
+        <translation>Chave</translation>
+    </message>
+    <message>
+        <source>These files were encrypted by another %1 catalog. Enter the key of that catalog (14 groups of 4 characters). The photos are opened and re-encrypted with the key of this catalog.</source>
+        <translation>Estes arquivos foram cifrados por outro catálogo do %1. Digite a chave daquele catálogo (14 grupos de 4 caracteres). As fotos são abertas e recifradas com a chave deste catálogo.</translation>
+    </message>
+    <message>
+        <source>Enter the key…</source>
+        <translation>Digitar a chave…</translation>
+    </message>
 </context>
 <context>
     <name>Main</name>
@@ -2804,6 +2820,17 @@
         <source>Image saved to “%1”.</source>
         <translation>Imagem salva em “%1”.</translation>
     </message>
+    <message>
+        <source>This key is valid, but no photo in the catalog was encrypted with it.</source>
+        <translation>Esta chave é válida, mas nenhuma foto do catálogo foi cifrada com ela.</translation>
+    </message>
+    <message numerus="yes">
+        <source>Key accepted: %n photo(s) are being opened and re-encrypted with the key of this catalog. They will show up in Private photos.</source>
+        <translation>
+            <numerusform>Chave aceita: %n foto está sendo aberta e recifrada com a chave deste catálogo. Ela vai aparecer em Fotos privadas.</numerusform>
+            <numerusform>Chave aceita: %n fotos estão sendo abertas e recifradas com a chave deste catálogo. Elas vão aparecer em Fotos privadas.</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>Modal</name>
@@ -3154,6 +3181,13 @@
     <message>
         <source>Over the years</source>
         <translation>Ao longo dos anos</translation>
+    </message>
+</context>
+<context>
+    <name>PhotoGrid</name>
+    <message>
+        <source>Encrypted with another key</source>
+        <translation>Cifrada com outra chave</translation>
     </message>
 </context>
 <context>
