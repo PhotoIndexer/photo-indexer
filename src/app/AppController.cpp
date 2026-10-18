@@ -286,7 +286,7 @@ bool AppController::addFolder(const QUrl &folder)
     const QString path = folder.isLocalFile() ? folder.toLocalFile() : folder.toString();
     try {
         const QString id = m_catalog->addFolder(path);
-        m_pipeline->scan({id});
+        m_pipeline->scan({id}, true);
         readFolders();
         emit notice(QStringLiteral("folder.added"), {{QStringLiteral("path"), QDir::toNativeSeparators(path)}});
         return true;
@@ -328,7 +328,7 @@ void AppController::rescanFolder(const QString &folderId)
 {
     m_volumes.clear();  // força a sonda dos discos (fora da thread principal)
     checkVolumes();
-    m_pipeline->scan(folderId.isEmpty() ? QStringList() : QStringList{folderId});
+    m_pipeline->scan(folderId.isEmpty() ? QStringList() : QStringList{folderId}, !folderId.isEmpty());
 }
 
 void AppController::checkVolumes()

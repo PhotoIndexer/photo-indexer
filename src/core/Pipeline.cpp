@@ -313,6 +313,7 @@ Pipeline::Pipeline(Catalog *catalog, QObject *parent)
         m_stages.emplace(key, std::move(s));
     }
     m_interactive.setMaxThreadCount(1);
+    m_urgentPool.setMaxThreadCount(1);
     // Os pendentes de cada etapa são contagens no banco: no máximo a cada 2 s.
     m_pendingTimer.start();
     m_pumpTimer.setSingleShot(true);
@@ -359,6 +360,7 @@ Pipeline::~Pipeline()
     for (auto &[key, s] : m_stages)
         s.pool->waitForDone();
     m_interactive.waitForDone();
+    m_urgentPool.waitForDone();
 }
 
 int Pipeline::defaultMaxTasks()
@@ -536,6 +538,7 @@ void Pipeline::cancel(const QString &key)
     if (key == QLatin1String("search")) {
         m_scanCancel->store(true);
         m_scanQueue.clear();
+        m_urgent.clear();
         // Um flag novo para as próximas varreduras; as de agora veem o antigo.
         m_scanCancel = std::make_shared<std::atomic<bool>>(false);
     }
@@ -601,12 +604,22 @@ void Pipeline::pump()
     PIX_PERF("Pipeline::pump");
     // Searcher: uma pasta por thread do pool.
     Stage &search = stage(QStringLiteral("search"));
-    while (search.running && !m_scanQueue.isEmpty() && search.inFlight < search.threads && totalInFlight() < m_maxTasks) {
+    while (search.running && !m_scanQueue.isEmpty()) {
+        // As vagas normais (threads da etapa, no teto de tarefas); pedido da
+        // pessoa sem vaga normal livre: a vaga extra, se estiver livre.
+        const int normal = search.inFlight - int(m_urgentScanning.size());
+        const bool slot = normal < search.threads && totalInFlight() < m_maxTasks;
+        const bool extra = !slot && m_urgent.contains(m_scanQueue.first()) && m_urgentScanning.isEmpty();
+        if (!slot && !extra)
+            break;
         const QString folderId = m_scanQueue.takeFirst();
+        m_urgent.remove(folderId);
         const QString root = m_catalog->folderPath(folderId);
         if (root.isEmpty() || !QFileInfo(root).isDir())
             continue;
         m_scanning.insert(folderId);
+        if (extra)
+            m_urgentScanning.insert(folderId);
         ++search.inFlight;
         search.current = QDir::toNativeSeparators(root);
         QPointer<Pipeline> self(this);
@@ -615,7 +628,7 @@ void Pipeline::pump()
         // indexada, mesmo que a pessoa indexe a raiz do disco (C:\, /).
         const QString appData = QFileInfo(AppPaths::dataDir()).canonicalFilePath();
         const qint64 minBytes = m_catalog->setting(QStringLiteral("scan/minBytes"), kMinImageBytes).toLongLong();
-        runInPool(*search.pool, [self, folderId, root, cancelled, appData, minBytes]() {
+        runInPool(extra ? m_urgentPool : *search.pool, [self, folderId, root, cancelled, appData, minBytes]() {
             QSet<QString> seen;
             QList<FoundFile> batch;
             int found = 0;
@@ -639,6 +652,7 @@ void Pipeline::pump()
                             // Varredura cancelada no meio não marca nada como sumido.
                             const int missing = wasCancelled ? 0 : p.m_catalog->finishScan(folderId, seenCopy);
                             p.m_scanning.remove(folderId);
+                            p.m_urgentScanning.remove(folderId);
                             p.finished(st, folderId, !wasCancelled, p.m_catalog->folderPath(folderId));
                             qCInfo(lcPipeline) << "Scan of" << p.m_catalog->folderPath(folderId) << "done:" << found
                                                << "images," << missing << "missing" << (wasCancelled ? "(cancelled)" : "");
@@ -710,12 +724,22 @@ void Pipeline::pump()
     emitStatus();
 }
 
-void Pipeline::scan(const QStringList &folderIds)
+void Pipeline::scan(const QStringList &folderIds, bool urgent)
 {
     const QStringList ids = folderIds.isEmpty() ? m_catalog->folderIds() : folderIds;
-    for (const QString &id : ids)
-        if (!m_scanQueue.contains(id) && !m_scanning.contains(id))
+    int front = 0;
+    for (const QString &id : ids) {
+        if (m_scanning.contains(id))
+            continue;
+        if (urgent) {
+            // Na frente da fila, na ordem pedida.
+            m_scanQueue.removeAll(id);
+            m_scanQueue.insert(front++, id);
+            m_urgent.insert(id);
+        } else if (!m_scanQueue.contains(id)) {
             m_scanQueue << id;
+        }
+    }
     m_scanFound = 0;
     Stage &s = stage(QStringLiteral("search"));
     s.running = true;

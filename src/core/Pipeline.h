@@ -72,7 +72,12 @@ public:
     void pauseAll();
 
     /// Varre as pastas (todas, se vazio): arquivos novos, alterados e sumidos.
-    void scan(const QStringList &folderIds = {});
+    /// Varre as pastas (vazio = todas dos discos conectados, as menores
+    /// primeiro). ``urgent``: pedido da pessoa (pasta recém-adicionada,
+    /// "Revarrer"): vai para a frente da fila e, com as vagas ocupadas por
+    /// varreduras longas (um compartilhamento de rede de terabytes), roda numa
+    /// vaga extra — não espera horas atrás delas.
+    void scan(const QStringList &folderIds = {}, bool urgent = false);
     void start(const QString &stage);
     void pause(const QString &stage);
     /// Para a etapa e descarta o que estava na fila do pool.
@@ -172,6 +177,9 @@ private:
     // Searcher: pastas na fila e em varredura.
     QStringList m_scanQueue;
     QSet<QString> m_scanning;
+    QSet<QString> m_urgent;          ///< pedidas pela pessoa (frente da fila)
+    QSet<QString> m_urgentScanning;  ///< rodando na vaga extra
+    QThreadPool m_urgentPool;        ///< a vaga extra (uma thread)
     std::shared_ptr<std::atomic<bool>> m_scanCancel = std::make_shared<std::atomic<bool>>(false);
     int m_scanFound = 0;
 

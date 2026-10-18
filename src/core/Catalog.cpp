@@ -269,7 +269,10 @@ QString Catalog::folderPath(const QString &folderId) const
 QStringList Catalog::folderIds() const
 {
     QStringList out;
-    QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.id FROM folder f JOIN disk d ON d.id = f.disk_id WHERE d.online = 1"));
+    // As menores primeiro (fotos da última varredura): uma pasta pequena não
+    // espera atrás de um compartilhamento de rede de terabytes.
+    QSqlQuery q = m_db.exec(QStringLiteral("SELECT f.id FROM folder f JOIN disk d ON d.id = f.disk_id WHERE d.online = 1 "
+                                           "ORDER BY (SELECT count(*) FROM photo p WHERE p.folder_id = f.id), f.path"));
     while (q.next())
         out << q.value(0).toString();
     return out;

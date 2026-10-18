@@ -673,6 +673,21 @@ private slots:
         QCOMPARE(catalog.rejectPersonInPhotos(person, {photos[0]}), 0);  // já não é dela
     }
 
+    void scanSmallFoldersFirst()
+    {
+        // A varredura geral começa pelas pastas menores: uma pasta nova não
+        // fica atrás de um compartilhamento de rede enorme.
+        Catalog catalog;
+        catalog.open(QString());
+        seedPhotos(catalog, 5, m_photos.path() + QStringLiteral("/big"));
+        const QString small = m_photos.path() + QStringLiteral("/small");
+        QDir().mkpath(small);
+        const QString smallId = catalog.addFolder(small);
+        const QStringList ids = catalog.folderIds();
+        QCOMPARE(ids.size(), 2);
+        QCOMPARE(ids.first(), smallId);
+    }
+
     void keyedListModelUpdates()
     {
         // Atualização sem reset (as grades não voltam ao topo): qualquer
